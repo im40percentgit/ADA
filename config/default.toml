@@ -1,0 +1,31 @@
+[llm]
+provider = "claude"
+model = "claude-sonnet-4-5-20250514"
+max_tokens = 1024
+temperature = 0.7
+
+[llm.claude]
+api_key_env = "ANTHROPIC_API_KEY"
+
+[llm.openai_compat]
+base_url = "http://localhost:8080/v1"
+api_key_env = "OPENAI_API_KEY"
+model = "local-model"
+
+[agents.therapist]
+enabled = true
+
+[agents.crisis_monitor]
+enabled = true
+
+[api]
+host = "0.0.0.0"
+port = 8000
+cors_origins = ["http://localhost:5173"]
+
+[database]
+path = "data/ada.db"
+
+[logging]
+level = "INFO"
+format = "console"
