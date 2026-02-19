@@ -1,6 +1,6 @@
 # Ada — Multi-Agent Mental Health AI System
 
-Conversational therapy, cognitive assessment, crisis detection, and caregiver coordination.
+A multi-agent AI system that provides Conversational therapy, cognitive assessment, crisis detection, and caregiver coordination.
 Part of the CerebrumCraft ecosystem.
 
 ## Quick Start
