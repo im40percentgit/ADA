@@ -2,24 +2,26 @@
 
 ## Original User Request
 
-Build a full Phase 1 backend for Ada, a multi-agent mental health AI system. The system
-provides real-time therapeutic conversation, structured psychological assessment (PHQ-9,
-GAD-7, WHO-5), crisis detection and escalation, and caregiver coordination. The backend
-must include an EventBus (adapted from CerebrumCraft patterns), SQLite state manager,
-LLM provider abstraction (Claude + OpenAI-compat), two specialised agents (TherapistAgent
-and CrisisMonitorAgent), FastAPI with WebSocket streaming, and a full pytest test suite.
-Part of the CerebrumCraft ecosystem.
+Mental health care suffers from fragmented, snapshot-based assessment tools (MMSE, MoCA) that treat cognition as a frozen metric. Patients with Alzheimer's, dementia, depression, substance abuse, and anger disorders need continuous, personalized support — not quarterly checkups. Caregivers are overwhelmed and under-supported.
+
+Build Ada — a multi-agent AI system that provides conversational therapy, cognitive assessment, crisis detection, medication management, and caregiver coordination. Web-first, mobile shell later for sensors. Claude primary LLM with pluggable OpenAI-compatible backend (llama.cpp/vLLM/LM Studio). Phase 1 focuses on the conversational therapy agent. Reference CerebrumCoin patterns but build our own codebase.
 
 ---
 
 ## Project Overview
 
-**Ada** is a multi-agent mental health AI system.
+**Ada** is a multi-agent mental health AI system providing conversational therapy, cognitive assessment, crisis detection, medication management, and caregiver coordination. Named after Ada Lovelace — analytical, empathetic, pioneering.
+
+Ada lives within the **CerebrumCraft** ecosystem alongside CerebrumCoin, inheriting its battle-tested async event bus, plugin lifecycle, and state persistence patterns.
 
 **Repository:** https://github.com/im40percentgit/ADA.git
-**Stack:** Python 3.11+, FastAPI, SQLite/aiosqlite, Anthropic SDK, Pydantic v2, structlog
+**Stack:** Python 3.12+, FastAPI, SQLite/aiosqlite, Anthropic SDK, Pydantic v2, React + TypeScript + Vite
 
 ### Architecture
+
+```
+User → WebSocket → FastAPI → EventBus → [TherapistAgent + CrisisMonitor] → LLMProvider → Response
+```
 
 ```
 ada/
@@ -31,8 +33,21 @@ ada/
     models/        Pydantic domain models (Patient, Session, Message, Assessment)
     api/           FastAPI app + WebSocket + REST routes
   config/          TOML configuration files
-  tests/           pytest-asyncio unit + integration tests
+  tests/           pytest-asyncio unit + integration tests (185 passing)
+  web/             React + TypeScript + Vite frontend
 ```
+
+### Resources
+
+| Resource | Path | Purpose |
+|----------|------|---------|
+| Config | `config/default.toml` | Default configuration |
+| Event types | `ada/core/events.py` | All event definitions |
+| Agent base | `ada/agents/base.py` | BaseAgent ABC |
+| LLM providers | `ada/llm/` | Provider abstraction |
+| API routes | `ada/api/routes/` | All endpoints |
+| Frontend | `web/src/` | React components |
+| Tests | `tests/` | 185 unit + integration tests |
 
 ---
 
@@ -45,108 +60,100 @@ ada/
 - Two-stage crisis detection (keyword scan + LLM analysis) with severity escalation
 - SQLite-backed persistent state for patients, sessions, messages, and assessments
 - Pluggable LLM providers (Claude native + OpenAI-compat for local models)
-- Full async backend ready for React frontend integration
+- Multi-agent architecture expandable to cognitive assessment, medication management, caregiver coordination
 
-### Non-Goals
+### Non-Goals (Phase 1)
 
-- Real authentication (JWT structure placeholder only in Phase 1)
+- Real authentication (JWT structure placeholder only)
 - Multi-tenancy or cloud deployment configuration
 - Video/audio modalities
 - EHR/EMR integration
 
 ---
 
-## Requirements
-
-### Must-Have (P0)
-
-| ID | Requirement |
-|----|-------------|
-| REQ-P0-001 | EventBus with async pub/sub, string-based event types |
-| REQ-P0-002 | SQLite state manager with patients/sessions/messages/assessments/crisis_alerts schema |
-| REQ-P0-003 | LLMProvider ABC with ClaudeProvider and OpenAICompatProvider implementations |
-| REQ-P0-004 | TherapistAgent with CBT/DBT/MI prompting and session continuity |
-| REQ-P0-005 | CrisisMonitorAgent with two-stage detection and severity levels (LOW/MODERATE/HIGH/CRITICAL) |
-| REQ-P0-006 | PHQ-9, GAD-7, WHO-5 scoring with correct severity thresholds |
-| REQ-P0-007 | FastAPI app with WebSocket /ws/chat/{session_id} and REST CRUD endpoints |
-| REQ-P0-008 | All tests pass (unit + integration) via pytest-asyncio |
-
-### Should-Have (P1)
-
-| ID | Requirement |
-|----|-------------|
-| REQ-P1-001 | Mood detection from conversation content |
-| REQ-P1-002 | Assessment history tracker |
-| REQ-P1-003 | Crisis alert persistence to SQLite |
-| REQ-P1-004 | CORS restricted to localhost origins |
-| REQ-P1-005 | Structured logging with structlog (no PII) |
-
-### Nice-to-Have (P2)
-
-| ID | Requirement |
-|----|-------------|
-| REQ-P2-001 | Agent error isolation in registry (one failure doesn't crash others) |
-| REQ-P2-002 | TOML config with env var overrides for API keys |
-
----
-
-## Success Metrics
-
-- `pytest tests/` exits 0 with all tests passing
-- WebSocket endpoint accepts connections and streams responses
-- Crisis keywords trigger detection pipeline within the same message cycle
-- PHQ-9/GAD-7/WHO-5 scoring matches published instrument scoring rubrics
-
----
-
 ## Phases
 
-### Phase 1 — Backend Foundation
+### Phase 1 — Conversational Therapy MVP
+**Status:** `completed`
+**Commits:** `090eb3b` (backend), `d84f7ee` (frontend)
 
-**Status:** in-progress
-
-**Goal:** Full backend Python implementation: EventBus, state, LLM abstraction, agents, assessment, API, tests.
-
-**Issues:**
-- #2 Implement Phase 1 backend (core + agents + API)
-- #4 Write unit and integration tests
-
-**Definition of Done:**
-- REQ-P0-001 through REQ-P0-008 all satisfied
-- REQ-P1-001 through REQ-P1-005 implemented
-- `pytest tests/` passes with no failures
-
----
-
-### Phase 2 — Frontend
-
-**Status:** planned
-
-**Goal:** React + TypeScript frontend consuming the Phase 1 WebSocket and REST API.
-
-**Issues:**
-- #3 Implement Phase 1 frontend (React + TypeScript)
+| Deliverable | Status |
+|-------------|--------|
+| EventBus (adapted from CerebrumCoin) | Done |
+| Pydantic config with TOML + env vars | Done |
+| SQLite state manager (5 tables) | Done |
+| LLM provider abstraction (Claude + OpenAI-compat) | Done |
+| BaseAgent ABC + AgentRegistry | Done |
+| TherapistAgent (CBT/DBT/MI) | Done |
+| CrisisMonitorAgent (two-stage) | Done |
+| Assessment instruments (PHQ-9, GAD-7, WHO-5) | Done |
+| FastAPI + WebSocket chat + REST CRUD | Done |
+| React frontend (chat, assessments, mood chart, crisis alerts) | Done |
+| Unit + integration tests (185 passing) | Done |
 
 ---
 
-### Phase 3 — Verification
+### Phase 2 — Multi-Agent Expansion
+**Status:** `planned`
 
-**Status:** planned
+| Deliverable | Description |
+|-------------|-------------|
+| Cognitive Assessor agent | Dynamic cognitive screening beyond MMSE/MoCA |
+| Medication Manager agent | Track medications, reminders, interactions |
+| Appointment Manager agent | Scheduling integration |
+| Caregiver dashboard | Real-time notifications, patient status |
+| Patient knowledge graph | Cross-session insights, pattern detection |
+| JWT authentication | Real auth replacing Phase 1 placeholder |
+| Inter-agent communication | Structured handoffs between agents |
 
-**Goal:** End-to-end live verification with real LLM calls.
+---
 
-**Issues:**
-- #5 End-to-end verification
+### Phase 3 — Intelligence Layer
+**Status:** `planned`
+
+| Deliverable | Description |
+|-------------|-------------|
+| Emotion analysis (text NLP) | Sentiment beyond keyword matching |
+| Knowledge Agent | Evidence-based clinical retrieval (RAG) |
+| Inter-agent handoff protocol | Formal handoff with context transfer |
+| Clinical evidence integration | Treatment guideline awareness |
+| Session summarization | Automatic session notes for clinicians |
+
+---
+
+### Phase 4 — Multimodal & Mobile
+**Status:** `planned`
+
+| Deliverable | Description |
+|-------------|-------------|
+| Voice emotion (RAVDESS-based) | Audio sentiment analysis |
+| Facial emotion (Swin Transformer) | Webcam-based affect detection |
+| Mobile shell (PWA/React Native) | Native mobile experience |
+| IoT sensors (GSR, pulse oximeter) | Physiological data integration |
+| Edge computing | Low-latency inference at device |
 
 ---
 
 ## Decision Log
 
-| ID | Title | Status |
-|----|-------|--------|
-| DEC-CORE-001 | String-based event types over enum | accepted |
-| DEC-CORE-002 | SQLite via aiosqlite for state | accepted |
-| DEC-LLM-001 | Abstract LLMProvider with Claude + OpenAI-compat | accepted |
-| DEC-AGENT-001 | Two-stage crisis detection (keyword then LLM) | accepted |
-| DEC-AGENT-002 | Safety-first — always err toward higher severity | accepted |
-| DEC-API-001 | JWT auth placeholder only in Phase 1 | accepted |
+| ID | Decision | Rationale | Phase |
+|----|----------|-----------|-------|
+| DEC-CORE-001 | String-based event types over enum | More flexible for dynamic agent registration | 1 |
+| DEC-CORE-002 | Per-subscriber queues with asyncio.Queue | Isolates slow subscribers from fast publishers | 1 |
+| DEC-LLM-001 | Abstract LLMProvider with Claude + OpenAI-compat | Supports both cloud and local models | 1 |
+| DEC-AGENT-001 | Two-stage crisis detection (keyword → LLM) | Fast keyword catch + nuanced LLM for edge cases | 1 |
+| DEC-AGENT-002 | Safety-first — always err toward higher severity | Missed CRITICAL is catastrophic; false positive is mild | 1 |
+| DEC-API-001 | JWT auth placeholder only in Phase 1 | Structure wired, real validation deferred to Phase 2 | 1 |
+| DEC-STATE-001 | SQLite via aiosqlite | Zero-ops, async-compatible, swappable later | 1 |
+| DEC-FRONTEND-001–010 | React + Vite, Recharts, CSS modules | See `web/` source files for individual @decision annotations | 1 |
+
+---
+
+## Security Posture
+
+- API keys in env vars only (`api_key_env` pattern — config stores var name, not value)
+- SQLite in `data/` (gitignored)
+- No PII in logs
+- CORS restricted to localhost
+- Crisis alerts always persisted for audit trail
+- Phase 2: JWT auth, rate limiting, input sanitization
