@@ -1,0 +1,172 @@
+/**
+ * Ada frontend — shared TypeScript interfaces
+ *
+ * These mirror the Pydantic models from the backend (ada/models/).
+ * Keep in sync when backend domain models change.
+ *
+ * @decision DEC-FRONTEND-001
+ * @title Shared TypeScript types mirror backend Pydantic models
+ * @status accepted
+ * @rationale Co-locating all domain interfaces in a single types/index.ts
+ *   gives components a single import point and makes backend drift visible
+ *   in one place. PHQ-9 and GAD-7 question arrays are defined here (not in
+ *   components) so AssessmentForm and any future consumers share the canonical
+ *   question text without duplication.
+ */
+
+// ---------------------------------------------------------------------------
+// Domain models
+// ---------------------------------------------------------------------------
+
+export interface Patient {
+  id: string
+  name: string
+  created_at: string
+}
+
+export interface Session {
+  id: string
+  patient_id: string
+  started_at: string
+  ended_at: string | null
+  summary: string | null
+}
+
+export interface Message {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  agent: string | null
+}
+
+export interface Assessment {
+  id: string
+  patient_id: string
+  session_id: string | null
+  instrument: 'phq9' | 'gad7' | 'who5'
+  scores: number[]
+  total_score: number
+  severity: string
+  created_at: string
+}
+
+export interface MoodDataPoint {
+  date: string
+  score: number
+  session_id: string
+}
+
+// ---------------------------------------------------------------------------
+// WebSocket message types (backend → frontend)
+// ---------------------------------------------------------------------------
+
+export interface WsTokenMessage {
+  type: 'token'
+  content: string
+}
+
+export interface WsCompleteMessage {
+  type: 'message'
+  content: string
+  agent: string
+}
+
+export interface WsCrisisAlert {
+  type: 'crisis_alert'
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  message: string
+  hotline: string
+}
+
+export interface WsAssessmentPrompt {
+  type: 'assessment_prompt'
+  instrument: 'phq9' | 'gad7' | 'who5'
+  questions: string[]
+}
+
+export interface WsErrorMessage {
+  type: 'error'
+  message: string
+}
+
+export type WsInboundMessage =
+  | WsTokenMessage
+  | WsCompleteMessage
+  | WsCrisisAlert
+  | WsAssessmentPrompt
+  | WsErrorMessage
+
+// ---------------------------------------------------------------------------
+// UI-only chat message (combines streaming + complete states)
+// ---------------------------------------------------------------------------
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  agent?: string
+  /** True while tokens are still streaming in */
+  streaming?: boolean
+  timestamp: Date
+}
+
+// ---------------------------------------------------------------------------
+// Assessment form
+// ---------------------------------------------------------------------------
+
+export type AssessmentInstrument = 'phq9' | 'gad7'
+
+export interface AssessmentQuestion {
+  index: number
+  text: string
+}
+
+export const PHQ9_QUESTIONS: AssessmentQuestion[] = [
+  { index: 0, text: 'Little interest or pleasure in doing things' },
+  { index: 1, text: 'Feeling down, depressed, or hopeless' },
+  { index: 2, text: 'Trouble falling or staying asleep, or sleeping too much' },
+  { index: 3, text: 'Feeling tired or having little energy' },
+  { index: 4, text: 'Poor appetite or overeating' },
+  { index: 5, text: 'Feeling bad about yourself — or that you are a failure or have let yourself or your family down' },
+  { index: 6, text: 'Trouble concentrating on things, such as reading the newspaper or watching television' },
+  { index: 7, text: 'Moving or speaking so slowly that other people could have noticed. Or the opposite — being so fidgety or restless' },
+  { index: 8, text: 'Thoughts that you would be better off dead or of hurting yourself in some way' },
+]
+
+export const GAD7_QUESTIONS: AssessmentQuestion[] = [
+  { index: 0, text: 'Feeling nervous, anxious or on edge' },
+  { index: 1, text: 'Not being able to stop or control worrying' },
+  { index: 2, text: 'Worrying too much about different things' },
+  { index: 3, text: 'Trouble relaxing' },
+  { index: 4, text: 'Being so restless that it is hard to sit still' },
+  { index: 5, text: 'Becoming easily annoyed or irritable' },
+  { index: 6, text: 'Feeling afraid as if something awful might happen' },
+]
+
+export const SCORE_LABELS = [
+  'Not at all',
+  'Several days',
+  'More than half the days',
+  'Nearly every day',
+]
+
+// ---------------------------------------------------------------------------
+// API request/response types
+// ---------------------------------------------------------------------------
+
+export interface CreatePatientRequest {
+  name: string
+}
+
+export interface CreateSessionRequest {
+  patient_id: string
+}
+
+export interface SubmitAssessmentRequest {
+  patient_id: string
+  session_id: string | null
+  instrument: AssessmentInstrument
+  scores: number[]
+}
