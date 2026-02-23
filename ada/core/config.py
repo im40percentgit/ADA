@@ -72,6 +72,34 @@ class AgentsConfig(BaseModel):
     crisis_monitor: AgentConfig = AgentConfig()
 
 
+class AuthConfig(BaseModel):
+    """JWT authentication settings.
+
+    The signing secret is read from an env var at runtime — never stored in config files.
+    """
+
+    secret_key_env: str = "ADA_JWT_SECRET"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+    enabled: bool = True  # Set False in tests via dependency override
+
+    @property
+    def secret_key(self) -> str:
+        import os
+        key = os.environ.get(self.secret_key_env, "")
+        if not key:
+            # In development fall back to an insecure default so the server
+            # starts without configuration; warn loudly.
+            import logging
+            logging.getLogger(__name__).warning(
+                "ADA_JWT_SECRET not set — using insecure dev default. "
+                "Set this env var in production."
+            )
+            return "dev-insecure-secret-change-in-production"
+        return key
+
+
 class APIConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
@@ -108,6 +136,7 @@ class AdaConfig(BaseSettings):
     llm: LLMConfig = LLMConfig()
     agents: AgentsConfig = AgentsConfig()
     api: APIConfig = APIConfig()
+    auth: AuthConfig = AuthConfig()
     database: DatabaseConfig = DatabaseConfig()
     logging: LoggingConfig = LoggingConfig()
 

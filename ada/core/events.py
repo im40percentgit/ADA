@@ -54,6 +54,17 @@ class EventTypes:
     # Mood
     MOOD_DETECTED = "mood.detected"
 
+    # Inter-agent handoff
+    AGENT_HANDOFF_REQUEST = "agent.handoff.request"
+    AGENT_HANDOFF_RESPONSE = "agent.handoff.response"
+
+    # Knowledge graph
+    KNOWLEDGE_INSIGHT_EXTRACTED = "knowledge.insight_extracted"
+
+    # Agent consultation (lightweight, non-handoff)
+    AGENT_CONSULTATION_REQUEST = "agent.consultation.request"
+    AGENT_CONSULTATION_RESPONSE = "agent.consultation.response"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -151,3 +162,67 @@ class MoodDetectedEvent(AdaEvent):
     patient_id: str = ""
     mood_score: float = 5.0        # 1-10 scale
     mood_label: str = ""
+
+
+@dataclass
+class AgentHandoffRequestEvent(AdaEvent):
+    """
+    Published by an agent that wants to hand off context to another agent.
+
+    @decision DEC-AGENT-003
+    @title AgentHandoff via EventBus AgentHandoffRequestEvent
+    @status accepted
+    @rationale Keeps agents fully decoupled. The requesting agent publishes
+        a handoff request with target_agent and a context payload. Any agent
+        subscribed to AGENT_HANDOFF_REQUEST that matches target_agent will
+        respond. This is consistent with the existing event-driven design
+        and requires no direct agent-to-agent references.
+    """
+
+    event_type: str = EventTypes.AGENT_HANDOFF_REQUEST
+    session_id: str = ""
+    patient_id: str = ""
+    from_agent: str = ""           # name of requesting agent
+    target_agent: str = ""         # name of intended recipient
+    handoff_reason: str = ""       # human-readable reason
+    context: dict = field(default_factory=dict)   # arbitrary context payload
+    request_id: str = ""           # correlation ID for matching response
+
+
+@dataclass
+class AgentHandoffResponseEvent(AdaEvent):
+    """Published by the receiving agent to acknowledge a handoff request."""
+
+    event_type: str = EventTypes.AGENT_HANDOFF_RESPONSE
+    session_id: str = ""
+    patient_id: str = ""
+    from_agent: str = ""           # agent that handled the handoff
+    request_id: str = ""           # matches AgentHandoffRequestEvent.request_id
+    accepted: bool = True
+    notes: str = ""                # optional response notes
+
+
+@dataclass
+class AgentConsultationRequestEvent(AdaEvent):
+    """Published when an agent wants advice from another without full handoff."""
+
+    event_type: str = EventTypes.AGENT_CONSULTATION_REQUEST
+    session_id: str = ""
+    patient_id: str = ""
+    from_agent: str = ""
+    target_agent: str = ""
+    question: str = ""
+    context: dict = field(default_factory=dict)
+    request_id: str = ""
+
+
+@dataclass
+class AgentConsultationResponseEvent(AdaEvent):
+    """Published in response to a consultation request."""
+
+    event_type: str = EventTypes.AGENT_CONSULTATION_RESPONSE
+    session_id: str = ""
+    patient_id: str = ""
+    from_agent: str = ""
+    request_id: str = ""
+    answer: str = ""

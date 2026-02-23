@@ -64,6 +64,11 @@ export function useWebSocket({
     wsRef.current = ws
 
     ws.onopen = () => {
+      // Send auth token as first message before marking connection open
+      const token = localStorage.getItem('ADA_ACCESS_TOKEN')
+      if (token) {
+        ws.send(JSON.stringify({ type: 'auth', token }))
+      }
       setStatus('open')
     }
 

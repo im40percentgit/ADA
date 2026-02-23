@@ -5,16 +5,25 @@ Streams therapist responses in real time. The WebSocket receives user
 messages, publishes them to the EventBus, and forwards MESSAGE_SENT
 and MESSAGE_STREAM_CHUNK events back to the client.
 
+Authentication protocol (Phase 2):
+    After connection is accepted, the client must send within 5 seconds:
+        {"type": "auth", "token": "<JWT access token>"}
+    If the message is missing, malformed, or the token is invalid the
+    connection is closed with code 4001.  All subsequent messages use the
+    normal chat protocol.
+
 @decision DEC-API-001
-@title JWT auth placeholder only in Phase 1
+@title WebSocket auth via first-message token exchange
 @status accepted
-@rationale Auth header is accepted but not validated in Phase 1.
-    The dependency is wired so Phase 2 can slot in real JWT validation
-    without changing route signatures.
+@rationale HTTP headers are not reliably settable from browser WebSocket
+    APIs.  The standard pattern for browser WebSockets is to send the
+    token as the first message after connection is accepted.  A 5-second
+    timeout ensures unauthenticated connections are closed quickly.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -52,11 +61,31 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
     await websocket.accept()
     logger.info("WebSocket: session %s connected", session_id)
 
+    # --- Auth handshake: first message must be {"type":"auth","token":"..."} ---
+    config = websocket.app.state.config
+    from ada.api.auth import decode_token
+    import jwt as _jwt
+
+    try:
+        raw_auth = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+        auth_msg = json.loads(raw_auth)
+        if auth_msg.get("type") != "auth" or not auth_msg.get("token"):
+            raise ValueError("Missing auth type or token")
+        token = auth_msg["token"]
+        payload = decode_token(token, config.auth.secret_key, config.auth.algorithm)
+        if payload.get("type") != "access":
+            raise ValueError("Wrong token type")
+    except (asyncio.TimeoutError, Exception) as exc:
+        logger.warning("WebSocket: auth failed for session %s — %s", session_id, exc)
+        await websocket.close(code=4001)
+        return
+
+    logger.info("WebSocket: session %s authenticated (user=%s)", session_id, payload.get("sub"))
+
     bus = websocket.app.state.bus
     state_manager = websocket.app.state.state_manager
 
     # Collect responses for this session via a local subscription
-    import asyncio
     response_queue: asyncio.Queue = asyncio.Queue()
 
     async def on_message_sent(event: MessageSentEvent) -> None:

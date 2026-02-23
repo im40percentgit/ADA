@@ -94,7 +94,19 @@ ada/
 ---
 
 ### Phase 2 — Multi-Agent Expansion
-**Status:** `planned`
+**Status:** `in_progress`
+**Branch:** `feature/phase2a`
+
+#### Phase 2a (in progress)
+
+| Deliverable | Status | Issue |
+|-------------|--------|-------|
+| JWT authentication | in_progress | #2 |
+| Inter-agent communication protocol | in_progress | #3 |
+| Patient knowledge graph | in_progress | #4 |
+| Auth UI (React login/register) | in_progress | #5 |
+
+#### Phase 2b (planned)
 
 | Deliverable | Description |
 |-------------|-------------|
@@ -102,9 +114,6 @@ ada/
 | Medication Manager agent | Track medications, reminders, interactions |
 | Appointment Manager agent | Scheduling integration |
 | Caregiver dashboard | Real-time notifications, patient status |
-| Patient knowledge graph | Cross-session insights, pattern detection |
-| JWT authentication | Real auth replacing Phase 1 placeholder |
-| Inter-agent communication | Structured handoffs between agents |
 
 ---
 
@@ -136,16 +145,50 @@ ada/
 
 ## Decision Log
 
-| ID | Decision | Rationale | Phase |
-|----|----------|-----------|-------|
-| DEC-CORE-001 | String-based event types over enum | More flexible for dynamic agent registration | 1 |
-| DEC-CORE-002 | Per-subscriber queues with asyncio.Queue | Isolates slow subscribers from fast publishers | 1 |
-| DEC-LLM-001 | Abstract LLMProvider with Claude + OpenAI-compat | Supports both cloud and local models | 1 |
-| DEC-AGENT-001 | Two-stage crisis detection (keyword → LLM) | Fast keyword catch + nuanced LLM for edge cases | 1 |
-| DEC-AGENT-002 | Safety-first — always err toward higher severity | Missed CRITICAL is catastrophic; false positive is mild | 1 |
-| DEC-API-001 | JWT auth placeholder only in Phase 1 | Structure wired, real validation deferred to Phase 2 | 1 |
-| DEC-STATE-001 | SQLite via aiosqlite | Zero-ops, async-compatible, swappable later | 1 |
-| DEC-FRONTEND-001–010 | React + Vite, Recharts, CSS modules | See `web/` source files for individual @decision annotations | 1 |
+### Phase 1 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-CORE-001 | String-based event types over enum | More flexible for dynamic agent registration | accepted |
+| DEC-CORE-002 | SQLite via aiosqlite; per-subscriber queues | Zero-ops async state; isolates slow subscribers | accepted |
+| DEC-LLM-001 | Abstract LLMProvider with Claude + OpenAI-compat | Supports both cloud and local models | accepted |
+| DEC-AGENT-001 | Two-stage crisis detection (keyword → LLM) | Fast keyword catch + nuanced LLM for edge cases | accepted |
+| DEC-AGENT-002 | Safety-first — always err toward higher severity | Missed CRITICAL is catastrophic; false positive is mild | accepted |
+| DEC-API-001 | JWT auth placeholder only in Phase 1 | Structure wired, real validation deferred to Phase 2 | superseded by DEC-AUTH-001 |
+| DEC-STATE-001 | SQLite via aiosqlite | Zero-ops, async-compatible, swappable later | accepted |
+| DEC-TEST-001 | pytest-asyncio auto mode; real SQLite `:memory:` | Real behaviour, no mocks for internal modules | accepted |
+| DEC-TEST-002 | CrisisMonitor tests use keyword + mock LLM paths | Both detection stages tested independently | accepted |
+| DEC-TEST-003 | LLM provider tests use real providers with httpx mocks | Only external HTTP boundary is mocked | accepted |
+| DEC-TEST-004 | TherapistAgent tests wire full EventBus stack | Ensures event routing matches real runtime | accepted |
+| DEC-TEST-005 | Integration fixtures use real in-memory SQLite + EventBus | Full agent wiring exercised, zero setup overhead | accepted |
+| DEC-TEST-006 | Crisis pipeline integration uses canned LLM | Deterministic end-to-end without API keys | accepted |
+| DEC-FRONTEND-001 | TypeScript strict types for all API responses | Catches API contract drift at compile time | accepted |
+| DEC-FRONTEND-002 | Thin fetch wrapper — no axios/React Query | Small surface stable in Phase 1; migrate if API grows | accepted |
+| DEC-FRONTEND-003 | useWebSocket owns connection lifecycle; useChat owns state | Separates transport from application-level protocol | accepted |
+| DEC-FRONTEND-004 | useChat: optimistic local state + server reconciliation | Immediate feedback while awaiting WS response | accepted |
+| DEC-FRONTEND-005 | CrisisAlert component polls REST, not EventBus | WebSocket carries chat only; polling is simpler and auditable | accepted |
+| DEC-FRONTEND-006 | AssessmentForm: step-by-step instrument UI | One question at a time reduces cognitive load | accepted |
+| DEC-FRONTEND-007 | MoodChart uses Recharts LineChart | Minimal bundle overhead, composable API | accepted |
+| DEC-FRONTEND-008 | SessionList calls /api/patients/{id}/sessions | Follows RESTful nesting, matches backend route | accepted |
+| DEC-FRONTEND-009 | Chat input uses uncontrolled ref + Enter-to-send | Avoids re-render on every keystroke | accepted |
+| DEC-FRONTEND-010 | Hardcoded DEMO_PATIENT_ID in Phase 1 — no auth | Auth out of scope for Phase 1; replaced in Phase 2 | superseded by DEC-AUTH-002 |
+
+### Phase 2 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-AUTH-001 | JWT HS256 with access+refresh tokens via PyJWT | Standard, dependency-light, swappable to RS256 | accepted |
+| DEC-AUTH-002 | FastAPI Depends(get_current_user) — dependency override in tests | Clean injection, no global state, testable without real tokens | accepted |
+| DEC-AUTH-003 | pwdlib[argon2] for password hashing | Argon2 is recommended best practice; pwdlib is small and async-safe | accepted |
+| DEC-AGENT-003 | AgentHandoff via EventBus AgentHandoffRequestEvent | Keeps agents decoupled; handoff is just another event | accepted |
+| DEC-KNOWLEDGE-001 | Knowledge graph stored as nodes+edges in SQLite | No external graph DB needed for Phase 2 scale; recursive CTE for traversal | accepted |
+| DEC-KNOWLEDGE-002 | Knowledge endpoints are read-only REST; writes happen via EventBus | Centralises extraction logic; prevents unvalidated client writes to graph | accepted |
+| DEC-KNOWLEDGE-003 | KnowledgeExtractor subscribes to SESSION_ENDED — not a BaseAgent subclass | Infrastructure class, not a therapy agent; keeps agent registry clean | accepted |
+| DEC-KNOWLEDGE-004 | Lenient JSON extraction with regex fallback for LLM responses | LLMs occasionally wrap JSON in code fences; fail-open keeps extraction best-effort | accepted |
+| DEC-TEST-007 | Phase 2a integration test wires real EventBus + KnowledgeExtractor | Proves REST layer and event layer work end-to-end; no module-boundary mocks | accepted |
+| DEC-FRONTEND-003 | useWebSocket hook owns connection lifecycle; useChat owns message state | Separates transport from application-level protocol | accepted |
+| DEC-FRONTEND-011 | localStorage for token storage — no httpOnly cookie in Phase 2 | Pragmatic for SPA + separate API origin; XSS risk accepted for non-production prototype | accepted |
+| DEC-FRONTEND-012 | useAuth holds auth state at App root — no global context in Phase 2 | No need for Context + Provider at this scale; hook can be wrapped if needed later | accepted |
 
 ---
 

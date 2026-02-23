@@ -13,13 +13,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
-
-from ada.assessment.instruments import score_instrument
-from ada.models.assessment import AssessmentCreate, AssessmentResult
-
 import uuid
 from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from ada.api.auth import get_current_user
+from ada.assessment.instruments import score_instrument
+from ada.models.assessment import AssessmentCreate, AssessmentResult
+from ada.models.user import User
 
 router = APIRouter(tags=["assessments"])
 
@@ -30,7 +32,9 @@ def _state(request: Request):
 
 @router.post("/assessments", response_model=AssessmentResult, status_code=201)
 async def submit_assessment(
-    body: AssessmentCreate, request: Request
+    body: AssessmentCreate,
+    request: Request,
+    _user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
     Score and persist an assessment instrument.
@@ -61,6 +65,7 @@ async def get_assessments(
     patient_id: str,
     request: Request,
     instrument: str | None = None,
+    _user: User = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """Get assessment history for a patient, optionally filtered by instrument."""
     if instrument and instrument not in ("phq9", "gad7", "who5"):
@@ -72,7 +77,11 @@ async def get_assessments(
 
 
 @router.get("/patients/{patient_id}/mood-history")
-async def get_mood_history(patient_id: str, request: Request) -> list[dict[str, Any]]:
+async def get_mood_history(
+    patient_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     """
     Get mood history for a patient derived from WHO-5 assessments.
 
@@ -92,7 +101,9 @@ async def get_mood_history(patient_id: str, request: Request) -> list[dict[str, 
 
 @router.get("/patients/{patient_id}/crisis-alerts")
 async def get_crisis_alerts(
-    patient_id: str, request: Request
+    patient_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """Get crisis alert history for a patient."""
     return await _state(request).get_crisis_alerts(patient_id)

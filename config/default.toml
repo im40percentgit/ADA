@@ -18,6 +18,11 @@ enabled = true
 [agents.crisis_monitor]
 enabled = true
 
+[auth]
+jwt_secret_env = "ADA_JWT_SECRET"
+access_token_ttl_minutes = 30
+refresh_token_ttl_days = 7
+
 [api]
 host = "0.0.0.0"
 port = 8000
