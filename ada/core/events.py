@@ -65,6 +65,11 @@ class EventTypes:
     AGENT_CONSULTATION_REQUEST = "agent.consultation.request"
     AGENT_CONSULTATION_RESPONSE = "agent.consultation.response"
 
+    # Medication management
+    MEDICATION_ADDED = "medication.added"
+    MEDICATION_UPDATED = "medication.updated"
+    MEDICATION_INTERACTION_DETECTED = "medication.interaction_detected"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -226,3 +231,34 @@ class AgentConsultationResponseEvent(AdaEvent):
     from_agent: str = ""
     request_id: str = ""
     answer: str = ""
+
+
+@dataclass
+class MedicationAddedEvent(AdaEvent):
+    """Published when a medication record is created for a patient."""
+
+    event_type: str = EventTypes.MEDICATION_ADDED
+    patient_id: str = ""
+    medication_id: str = ""
+    medication_name: str = ""
+
+
+@dataclass
+class MedicationUpdatedEvent(AdaEvent):
+    """Published when a medication record is updated."""
+
+    event_type: str = EventTypes.MEDICATION_UPDATED
+    patient_id: str = ""
+    medication_id: str = ""
+    medication_name: str = ""
+
+
+@dataclass
+class MedicationInteractionDetectedEvent(AdaEvent):
+    """Published when the MedicationManagerAgent detects a potential drug interaction."""
+
+    event_type: str = EventTypes.MEDICATION_INTERACTION_DETECTED
+    patient_id: str = ""
+    new_medication: str = ""
+    existing_medications: list = field(default_factory=list)
+    interaction_notes: str = ""

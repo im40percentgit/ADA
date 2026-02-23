@@ -18,6 +18,9 @@ enabled = true
 [agents.crisis_monitor]
 enabled = true
 
+[agents.medication_manager]
+enabled = true
+
 [auth]
 jwt_secret_env = "ADA_JWT_SECRET"
 access_token_ttl_minutes = 30

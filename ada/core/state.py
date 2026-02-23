@@ -128,6 +128,21 @@ CREATE TABLE IF NOT EXISTS knowledge_snapshots (
     created_at  TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS medications (
+    id              TEXT PRIMARY KEY,
+    patient_id      TEXT NOT NULL REFERENCES patients(id),
+    name            TEXT NOT NULL,
+    dosage          TEXT,
+    frequency       TEXT,
+    start_date      TEXT,
+    end_date        TEXT,
+    notes           TEXT,
+    prescribed_by   TEXT,
+    active          INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -140,6 +155,7 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_nodes_patient ON knowledge_nodes(patient_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_edges_patient ON knowledge_edges(patient_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_snapshots_patient ON knowledge_snapshots(patient_id);
+CREATE INDEX IF NOT EXISTS idx_medications_patient ON medications(patient_id);
 """
 
 
@@ -604,6 +620,82 @@ class StateManager:
         return [_knowledge_snapshot_row(r) for r in rows]
 
     # ------------------------------------------------------------------
+    # Medications
+    # ------------------------------------------------------------------
+
+    async def create_medication(self, medication: dict[str, Any]) -> None:
+        """Insert a new medication record."""
+        now = _now()
+        await self._exec(
+            """INSERT INTO medications
+               (id, patient_id, name, dosage, frequency, start_date, end_date,
+                notes, prescribed_by, active, created_at, updated_at)
+               VALUES
+               (:id, :patient_id, :name, :dosage, :frequency, :start_date, :end_date,
+                :notes, :prescribed_by, :active, :created_at, :updated_at)""",
+            {
+                "dosage": None,
+                "frequency": None,
+                "start_date": None,
+                "end_date": None,
+                "notes": None,
+                "prescribed_by": None,
+                "active": 1,
+                **medication,
+                "created_at": medication.get("created_at", now),
+                "updated_at": medication.get("updated_at", now),
+            },
+        )
+
+    async def list_medications(
+        self, patient_id: str, active_only: bool = False
+    ) -> list[dict[str, Any]]:
+        """Return all medications for a patient, optionally filtered to active only."""
+        if active_only:
+            rows = await self._fetchall(
+                "SELECT * FROM medications WHERE patient_id = ? AND active = 1 ORDER BY created_at DESC",
+                (patient_id,),
+            )
+        else:
+            rows = await self._fetchall(
+                "SELECT * FROM medications WHERE patient_id = ? ORDER BY created_at DESC",
+                (patient_id,),
+            )
+        return [_medication_row(r) for r in rows]
+
+    async def get_medication(self, medication_id: str) -> dict[str, Any] | None:
+        """Return a single medication by ID."""
+        row = await self._fetchone(
+            "SELECT * FROM medications WHERE id = ?", (medication_id,)
+        )
+        return _medication_row(row) if row else None
+
+    async def update_medication(
+        self, medication_id: str, updates: dict[str, Any]
+    ) -> None:
+        """Update allowed fields on a medication record."""
+        allowed = {
+            "name", "dosage", "frequency", "start_date", "end_date",
+            "notes", "prescribed_by", "active",
+        }
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        if not fields:
+            return
+        fields["updated_at"] = _now()
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await self._exec(
+            f"UPDATE medications SET {set_clause} WHERE id = :id",
+            {**fields, "id": medication_id},
+        )
+
+    async def deactivate_medication(self, medication_id: str) -> None:
+        """Mark a medication as inactive (soft delete)."""
+        await self._exec(
+            "UPDATE medications SET active = 0, updated_at = :updated_at WHERE id = :id",
+            {"id": medication_id, "updated_at": _now()},
+        )
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -654,6 +746,13 @@ def _knowledge_node_row(row: aiosqlite.Row) -> dict[str, Any]:
 def _knowledge_snapshot_row(row: aiosqlite.Row) -> dict[str, Any]:
     d = dict(row)
     d["snapshot"] = json.loads(d.get("snapshot") or "{}")
+    return d
+
+
+def _medication_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize a medications row — converts active INTEGER to bool."""
+    d = dict(row)
+    d["active"] = bool(d.get("active", 1))
     return d
 
 

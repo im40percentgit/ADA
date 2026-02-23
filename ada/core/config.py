@@ -70,6 +70,7 @@ class AgentConfig(BaseModel):
 class AgentsConfig(BaseModel):
     therapist: AgentConfig = AgentConfig()
     crisis_monitor: AgentConfig = AgentConfig()
+    medication_manager: AgentConfig = AgentConfig()
 
 
 class AuthConfig(BaseModel):

@@ -32,6 +32,7 @@ import structlog
 import uvicorn
 
 from ada.agents.crisis_monitor import CrisisMonitorAgent
+from ada.agents.medication_manager import MedicationManagerAgent
 from ada.agents.registry import AgentRegistry
 from ada.agents.therapist import TherapistAgent
 from ada.api.app import create_app
@@ -99,6 +100,10 @@ async def run(config: AdaConfig) -> None:
     if config.agents.crisis_monitor.enabled:
         registry.register(CrisisMonitorAgent())
         log.info("CrisisMonitorAgent registered")
+
+    if config.agents.medication_manager.enabled:
+        registry.register(MedicationManagerAgent())
+        log.info("MedicationManagerAgent registered")
 
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))
