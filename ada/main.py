@@ -31,6 +31,7 @@ from pathlib import Path
 import structlog
 import uvicorn
 
+from ada.agents.cognitive_assessor import CognitiveAssessorAgent
 from ada.agents.crisis_monitor import CrisisMonitorAgent
 from ada.agents.medication_manager import MedicationManagerAgent
 from ada.agents.registry import AgentRegistry
@@ -104,6 +105,10 @@ async def run(config: AdaConfig) -> None:
     if config.agents.medication_manager.enabled:
         registry.register(MedicationManagerAgent())
         log.info("MedicationManagerAgent registered")
+
+    if config.agents.cognitive_assessor.enabled:
+        registry.register(CognitiveAssessorAgent())
+        log.info("CognitiveAssessorAgent registered")
 
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))

@@ -70,6 +70,10 @@ class EventTypes:
     MEDICATION_UPDATED = "medication.updated"
     MEDICATION_INTERACTION_DETECTED = "medication.interaction_detected"
 
+    # Cognitive assessment
+    COGNITIVE_SCREENING_STARTED = "cognitive.screening_started"
+    COGNITIVE_SCREENING_COMPLETED = "cognitive.screening_completed"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -262,3 +266,25 @@ class MedicationInteractionDetectedEvent(AdaEvent):
     new_medication: str = ""
     existing_medications: list = field(default_factory=list)
     interaction_notes: str = ""
+
+
+@dataclass
+class CognitiveScreeningStartedEvent(AdaEvent):
+    """Published when an adaptive cognitive screening session begins."""
+
+    event_type: str = EventTypes.COGNITIVE_SCREENING_STARTED
+    session_id: str = ""
+    patient_id: str = ""
+    screening_id: str = ""
+
+
+@dataclass
+class CognitiveScreeningCompletedEvent(AdaEvent):
+    """Published when an adaptive cognitive screening session is scored and saved."""
+
+    event_type: str = EventTypes.COGNITIVE_SCREENING_COMPLETED
+    session_id: str = ""
+    patient_id: str = ""
+    screening_id: str = ""
+    overall_score: float = 0.0
+    concerns: list = field(default_factory=list)

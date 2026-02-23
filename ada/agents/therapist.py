@@ -66,6 +66,7 @@ _ASSESSMENT_TRIGGER_PHRASES = [
     "gad", "gad7", "gad-7", "anxiety questionnaire",
     "who5", "who-5", "wellbeing index",
     "fill out", "complete a", "take a questionnaire", "assessment",
+    "cognitive", "memory test", "brain check",
 ]
 
 _MEDICATION_KEYWORDS = {
@@ -254,6 +255,13 @@ class TherapistAgent(BaseAgent, HandoffMixin):
                 elif "who" in phrase or "wellbeing" in phrase:
                     instrument = "who5"
                 break
+
+        # Handle cognitive triggers separately from the standard instrument loop
+        if instrument is None:
+            for phrase in ("cognitive", "memory test", "brain check"):
+                if phrase in lower:
+                    instrument = "cognitive"
+                    break
 
         if instrument:
             await self.bus.publish(

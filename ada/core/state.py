@@ -1,5 +1,6 @@
 """
-SQLite state manager for Ada — patients, sessions, messages, assessments, crisis alerts.
+SQLite state manager for Ada — patients, sessions, messages, assessments, crisis alerts,
+medications, knowledge graph, and cognitive screenings.
 
 Uses aiosqlite for async access. A single StateManager instance is shared across
 all agents via dependency injection at startup.
@@ -10,6 +11,16 @@ all agents via dependency injection at startup.
 @rationale Lightweight, zero-dependency, async-compatible. Suitable for
     single-process deployment in Phase 1. Schema is straightforward enough
     that an ORM adds more complexity than it removes.
+
+@decision DEC-ASSESS-001
+@title Separate cognitive_screenings table from assessment_results
+@status accepted
+@rationale Standard instruments (PHQ-9, GAD-7, WHO-5) produce a fixed set of
+    integer item scores and a scalar total. Adaptive cognitive screenings produce
+    variable-length task arrays with domain breakdowns, per-task rationales, and
+    an overall float score. Merging these into assessment_results would require
+    nullable columns and type discrimination logic throughout the codebase.
+    A dedicated table keeps each schema clean and independently evolvable.
 """
 
 from __future__ import annotations
@@ -142,6 +153,21 @@ CREATE TABLE IF NOT EXISTS medications (
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS cognitive_screenings (
+    id              TEXT PRIMARY KEY,
+    patient_id      TEXT NOT NULL REFERENCES patients(id),
+    session_id      TEXT REFERENCES sessions(id),
+    status          TEXT NOT NULL DEFAULT 'in_progress',
+    domains         TEXT NOT NULL DEFAULT '{}',
+    tasks           TEXT NOT NULL DEFAULT '[]',
+    overall_score   REAL,
+    concerns        TEXT NOT NULL DEFAULT '[]',
+    started_at      TEXT NOT NULL,
+    completed_at    TEXT,
+    created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cognitive_screenings_patient ON cognitive_screenings(patient_id);
 
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
@@ -696,6 +722,72 @@ class StateManager:
         )
 
     # ------------------------------------------------------------------
+    # Cognitive screenings
+    # ------------------------------------------------------------------
+
+    async def create_cognitive_screening(self, screening: dict[str, Any]) -> None:
+        """Insert a new cognitive screening record."""
+        now = _now()
+        await self._exec(
+            """INSERT INTO cognitive_screenings
+               (id, patient_id, session_id, status, domains, tasks,
+                overall_score, concerns, started_at, completed_at, created_at)
+               VALUES
+               (:id, :patient_id, :session_id, :status, :domains, :tasks,
+                :overall_score, :concerns, :started_at, :completed_at, :created_at)""",
+            {
+                "session_id": None,
+                "status": "in_progress",
+                "domains": "{}",
+                "tasks": "[]",
+                "overall_score": None,
+                "concerns": "[]",
+                "completed_at": None,
+                **screening,
+                "domains": json.dumps(screening.get("domains", {})),
+                "tasks": json.dumps(screening.get("tasks", [])),
+                "concerns": json.dumps(screening.get("concerns", [])),
+                "started_at": screening.get("started_at", now),
+                "created_at": screening.get("created_at", now),
+            },
+        )
+
+    async def get_cognitive_screening(self, screening_id: str) -> dict[str, Any] | None:
+        """Return a single cognitive screening by ID."""
+        row = await self._fetchone(
+            "SELECT * FROM cognitive_screenings WHERE id = ?", (screening_id,)
+        )
+        return _cognitive_screening_row(row) if row else None
+
+    async def list_cognitive_screenings(self, patient_id: str) -> list[dict[str, Any]]:
+        """Return all cognitive screenings for a patient, newest first."""
+        rows = await self._fetchall(
+            "SELECT * FROM cognitive_screenings WHERE patient_id = ? ORDER BY created_at DESC",
+            (patient_id,),
+        )
+        return [_cognitive_screening_row(r) for r in rows]
+
+    async def update_cognitive_screening(
+        self, screening_id: str, updates: dict[str, Any]
+    ) -> None:
+        """Update allowed fields on a cognitive screening record."""
+        allowed = {
+            "status", "domains", "tasks", "overall_score", "concerns", "completed_at",
+        }
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        # JSON-serialize complex fields
+        for key in ("domains", "tasks", "concerns"):
+            if key in fields and not isinstance(fields[key], str):
+                fields[key] = json.dumps(fields[key])
+        if not fields:
+            return
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await self._exec(
+            f"UPDATE cognitive_screenings SET {set_clause} WHERE id = :id",
+            {**fields, "id": screening_id},
+        )
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -753,6 +845,15 @@ def _medication_row(row: aiosqlite.Row) -> dict[str, Any]:
     """Deserialize a medications row — converts active INTEGER to bool."""
     d = dict(row)
     d["active"] = bool(d.get("active", 1))
+    return d
+
+
+def _cognitive_screening_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize a cognitive_screenings row — JSON-decode domains, tasks, concerns."""
+    d = dict(row)
+    d["domains"] = json.loads(d.get("domains") or "{}")
+    d["tasks"] = json.loads(d.get("tasks") or "[]")
+    d["concerns"] = json.loads(d.get("concerns") or "[]")
     return d
 
 
