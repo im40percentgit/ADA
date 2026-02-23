@@ -15,9 +15,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from ada.api.auth import get_current_user
 from ada.models.patient import Patient, PatientCreate, PatientUpdate
+from ada.models.user import User
 
 router = APIRouter(tags=["patients"])
 
@@ -27,7 +29,11 @@ def _state(request: Request):
 
 
 @router.post("/patients", response_model=Patient, status_code=201)
-async def create_patient(body: PatientCreate, request: Request) -> dict[str, Any]:
+async def create_patient(
+    body: PatientCreate,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     """Create a new patient record."""
     patient = Patient(
         id=str(uuid.uuid4()),
@@ -46,13 +52,20 @@ async def create_patient(body: PatientCreate, request: Request) -> dict[str, Any
 
 
 @router.get("/patients", response_model=list[Patient])
-async def list_patients(request: Request) -> list[dict[str, Any]]:
+async def list_patients(
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     """List all patients."""
     return await _state(request).list_patients()
 
 
 @router.get("/patients/{patient_id}", response_model=Patient)
-async def get_patient(patient_id: str, request: Request) -> dict[str, Any]:
+async def get_patient(
+    patient_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     """Get a single patient by ID."""
     patient = await _state(request).get_patient(patient_id)
     if not patient:
@@ -62,7 +75,10 @@ async def get_patient(patient_id: str, request: Request) -> dict[str, Any]:
 
 @router.patch("/patients/{patient_id}", response_model=Patient)
 async def update_patient(
-    patient_id: str, body: PatientUpdate, request: Request
+    patient_id: str,
+    body: PatientUpdate,
+    request: Request,
+    _user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Update patient fields."""
     existing = await _state(request).get_patient(patient_id)

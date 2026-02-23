@@ -79,10 +79,67 @@ CREATE TABLE IF NOT EXISTS crisis_alerts (
     timestamp           TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id              TEXT PRIMARY KEY,
+    email           TEXT NOT NULL UNIQUE,
+    hashed_password TEXT NOT NULL,
+    role            TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user','clinician','admin')),
+    patient_id      TEXT REFERENCES patients(id),
+    created_at      TEXT NOT NULL,
+    is_active       INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    token_id    TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    expires_at  TEXT NOT NULL,
+    revoked     INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_nodes (
+    id            TEXT PRIMARY KEY,
+    patient_id    TEXT NOT NULL REFERENCES patients(id),
+    node_type     TEXT NOT NULL,
+    label         TEXT NOT NULL,
+    properties    TEXT NOT NULL DEFAULT '{}',
+    mention_count INTEGER NOT NULL DEFAULT 1,
+    confidence    REAL NOT NULL DEFAULT 0.5,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_edges (
+    id            TEXT PRIMARY KEY,
+    patient_id    TEXT NOT NULL REFERENCES patients(id),
+    from_node     TEXT NOT NULL REFERENCES knowledge_nodes(id),
+    to_node       TEXT NOT NULL REFERENCES knowledge_nodes(id),
+    relation      TEXT NOT NULL,
+    weight        REAL NOT NULL DEFAULT 1.0,
+    mention_count INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_snapshots (
+    id          TEXT PRIMARY KEY,
+    patient_id  TEXT NOT NULL REFERENCES patients(id),
+    session_id  TEXT REFERENCES sessions(id),
+    snapshot    TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
+
+-- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
+-- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
+
 CREATE INDEX IF NOT EXISTS idx_sessions_patient ON sessions(patient_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_patient ON assessment_results(patient_id);
 CREATE INDEX IF NOT EXISTS idx_crisis_patient ON crisis_alerts(patient_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_nodes_patient ON knowledge_nodes(patient_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_edges_patient ON knowledge_edges(patient_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_snapshots_patient ON knowledge_snapshots(patient_id);
 """
 
 
@@ -104,6 +161,21 @@ class StateManager:
         self._conn = await aiosqlite.connect(self._db_path)
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(_SCHEMA)
+        await self._conn.commit()
+        # Idempotent migrations for columns added in Phase 2a.
+        # ALTER TABLE IF NOT EXISTS is not supported by SQLite, so we swallow
+        # the "duplicate column" OperationalError.
+        _migrations = [
+            "ALTER TABLE knowledge_nodes ADD COLUMN mention_count INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE knowledge_nodes ADD COLUMN confidence REAL NOT NULL DEFAULT 0.5",
+            "ALTER TABLE knowledge_edges ADD COLUMN mention_count INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE knowledge_edges ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
+        ]
+        for stmt in _migrations:
+            try:
+                await self._conn.execute(stmt)
+            except Exception:
+                pass  # column already exists — safe to ignore
         await self._conn.commit()
         logger.info("StateManager: initialized at %s", self._db_path)
 
@@ -267,6 +339,271 @@ class StateManager:
         return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
+    # Users
+    # ------------------------------------------------------------------
+
+    async def create_user(self, user: dict[str, Any]) -> None:
+        await self._exec(
+            """INSERT INTO users (id, email, hashed_password, role, patient_id, created_at, is_active)
+               VALUES (:id, :email, :hashed_password, :role, :patient_id, :created_at, :is_active)""",
+            {
+                "role": "user",
+                "patient_id": None,
+                "is_active": 1,
+                **user,
+                "created_at": user.get("created_at", _now()),
+            },
+        )
+
+    async def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        row = await self._fetchone("SELECT * FROM users WHERE email = ?", (email,))
+        return dict(row) if row else None
+
+    async def get_user_by_id(self, user_id: str) -> dict[str, Any] | None:
+        row = await self._fetchone("SELECT * FROM users WHERE id = ?", (user_id,))
+        return dict(row) if row else None
+
+    # ------------------------------------------------------------------
+    # Refresh tokens
+    # ------------------------------------------------------------------
+
+    async def save_refresh_token(self, token: dict[str, Any]) -> None:
+        await self._exec(
+            """INSERT INTO refresh_tokens (token_id, user_id, expires_at, revoked)
+               VALUES (:token_id, :user_id, :expires_at, :revoked)""",
+            {"revoked": 0, **token},
+        )
+
+    async def get_refresh_token(self, token_id: str) -> dict[str, Any] | None:
+        row = await self._fetchone(
+            "SELECT * FROM refresh_tokens WHERE token_id = ?", (token_id,)
+        )
+        return dict(row) if row else None
+
+    async def revoke_refresh_token(self, token_id: str) -> None:
+        await self._exec(
+            "UPDATE refresh_tokens SET revoked = 1 WHERE token_id = ?", (token_id,)
+        )
+
+    # ------------------------------------------------------------------
+    # Knowledge graph
+    # ------------------------------------------------------------------
+
+    async def upsert_knowledge_node(self, node: dict[str, Any]) -> None:
+        """Insert or update a knowledge node.
+
+        On conflict (same id), increments mention_count and refreshes
+        properties, confidence, and updated_at. This is how the extractor
+        accumulates evidence for recurring concepts across sessions.
+        """
+        now = _now()
+        await self._exec(
+            """INSERT INTO knowledge_nodes
+                   (id, patient_id, node_type, label, properties, mention_count, confidence, created_at, updated_at)
+               VALUES
+                   (:id, :patient_id, :node_type, :label, :properties, :mention_count, :confidence, :created_at, :updated_at)
+               ON CONFLICT(id) DO UPDATE SET
+                   label        = excluded.label,
+                   properties   = excluded.properties,
+                   mention_count = mention_count + 1,
+                   confidence   = excluded.confidence,
+                   updated_at   = excluded.updated_at""",
+            {
+                "mention_count": 1,
+                "confidence": 0.5,
+                **node,
+                "properties": json.dumps(node.get("properties", {})),
+                "created_at": node.get("created_at", now),
+                "updated_at": node.get("updated_at", now),
+            },
+        )
+
+    async def upsert_knowledge_node_by_label(
+        self, patient_id: str, node_type: str, label: str,
+        properties: dict | None = None, confidence: float = 0.5,
+    ) -> str:
+        """Upsert a knowledge node by (patient_id, node_type, label) natural key.
+
+        Returns the node id (existing or newly created).  The upsert increments
+        mention_count on conflict so the extractor need not manage UUIDs.
+        """
+        # Fetch existing node by natural key
+        row = await self._fetchone(
+            "SELECT id FROM knowledge_nodes WHERE patient_id = ? AND node_type = ? AND label = ?",
+            (patient_id, node_type, label),
+        )
+        now = _now()
+        if row:
+            node_id: str = row["id"]
+            await self._exec(
+                """UPDATE knowledge_nodes
+                   SET mention_count = mention_count + 1,
+                       confidence    = :confidence,
+                       properties    = :properties,
+                       updated_at    = :updated_at
+                   WHERE id = :id""",
+                {
+                    "id": node_id,
+                    "confidence": confidence,
+                    "properties": json.dumps(properties or {}),
+                    "updated_at": now,
+                },
+            )
+            return node_id
+        else:
+            import uuid
+            node_id = str(uuid.uuid4())
+            await self._exec(
+                """INSERT INTO knowledge_nodes
+                       (id, patient_id, node_type, label, properties, mention_count, confidence, created_at, updated_at)
+                   VALUES (:id, :patient_id, :node_type, :label, :properties, :mention_count, :confidence, :created_at, :updated_at)""",
+                {
+                    "id": node_id,
+                    "patient_id": patient_id,
+                    "node_type": node_type,
+                    "label": label,
+                    "properties": json.dumps(properties or {}),
+                    "mention_count": 1,
+                    "confidence": confidence,
+                    "created_at": now,
+                    "updated_at": now,
+                },
+            )
+            return node_id
+
+    async def upsert_knowledge_edge(self, edge: dict[str, Any]) -> None:
+        """Insert or update a knowledge edge.
+
+        On conflict (same id), increments mention_count and updates weight.
+        """
+        now = _now()
+        await self._exec(
+            """INSERT INTO knowledge_edges
+                   (id, patient_id, from_node, to_node, relation, weight, mention_count, created_at, updated_at)
+               VALUES (:id, :patient_id, :from_node, :to_node, :relation, :weight, :mention_count, :created_at, :updated_at)
+               ON CONFLICT(id) DO UPDATE SET
+                   relation      = excluded.relation,
+                   weight        = excluded.weight,
+                   mention_count = mention_count + 1,
+                   updated_at    = excluded.updated_at""",
+            {
+                "weight": 1.0,
+                "mention_count": 1,
+                **edge,
+                "created_at": edge.get("created_at", now),
+                "updated_at": edge.get("updated_at", now),
+            },
+        )
+
+    async def upsert_knowledge_edge_by_rel(
+        self, patient_id: str, from_node: str, to_node: str, relation: str,
+        weight: float = 1.0,
+    ) -> str:
+        """Upsert a knowledge edge by (from_node, to_node, relation) natural key.
+
+        Returns the edge id.  Increments mention_count on conflict.
+        """
+        row = await self._fetchone(
+            """SELECT id FROM knowledge_edges
+               WHERE patient_id = ? AND from_node = ? AND to_node = ? AND relation = ?""",
+            (patient_id, from_node, to_node, relation),
+        )
+        now = _now()
+        if row:
+            edge_id: str = row["id"]
+            await self._exec(
+                """UPDATE knowledge_edges
+                   SET mention_count = mention_count + 1, weight = :weight, updated_at = :updated_at
+                   WHERE id = :id""",
+                {"id": edge_id, "weight": weight, "updated_at": now},
+            )
+            return edge_id
+        else:
+            import uuid
+            edge_id = str(uuid.uuid4())
+            await self._exec(
+                """INSERT INTO knowledge_edges
+                       (id, patient_id, from_node, to_node, relation, weight, mention_count, created_at, updated_at)
+                   VALUES (:id, :patient_id, :from_node, :to_node, :relation, :weight, :mention_count, :created_at, :updated_at)""",
+                {
+                    "id": edge_id,
+                    "patient_id": patient_id,
+                    "from_node": from_node,
+                    "to_node": to_node,
+                    "relation": relation,
+                    "weight": weight,
+                    "mention_count": 1,
+                    "created_at": now,
+                    "updated_at": now,
+                },
+            )
+            return edge_id
+
+    async def get_knowledge_nodes(self, patient_id: str) -> list[dict[str, Any]]:
+        """Return all knowledge nodes for a patient."""
+        rows = await self._fetchall(
+            "SELECT * FROM knowledge_nodes WHERE patient_id = ? ORDER BY mention_count DESC, created_at ASC",
+            (patient_id,),
+        )
+        return [_knowledge_node_row(r) for r in rows]
+
+    async def get_knowledge_edges(self, patient_id: str) -> list[dict[str, Any]]:
+        """Return all knowledge edges for a patient."""
+        rows = await self._fetchall(
+            "SELECT * FROM knowledge_edges WHERE patient_id = ? ORDER BY created_at ASC",
+            (patient_id,),
+        )
+        return [dict(r) for r in rows]
+
+    async def get_knowledge_node(self, node_id: str) -> dict[str, Any] | None:
+        """Return a single knowledge node by id."""
+        row = await self._fetchone(
+            "SELECT * FROM knowledge_nodes WHERE id = ?", (node_id,)
+        )
+        return _knowledge_node_row(row) if row else None
+
+    async def get_knowledge_snapshots_for_node(self, node_id: str) -> list[dict[str, Any]]:
+        """Return all snapshots for a given node, ordered by created_at."""
+        rows = await self._fetchall(
+            "SELECT * FROM knowledge_snapshots WHERE snapshot LIKE ? ORDER BY created_at ASC",
+            (f'%"node_id": "{node_id}"%',),
+        )
+        return [_knowledge_snapshot_row(r) for r in rows]
+
+    async def get_knowledge_graph(self, patient_id: str) -> dict[str, Any]:
+        """Return the full knowledge graph (nodes + edges) for a patient."""
+        node_rows = await self._fetchall(
+            "SELECT * FROM knowledge_nodes WHERE patient_id = ? ORDER BY created_at ASC",
+            (patient_id,),
+        )
+        edge_rows = await self._fetchall(
+            "SELECT * FROM knowledge_edges WHERE patient_id = ? ORDER BY created_at ASC",
+            (patient_id,),
+        )
+        nodes = [_knowledge_node_row(r) for r in node_rows]
+        edges = [dict(r) for r in edge_rows]
+        return {"nodes": nodes, "edges": edges}
+
+    async def save_knowledge_snapshot(self, snapshot: dict[str, Any]) -> None:
+        await self._exec(
+            """INSERT INTO knowledge_snapshots (id, patient_id, session_id, snapshot, created_at)
+               VALUES (:id, :patient_id, :session_id, :snapshot, :created_at)""",
+            {
+                "session_id": None,
+                **snapshot,
+                "snapshot": json.dumps(snapshot.get("snapshot", {})),
+                "created_at": snapshot.get("created_at", _now()),
+            },
+        )
+
+    async def list_knowledge_snapshots(self, patient_id: str) -> list[dict[str, Any]]:
+        rows = await self._fetchall(
+            "SELECT * FROM knowledge_snapshots WHERE patient_id = ? ORDER BY created_at DESC",
+            (patient_id,),
+        )
+        return [_knowledge_snapshot_row(r) for r in rows]
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -305,6 +642,18 @@ def _message_row(row: aiosqlite.Row) -> dict[str, Any]:
 def _assessment_row(row: aiosqlite.Row) -> dict[str, Any]:
     d = dict(row)
     d["item_scores"] = json.loads(d.get("item_scores") or "[]")
+    return d
+
+
+def _knowledge_node_row(row: aiosqlite.Row) -> dict[str, Any]:
+    d = dict(row)
+    d["properties"] = json.loads(d.get("properties") or "{}")
+    return d
+
+
+def _knowledge_snapshot_row(row: aiosqlite.Row) -> dict[str, Any]:
+    d = dict(row)
+    d["snapshot"] = json.loads(d.get("snapshot") or "{}")
     return d
 
 

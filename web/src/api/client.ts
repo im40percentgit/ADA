@@ -5,6 +5,11 @@
  * with JSON serialization. WebSocket lifecycle is managed by the useWebSocket
  * hook; this module only exports the URL builder used by that hook.
  *
+ * Auth: the request() helper reads the stored access token from localStorage
+ * and injects it as an Authorization: Bearer header. On a 401 response it
+ * attempts a single token refresh via auth.refresh(), then retries once.
+ * Auth-path requests (/api/auth/*) are never retried to avoid infinite loops.
+ *
  * @decision DEC-FRONTEND-002
  * @title Thin API client with direct fetch — no axios/query library
  * @status accepted
@@ -12,6 +17,15 @@
  *   1 WebSocket path). A thin fetch wrapper keeps the bundle small and avoids
  *   pulling in React Query or SWR before the API surface stabilises. If the
  *   endpoint count grows significantly in Phase 2, migrate to React Query.
+ *
+ * @decision DEC-FRONTEND-004
+ * @title 401 refresh-retry in request() — single retry, auth routes excluded
+ * @status accepted
+ * @rationale Auto-refresh on 401 gives seamless UX for expired access tokens
+ *   without requiring every call-site to handle token expiry. A single retry
+ *   prevents infinite loops. Auth routes are excluded by path prefix check —
+ *   if the refresh itself 401s, the error propagates to the caller (useAuth
+ *   will then call logout()).
  */
 
 import type {
@@ -23,6 +37,7 @@ import type {
   CreateSessionRequest,
   SubmitAssessmentRequest,
 } from '../types'
+import { getAccessToken, refresh as refreshToken } from './auth'
 
 const BASE = '/api'
 
@@ -30,11 +45,33 @@ const BASE = '/api'
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, _isRetry = false): Promise<T> {
+  const token = getAccessToken()
+  const authHeader: Record<string, string> = token
+    ? { Authorization: `Bearer ${token}` }
+    : {}
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeader,
+      ...init?.headers,
+    },
     ...init,
   })
+
+  // On 401, attempt a single token refresh then retry — but never for auth routes
+  if (res.status === 401 && !_isRetry && !path.startsWith('/auth/')) {
+    try {
+      await refreshToken()
+    } catch {
+      // Refresh failed — propagate the original 401
+      const text = await res.text().catch(() => res.statusText)
+      throw new Error(`API ${res.status}: ${text}`)
+    }
+    return request<T>(path, init, true)
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
     throw new Error(`API ${res.status}: ${text}`)

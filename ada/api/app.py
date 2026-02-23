@@ -6,12 +6,10 @@ The app is wired to shared infrastructure (bus, state, registry) via
 app.state so routes can access them via request.app.state.
 
 @decision DEC-API-001
-@title JWT auth placeholder only in Phase 1
-@status accepted
-@rationale Full authentication adds significant complexity that is out of
-    scope for Phase 1. A placeholder dependency is defined so routes have
-    the correct signature for Phase 2 auth implementation. CORS is
-    restricted to localhost origins.
+@title JWT auth placeholder only in Phase 1 — superseded by DEC-AUTH-001/002
+@status superseded
+@rationale Phase 1 placeholder replaced by real JWT auth in Phase 2.
+    See ada/api/auth.py for the full implementation.
 """
 
 from __future__ import annotations
@@ -22,7 +20,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ada.api.routes import assessments, chat, patients, sessions
+from ada.api.routes import assessments, auth, chat, knowledge, patients, sessions
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
@@ -75,10 +73,12 @@ def create_app(
     )
 
     # Routers
+    app.include_router(auth.router)          # /api/auth/*
     app.include_router(chat.router)
     app.include_router(patients.router, prefix="/api")
     app.include_router(sessions.router, prefix="/api")
     app.include_router(assessments.router, prefix="/api")
+    app.include_router(knowledge.router, prefix="/api")
 
     @app.get("/health")
     async def health() -> dict:

@@ -20,8 +20,10 @@ import uuid
 from datetime import datetime
 
 from ada.agents.base import BaseAgent
+from ada.agents.handoff import HandoffMixin
 from ada.core.events import (
     AdaEvent,
+    AgentHandoffResponseEvent,
     AssessmentTriggeredEvent,
     EventTypes,
     MessageReceivedEvent,
@@ -66,8 +68,16 @@ _ASSESSMENT_TRIGGER_PHRASES = [
     "fill out", "complete a", "take a questionnaire", "assessment",
 ]
 
+_MEDICATION_KEYWORDS = {
+    "medication", "medications", "medicine", "medicines", "prescription",
+    "prescriptions", "drug", "drugs", "pill", "pills", "tablet", "tablets",
+    "capsule", "capsules", "dose", "dosage", "refill", "pharmacy",
+    "pharmacist", "side effect", "side effects", "forgot my medication",
+    "forgot to take", "ran out of", "ran out",
+}
 
-class TherapistAgent(BaseAgent):
+
+class TherapistAgent(BaseAgent, HandoffMixin):
     """
     Primary therapeutic conversation agent.
 
@@ -86,7 +96,11 @@ class TherapistAgent(BaseAgent):
 
     @property
     def supported_events(self) -> list[str]:
-        return [EventTypes.MESSAGE_RECEIVED, EventTypes.SESSION_STARTED]
+        return [
+            EventTypes.MESSAGE_RECEIVED,
+            EventTypes.SESSION_STARTED,
+            EventTypes.AGENT_HANDOFF_RESPONSE,
+        ]
 
     async def handle_event(self, event: AdaEvent) -> None:
         """Route events to typed handlers."""
@@ -97,6 +111,9 @@ class TherapistAgent(BaseAgent):
             elif event.event_type == EventTypes.SESSION_STARTED:
                 assert isinstance(event, SessionStartedEvent)
                 await self._on_session_started(event)
+            elif event.event_type == EventTypes.AGENT_HANDOFF_RESPONSE:
+                assert isinstance(event, AgentHandoffResponseEvent)
+                await self._on_handoff_response(event)
         except Exception:
             logger.exception("TherapistAgent: unhandled error in handle_event")
 
@@ -129,6 +146,22 @@ class TherapistAgent(BaseAgent):
                     mood_score=mood_score,
                     mood_label=mood_label,
                 )
+            )
+
+        # Check for medication keywords — hand off to MedicationManagerAgent
+        lower_content = user_content.lower()
+        content_words = set(lower_content.split())
+        # Also check multi-word phrases
+        medication_hit = bool(content_words & _MEDICATION_KEYWORDS) or any(
+            phrase in lower_content for phrase in _MEDICATION_KEYWORDS if " " in phrase
+        )
+        if medication_hit:
+            await self.request_handoff(
+                target_agent="medication_manager",
+                session_id=session_id,
+                patient_id=patient_id,
+                reason="User message contains medication-related content",
+                context={"trigger_content": user_content[:200]},
             )
 
         # Persist user message
@@ -191,6 +224,16 @@ class TherapistAgent(BaseAgent):
                 message_id=assistant_msg_id,
                 agent_name=self.name,
             )
+        )
+
+    async def _on_handoff_response(self, event: AgentHandoffResponseEvent) -> None:
+        """Log handoff responses directed back at the therapist."""
+        logger.info(
+            "TherapistAgent: handoff response from %s (request_id=%s, accepted=%s, notes=%r)",
+            event.from_agent,
+            event.request_id,
+            event.accepted,
+            event.notes,
         )
 
     async def _maybe_trigger_assessment(

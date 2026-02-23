@@ -18,9 +18,11 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 
+import uuid
+
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
-from ada.core.events import AdaEvent
+from ada.core.events import AdaEvent, AgentHandoffRequestEvent, EventTypes
 from ada.core.state import StateManager
 from ada.llm.base import LLMProvider
 
@@ -159,3 +161,54 @@ class BaseAgent(ABC):
     @property
     def is_running(self) -> bool:
         return self._running
+
+    # ------------------------------------------------------------------
+    # Inter-agent communication helpers
+    # ------------------------------------------------------------------
+
+    async def request_handoff(
+        self,
+        target_agent: str,
+        session_id: str,
+        patient_id: str,
+        reason: str,
+        context: dict | None = None,
+    ) -> str:
+        """
+        Publish an AgentHandoffRequestEvent to the bus.
+
+        The target agent must subscribe to AGENT_HANDOFF_REQUEST and filter
+        by ``target_agent`` name. Returns the request_id so the caller can
+        correlate the response if needed.
+
+        Args:
+            target_agent: Name of the agent to hand off to.
+            session_id: Current session ID.
+            patient_id: Current patient ID.
+            reason: Human-readable reason for the handoff.
+            context: Optional payload dict passed to the target agent.
+
+        Returns:
+            The request_id string (UUID4) for response correlation.
+        """
+        request_id = str(uuid.uuid4())
+        await self.bus.publish(
+            AgentHandoffRequestEvent(
+                source=self.name,
+                session_id=session_id,
+                patient_id=patient_id,
+                from_agent=self.name,
+                target_agent=target_agent,
+                handoff_reason=reason,
+                context=context or {},
+                request_id=request_id,
+            )
+        )
+        logger.info(
+            "Agent %s: handoff request to %s (request_id=%s, reason=%r)",
+            self.name,
+            target_agent,
+            request_id,
+            reason,
+        )
+        return request_id

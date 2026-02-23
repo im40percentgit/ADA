@@ -15,9 +15,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from ada.api.auth import get_current_user
 from ada.models.session import Session, SessionCreate, SessionEnd
+from ada.models.user import User
 
 router = APIRouter(tags=["sessions"])
 
@@ -27,7 +29,11 @@ def _state(request: Request):
 
 
 @router.post("/sessions", response_model=Session, status_code=201)
-async def create_session(body: SessionCreate, request: Request) -> dict[str, Any]:
+async def create_session(
+    body: SessionCreate,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     """Start a new session for a patient."""
     # Verify patient exists
     patient = await _state(request).get_patient(body.patient_id)
@@ -47,7 +53,11 @@ async def create_session(body: SessionCreate, request: Request) -> dict[str, Any
 
 
 @router.get("/sessions/{session_id}", response_model=Session)
-async def get_session(session_id: str, request: Request) -> dict[str, Any]:
+async def get_session(
+    session_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     """Get a session by ID."""
     session = await _state(request).get_session(session_id)
     if not session:
@@ -56,14 +66,21 @@ async def get_session(session_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.get("/patients/{patient_id}/sessions", response_model=list[Session])
-async def list_sessions(patient_id: str, request: Request) -> list[dict[str, Any]]:
+async def list_sessions(
+    patient_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     """List all sessions for a patient."""
     return await _state(request).list_sessions(patient_id)
 
 
 @router.post("/sessions/{session_id}/end", response_model=Session)
 async def end_session(
-    session_id: str, body: SessionEnd, request: Request
+    session_id: str,
+    body: SessionEnd,
+    request: Request,
+    _user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """End a session, optionally recording a summary and end mood."""
     session = await _state(request).get_session(session_id)
@@ -77,6 +94,10 @@ async def end_session(
 
 
 @router.get("/sessions/{session_id}/messages")
-async def get_messages(session_id: str, request: Request) -> list[dict[str, Any]]:
+async def get_messages(
+    session_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     """Get all messages in a session."""
     return await _state(request).get_messages(session_id)
