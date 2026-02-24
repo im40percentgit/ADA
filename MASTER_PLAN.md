@@ -33,7 +33,7 @@ ada/
     models/        Pydantic domain models (Patient, Session, Message, Assessment)
     api/           FastAPI app + WebSocket + REST routes
   config/          TOML configuration files
-  tests/           pytest-asyncio unit + integration tests (185 passing)
+  tests/           pytest-asyncio unit + integration tests (360 passing)
   web/             React + TypeScript + Vite frontend
 ```
 
@@ -47,7 +47,7 @@ ada/
 | LLM providers | `ada/llm/` | Provider abstraction |
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
-| Tests | `tests/` | 185 unit + integration tests |
+| Tests | `tests/` | 360 unit + integration tests |
 
 ---
 
@@ -94,26 +94,29 @@ ada/
 ---
 
 ### Phase 2 — Multi-Agent Expansion
-**Status:** `in_progress`
-**Branch:** `feature/phase2a`
+**Status:** `completed`
 
-#### Phase 2a (in progress)
+#### Phase 2a
+**Status:** `completed`
+**Commits:** `8070e18`
 
 | Deliverable | Status | Issue |
 |-------------|--------|-------|
-| JWT authentication | in_progress | #2 |
-| Inter-agent communication protocol | in_progress | #3 |
-| Patient knowledge graph | in_progress | #4 |
-| Auth UI (React login/register) | in_progress | #5 |
+| JWT authentication | Done | #2 |
+| Inter-agent communication protocol | Done | #3 |
+| Patient knowledge graph | Done | #4 |
+| Auth UI (React login/register) | Done | #5 |
 
-#### Phase 2b (planned)
+#### Phase 2b
+**Status:** `completed`
+**Commits:** `d17fb5d` (Medication Manager), `e92b789` (Cognitive Assessor), `904d20d` (Appointment Tracking)
 
-| Deliverable | Description |
-|-------------|-------------|
-| Cognitive Assessor agent | Dynamic cognitive screening beyond MMSE/MoCA |
-| Medication Manager agent | Track medications, reminders, interactions |
-| Appointment Manager agent | Scheduling integration |
-| Caregiver dashboard | Real-time notifications, patient status |
+| Deliverable | Status |
+|-------------|--------|
+| Medication Manager agent | Done |
+| Cognitive Assessor agent | Done |
+| Appointment Tracking | Done |
+| Caregiver dashboard | Deferred to Phase 3 |
 
 ---
 
