@@ -34,10 +34,12 @@ import uvicorn
 from ada.agents.cognitive_assessor import CognitiveAssessorAgent
 from ada.agents.emotion_analyzer import EmotionAnalyzerAgent
 from ada.agents.crisis_monitor import CrisisMonitorAgent
+from ada.agents.knowledge_agent import KnowledgeAgent
 from ada.agents.medication_manager import MedicationManagerAgent
 from ada.agents.registry import AgentRegistry
 from ada.agents.session_summarizer import SessionSummarizer
 from ada.agents.therapist import TherapistAgent
+from ada.knowledge.clinical_kb import ClinicalKnowledgeBase
 from ada.api.app import create_app
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
@@ -116,8 +118,28 @@ async def run(config: AdaConfig) -> None:
         registry.register(EmotionAnalyzerAgent())
         log.info("EmotionAnalyzerAgent registered")
 
+    if config.agents.knowledge_agent.enabled:
+        registry.register(KnowledgeAgent())
+        log.info("KnowledgeAgent registered")
+
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))
+
+    # Clinical knowledge base (FTS5)
+    clinical_kb = ClinicalKnowledgeBase(state._conn)
+    await clinical_kb.initialize()
+    seed_path = Path("data/clinical_kb_seed.json")
+    seeded = await clinical_kb.seed_from_file(seed_path)
+    if seeded:
+        log.info("Clinical KB seeded", count=seeded)
+    else:
+        log.info("Clinical KB ready", count=await clinical_kb.count())
+
+    # Inject KB into KnowledgeAgent
+    for agent in registry.active_agents.values():
+        if isinstance(agent, KnowledgeAgent):
+            agent.set_kb(clinical_kb)
+            log.info("KnowledgeAgent: clinical KB injected")
 
     # Infrastructure subscribers (not registry-managed)
     summarizer = SessionSummarizer(bus, state, llm)

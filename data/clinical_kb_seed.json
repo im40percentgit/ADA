@@ -1,0 +1,436 @@
+[
+  {
+    "title": "Cognitive Restructuring",
+    "category": "cbt_technique",
+    "content": "Cognitive restructuring helps patients identify and challenge distorted automatic thoughts that contribute to emotional distress. The therapist guides the patient to examine evidence for and against the thought, consider alternative perspectives, and develop a more balanced appraisal. This technique is central to Beck's cognitive model and effective for depression, anxiety, and anger.",
+    "source": "Beck, J.S. (2020). Cognitive Behavior Therapy: Basics and Beyond (3rd ed.). Guilford Press.",
+    "tags": "cbt anxiety depression cognitive-distortions automatic-thoughts restructuring"
+  },
+  {
+    "title": "Behavioral Activation",
+    "category": "cbt_technique",
+    "content": "Behavioral activation targets depression by increasing engagement with rewarding and meaningful activities that have been reduced or abandoned. The therapist helps the patient schedule activities that align with personal values, monitoring mood changes in relation to activity levels. It counteracts avoidance and the vicious cycle of low mood leading to withdrawal.",
+    "source": "Martell, C.R., Dimidjian, S., & Herman-Dunn, R. (2013). Behavioral Activation for Depression. Guilford Press.",
+    "tags": "cbt depression activation avoidance mood scheduling values"
+  },
+  {
+    "title": "Exposure Therapy",
+    "category": "cbt_technique",
+    "content": "Exposure therapy involves systematic, graduated confrontation with feared stimuli or situations to reduce anxiety through habituation and inhibitory learning. The therapist collaborates with the patient to construct a fear hierarchy, then guides exposure from least to most distressing. It is the gold-standard treatment for phobias, PTSD, OCD, and panic disorder.",
+    "source": "Craske, M.G., & Barlow, D.H. (2008). Mastery of Your Anxiety and Panic (4th ed.). Oxford University Press.",
+    "tags": "cbt anxiety exposure phobia ptsd ocd panic habituation hierarchy"
+  },
+  {
+    "title": "Thought Records",
+    "category": "cbt_technique",
+    "content": "Thought records are structured worksheets that help patients capture automatic thoughts, identify associated emotions, examine supporting and contradictory evidence, and generate balanced alternative thoughts. Regular practice builds metacognitive awareness and the habit of questioning unhelpful cognitive patterns. They are a cornerstone homework tool in CBT.",
+    "source": "Beck, J.S. (2020). Cognitive Behavior Therapy: Basics and Beyond (3rd ed.). Guilford Press.",
+    "tags": "cbt automatic-thoughts thought-record homework cognitive-distortions worksheet"
+  },
+  {
+    "title": "Socratic Questioning",
+    "category": "cbt_technique",
+    "content": "Socratic questioning is a guided discovery technique in which the therapist asks open, exploratory questions to help the patient examine their beliefs critically rather than providing direct challenges or corrections. The goal is to facilitate insight through collaborative inquiry, strengthening the patient's ability to self-correct distorted thinking independently.",
+    "source": "Padesky, C.A. (1993). Socratic questioning: Changing minds or guiding discovery? Keynote address at European Congress of Behavioural and Cognitive Therapies.",
+    "tags": "cbt socratic questioning guided-discovery beliefs insight collaboration"
+  },
+  {
+    "title": "Problem-Solving Therapy",
+    "category": "cbt_technique",
+    "content": "Problem-solving therapy (PST) teaches patients a structured approach to managing life stressors: defining the problem, generating multiple solutions, evaluating consequences, implementing the best option, and reviewing outcomes. It reduces depression and anxiety by increasing perceived control and self-efficacy when facing real-world difficulties.",
+    "source": "D'Zurilla, T.J., & Nezu, A.M. (2007). Problem-Solving Therapy: A Positive Approach to Clinical Intervention (3rd ed.). Springer.",
+    "tags": "cbt problem-solving depression anxiety stressors efficacy decision-making"
+  },
+  {
+    "title": "Activity Scheduling",
+    "category": "cbt_technique",
+    "content": "Activity scheduling involves collaboratively planning structured daily activities to counteract the inertia and avoidance that maintain depression and anxiety. Patients rate anticipated pleasure and mastery for each activity, then compare with actual experience, challenging the cognitive distortion that nothing will feel good. It is often a first step before full behavioral activation.",
+    "source": "Beck, A.T., Rush, A.J., Shaw, B.F., & Emery, G. (1979). Cognitive Therapy of Depression. Guilford Press.",
+    "tags": "cbt depression scheduling activity pleasure mastery avoidance"
+  },
+  {
+    "title": "Behavioral Experiments",
+    "category": "cbt_technique",
+    "content": "Behavioral experiments test the validity of negative beliefs by having patients predict an outcome, engage in a specific behavior, and then evaluate the actual result against their prediction. This empirical approach is more powerful than verbal disputation alone, producing experiential disconfirmation of dysfunctional beliefs. They are used across anxiety disorders, depression, and health anxiety.",
+    "source": "Bennett-Levy, J., et al. (2004). Oxford Guide to Behavioural Experiments in Cognitive Therapy. Oxford University Press.",
+    "tags": "cbt beliefs experiment prediction anxiety depression testing hypothesis"
+  },
+  {
+    "title": "TIPP Skills for Emotional Crises",
+    "category": "dbt_skill",
+    "content": "TIPP (Temperature, Intense exercise, Paced breathing, Progressive muscle relaxation) comprises rapid physiological interventions for reducing overwhelming emotion. Cold water on the face activates the dive reflex, slowing heart rate within seconds. These skills are used when emotion mind is so activated that other skills cannot be accessed.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt distress-tolerance crisis tipp temperature breathing relaxation emotion-regulation"
+  },
+  {
+    "title": "ACCEPTS Distress Tolerance",
+    "category": "dbt_skill",
+    "content": "ACCEPTS is a distress tolerance acronym for tolerating crisis without making things worse: Activities, Contributing, Comparisons, Emotions (opposite), Pushing away, Thoughts (other), Sensations. These strategies help patients survive intense emotional pain by temporarily distracting attention from the overwhelming stimulus until emotion intensity decreases.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt distress-tolerance crisis accepts distraction self-soothe"
+  },
+  {
+    "title": "Opposite Action",
+    "category": "dbt_skill",
+    "content": "Opposite action involves intentionally acting in a way that is opposite to the action urge associated with an emotion, when the emotion is not justified by facts or acting on it would be harmful. For example, approaching rather than avoiding when fearful, or engaging rather than withdrawing when depressed. Repeated opposite action changes the emotional experience itself.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt emotion-regulation opposite-action fear depression shame avoidance"
+  },
+  {
+    "title": "PLEASE Skills for Emotional Vulnerability",
+    "category": "dbt_skill",
+    "content": "PLEASE addresses physical factors that increase emotional vulnerability: treating PhysicaL illness, balanced Eating, Avoiding mood-altering substances, Sleep balance, and Exercise. By stabilising the biological substrate, patients reduce baseline emotional reactivity and improve capacity to use other DBT skills.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt emotion-regulation please sleep exercise eating substances vulnerability"
+  },
+  {
+    "title": "DEAR MAN — Interpersonal Effectiveness",
+    "category": "dbt_skill",
+    "content": "DEAR MAN is a DBT skill for asking for what you need or saying no effectively: Describe, Express, Assert, Reinforce, stay Mindful, Appear confident, Negotiate. It provides a structured framework for assertive communication while maintaining relationships and self-respect. It is used when the goal is to achieve an objective in interpersonal interactions.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt interpersonal effectiveness dear-man assertiveness communication negotiate"
+  },
+  {
+    "title": "Radical Acceptance",
+    "category": "dbt_skill",
+    "content": "Radical acceptance means fully and completely accepting reality as it is, without fighting, judging, or trying to change what cannot be changed. It does not mean approval or giving up; it means acknowledging painful facts to reduce the suffering added by non-acceptance. It is particularly relevant for chronic pain, loss, and irreversible life circumstances.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt radical-acceptance suffering reality pain loss mindfulness"
+  },
+  {
+    "title": "Mindfulness — Observe and Describe",
+    "category": "dbt_skill",
+    "content": "The DBT core mindfulness skills of observing and describing involve noticing internal experiences (thoughts, emotions, sensations) and labelling them with words without judgment or over-identification. Observing without reacting creates a pause between stimulus and response. Describing in words reduces emotional intensity by engaging the prefrontal cortex.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt mindfulness observe describe nonjudgmental awareness emotions thoughts"
+  },
+  {
+    "title": "Self-Soothe with the Five Senses",
+    "category": "dbt_skill",
+    "content": "Self-soothing with the five senses (vision, hearing, smell, taste, touch) is a distress tolerance skill that activates the parasympathetic nervous system through sensory comfort. Patients identify personally calming sensory inputs and use them intentionally during emotional crises. Regular practice builds a personalised self-care toolkit.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt self-soothe senses distress-tolerance comfort crisis parasympathetic"
+  },
+  {
+    "title": "Check the Facts",
+    "category": "dbt_skill",
+    "content": "Check the Facts is a DBT emotion regulation skill that examines whether an emotional response fits the actual facts of the situation, since emotions are often triggered by interpretations rather than objective events. Patients learn to distinguish facts from assumptions, reducing emotion-driven reactions to imagined threats.",
+    "source": "Linehan, M.M. (2015). DBT Skills Training Manual (2nd ed.). Guilford Press.",
+    "tags": "dbt emotion-regulation facts assumptions interpretation cognitive"
+  },
+  {
+    "title": "Open Questions in Motivational Interviewing",
+    "category": "mi_strategy",
+    "content": "Open questions invite the client to explore their own thoughts and feelings without a predetermined direction, creating space for ambivalence and self-reflection. Examples include 'What concerns do you have about your drinking?' rather than 'Do you drink too much?' Open questions signal respect for autonomy and elicit more change talk than closed questions.",
+    "source": "Miller, W.R., & Rollnick, S. (2013). Motivational Interviewing: Helping People Change (3rd ed.). Guilford Press.",
+    "tags": "mi motivational-interviewing open-questions autonomy change-talk ambivalence"
+  },
+  {
+    "title": "Affirmations in Motivational Interviewing",
+    "category": "mi_strategy",
+    "content": "Affirmations are genuine statements that acknowledge the client's strengths, efforts, and past successes, building self-efficacy and the therapeutic alliance. They differ from praise by focusing on observable qualities ('You've shown real persistence') rather than approval ('Good job'). Affirmations support the client's belief that change is possible.",
+    "source": "Miller, W.R., & Rollnick, S. (2013). Motivational Interviewing: Helping People Change (3rd ed.). Guilford Press.",
+    "tags": "mi affirmations strengths self-efficacy alliance change"
+  },
+  {
+    "title": "Reflective Listening",
+    "category": "mi_strategy",
+    "content": "Reflective listening involves making educated guesses about the client's meaning and offering them back as statements, not questions, to deepen understanding and demonstrate empathy. Simple reflections restate content; complex reflections add meaning, emotion, or implication. Reflections keep the conversation moving and reduce defensiveness in ambivalent clients.",
+    "source": "Miller, W.R., & Rollnick, S. (2013). Motivational Interviewing: Helping People Change (3rd ed.). Guilford Press.",
+    "tags": "mi reflection empathy listening ambivalence resistance complex-reflection"
+  },
+  {
+    "title": "Summarising in Motivational Interviewing",
+    "category": "mi_strategy",
+    "content": "Summaries collect and reflect back multiple pieces of what the client has said, linking themes and highlighting change talk while acknowledging sustain talk. Collecting summaries gather information; linking summaries connect the current statement to earlier ones; transitional summaries signal a shift in focus. They reinforce the client's own words about change.",
+    "source": "Miller, W.R., & Rollnick, S. (2013). Motivational Interviewing: Helping People Change (3rd ed.). Guilford Press.",
+    "tags": "mi summary change-talk sustain-talk linking transition"
+  },
+  {
+    "title": "Eliciting Change Talk",
+    "category": "mi_strategy",
+    "content": "Change talk consists of client statements favouring change: Desire ('I want to'), Ability ('I could'), Reasons ('It would help if'), Need ('I have to'), and Commitment ('I will'). MI practitioners listen for and selectively reinforce change talk using reflections and open questions. The ratio of change talk to sustain talk predicts behaviour change outcomes.",
+    "source": "Miller, W.R., & Rollnick, S. (2013). Motivational Interviewing: Helping People Change (3rd ed.). Guilford Press.",
+    "tags": "mi change-talk darn-c desire ability reasons need commitment motivation"
+  },
+  {
+    "title": "Decisional Balance",
+    "category": "mi_strategy",
+    "content": "Decisional balance explores the costs and benefits of both changing and not changing a behaviour, helping the client articulate their own ambivalence fully before moving toward a decision. The therapist elicits and reflects both sides without arguing for change, strengthening the client's sense of autonomy and intrinsic motivation.",
+    "source": "Miller, W.R., & Rollnick, S. (2013). Motivational Interviewing: Helping People Change (3rd ed.). Guilford Press.",
+    "tags": "mi decisional-balance ambivalence pros-cons change autonomy"
+  },
+  {
+    "title": "Rolling with Resistance",
+    "category": "mi_strategy",
+    "content": "Rolling with resistance (now called 'responding to sustain talk and discord' in MI-3) involves not opposing or arguing against client resistance, but instead reflecting it, shifting focus, or reframing it to reduce discord. Arguing against resistance increases it; accepting and exploring it often diminishes it and reopens dialogue about change.",
+    "source": "Miller, W.R., & Rollnick, S. (2013). Motivational Interviewing: Helping People Change (3rd ed.). Guilford Press.",
+    "tags": "mi resistance discord sustain-talk rolling reframe autonomy"
+  },
+  {
+    "title": "Depression — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Major depressive disorder treatment follows a stepped-care model: mild depression may respond to guided self-help and behavioural activation; moderate-severe depression warrants CBT, IPT, or antidepressants (SSRIs first-line). Safety assessment for suicidality is mandatory at every contact. PHQ-9 is the recommended monitoring instrument. Relapse prevention planning should begin mid-treatment.",
+    "source": "NICE Guideline CG90 (2022). Depression in adults: treatment and management. National Institute for Health and Care Excellence.",
+    "tags": "depression treatment guidelines cbt ssri phq9 safety stepped-care relapse"
+  },
+  {
+    "title": "Generalised Anxiety Disorder — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Generalised anxiety disorder (GAD) first-line treatment is CBT focusing on worry, intolerance of uncertainty, and cognitive avoidance. GAD-7 monitors severity. Relaxation techniques and scheduled worry time are adjunctive strategies. SSRIs/SNRIs are pharmacological first-line. Safety assessment for comorbid depression and suicidality is essential.",
+    "source": "NICE Guideline CG113 (2020). Generalised anxiety disorder and panic disorder in adults. National Institute for Health and Care Excellence.",
+    "tags": "gad anxiety worry treatment cbt ssri gad7 uncertainty relaxation"
+  },
+  {
+    "title": "Social Anxiety Disorder — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Social anxiety disorder (social phobia) responds best to CBT with a focus on safety behaviours, self-focused attention, and post-event processing. Video feedback and cognitive restructuring of feared outcomes reduce anticipatory anxiety. Group CBT and individual CBT show comparable efficacy. SSRIs are first-line pharmacotherapy.",
+    "source": "NICE Guideline CG159 (2013, updated 2020). Social anxiety disorder: recognition, assessment and treatment. National Institute for Health and Care Excellence.",
+    "tags": "social-anxiety phobia cbt exposure safety-behaviours ssri group-cbt"
+  },
+  {
+    "title": "Panic Disorder — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Panic disorder treatment centres on CBT addressing catastrophic misinterpretation of bodily sensations through psychoeducation, interoceptive exposure, and cognitive restructuring. Avoidance of feared situations and safety behaviours maintain the disorder and must be targeted. Hyperventilation retraining addresses physiological maintaining factors.",
+    "source": "Clark, D.M. (1986). A cognitive approach to panic. Behaviour Research and Therapy, 24(4), 461-470.",
+    "tags": "panic disorder cbt catastrophic-misinterpretation interoceptive-exposure breathing"
+  },
+  {
+    "title": "PTSD — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Post-traumatic stress disorder requires trauma-focused psychological therapies: Trauma-Focused CBT (TF-CBT) or EMDR are the recommended first-line treatments. Therapy involves graduated exposure to trauma memories and modification of trauma-related cognitions (e.g., 'it was my fault', 'nowhere is safe'). Assessment of safety, suicidality, and dissociation guides treatment pacing.",
+    "source": "NICE Guideline NG116 (2018). Post-traumatic stress disorder. National Institute for Health and Care Excellence.",
+    "tags": "ptsd trauma cbt emdr flashbacks avoidance cognitions safety dissociation"
+  },
+  {
+    "title": "OCD — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Obsessive-compulsive disorder treatment requires Exposure and Response Prevention (ERP), in which patients confront obsessional triggers while refraining from compulsive rituals. This allows the anxiety to habituate and demonstrates that feared consequences do not occur. Y-BOCS monitors severity. SSRIs (high dose, long duration) are first-line pharmacotherapy.",
+    "source": "NICE Guideline CG31 (2005, updated 2019). Obsessive-compulsive disorder and body dysmorphic disorder: treatment. National Institute for Health and Care Excellence.",
+    "tags": "ocd erp compulsions obsessions ybocs ssri rituals habituation anxiety"
+  },
+  {
+    "title": "Substance Use Disorder — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Substance use disorders are best treated with a combination of motivational enhancement therapy (MET), CBT relapse prevention, and where appropriate pharmacotherapy (e.g., naltrexone for alcohol, buprenorphine for opioids). Brief interventions using AUDIT-C screening are effective in primary care. Harm reduction is a valid intermediate goal when abstinence is not immediately achievable.",
+    "source": "NICE Guideline PH24 (2010). Alcohol-use disorders: preventing the development of hazardous and harmful drinking. NICE.",
+    "tags": "substance-use addiction relapse-prevention met cbt harm-reduction alcohol opioids"
+  },
+  {
+    "title": "Insomnia — Cognitive Behavioural Therapy (CBT-I)",
+    "category": "condition_guideline",
+    "content": "CBT for insomnia (CBT-I) is the first-line treatment, more effective than sleep medication and without dependency risk. Components include sleep restriction, stimulus control, sleep hygiene education, cognitive restructuring of unhelpful sleep beliefs, and relaxation. Sleep diary monitoring guides treatment adjustments. Total sleep time restriction paradoxically consolidates sleep.",
+    "source": "Espie, C.A. (2021). Overcoming Insomnia and Sleep Problems: A self-help guide using Cognitive Behavioural Techniques. Robinson.",
+    "tags": "insomnia sleep cbt-i restriction stimulus-control sleep-hygiene relaxation"
+  },
+  {
+    "title": "Grief and Bereavement — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Normal grief does not require clinical intervention; supportive counselling can validate the experience. Prolonged grief disorder (persistent, disabling grief beyond 12 months) responds to Complicated Grief Treatment (CGT) and adapted CBT. Treatment addresses avoidance of grief reminders, restoration of life engagement, and adapting the continuing bond with the deceased.",
+    "source": "Shear, M.K. (2015). Complicated grief. New England Journal of Medicine, 372(2), 153-160.",
+    "tags": "grief bereavement loss complicated-grief cgt cbt avoidance restoration"
+  },
+  {
+    "title": "Anger Management — Clinical Guidelines",
+    "category": "condition_guideline",
+    "content": "Anger management interventions combine cognitive restructuring of hostile appraisals, arousal reduction skills (relaxation, time-out), and behavioural skill training (assertion, communication). Cognitive reappraisal reduces hot cognitions; behavioural skills provide alternatives to aggression. Motivational approaches address ambivalence about change in mandated clients.",
+    "source": "DiGiuseppe, R., & Tafrate, R.C. (2007). Understanding Anger Disorders. Oxford University Press.",
+    "tags": "anger aggression management cognitive-restructuring relaxation assertion time-out"
+  },
+  {
+    "title": "The Stress Response and Fight-or-Flight",
+    "category": "psychoeducation",
+    "content": "The fight-or-flight response is an automatic physiological reaction triggered by the hypothalamic-pituitary-adrenal axis when threat is perceived. Adrenaline and cortisol prepare the body for rapid action: heart rate increases, muscles tense, digestion slows, and attention narrows. Understanding this normal response reduces catastrophic misinterpretation of anxiety symptoms.",
+    "source": "Cannon, W.B. (1932). The Wisdom of the Body. W.W. Norton. Updated review: Sapolsky, R.M. (2004). Why Zebras Don't Get Ulcers (3rd ed.). Holt.",
+    "tags": "psychoeducation stress fight-or-flight anxiety physiology adrenaline cortisol"
+  },
+  {
+    "title": "Common Cognitive Distortions",
+    "category": "psychoeducation",
+    "content": "Cognitive distortions are systematic errors in thinking identified by Aaron Beck: all-or-nothing thinking, overgeneralisation, mental filter, disqualifying the positive, mind reading, fortune telling, magnification/minimisation, emotional reasoning, should statements, labelling, and personalisation. Recognising them is the first step in cognitive restructuring.",
+    "source": "Burns, D.D. (1980). Feeling Good: The New Mood Therapy. William Morrow.",
+    "tags": "psychoeducation cognitive-distortions all-or-nothing overgeneralisation cbt thinking-errors"
+  },
+  {
+    "title": "Sleep Hygiene",
+    "category": "psychoeducation",
+    "content": "Sleep hygiene refers to behavioural and environmental practices that support restorative sleep: consistent sleep-wake times, limiting caffeine after midday, avoiding screens before bed, keeping the bedroom cool and dark, and reserving the bed for sleep only. These practices are necessary but typically insufficient alone for clinical insomnia — CBT-I addresses maintaining factors.",
+    "source": "Walker, M. (2017). Why We Sleep. Scribner.",
+    "tags": "psychoeducation sleep hygiene insomnia caffeine screens routine environment"
+  },
+  {
+    "title": "Mindfulness — Core Concepts",
+    "category": "psychoeducation",
+    "content": "Mindfulness is the practice of paying deliberate, non-judgmental attention to present-moment experience. Rooted in Buddhist meditation and adapted for clinical use by Kabat-Zinn, it cultivates awareness of thoughts and feelings as transient mental events rather than facts. Regular mindfulness practice reduces rumination, stress reactivity, and risk of depressive relapse.",
+    "source": "Kabat-Zinn, J. (1994). Wherever You Go, There You Are: Mindfulness Meditation in Everyday Life. Hyperion.",
+    "tags": "mindfulness present-moment awareness nonjudgmental mbsr meditation rumination stress"
+  },
+  {
+    "title": "Emotional Regulation — Overview",
+    "category": "psychoeducation",
+    "content": "Emotional regulation encompasses strategies to influence the type, intensity, timing, and expression of emotions. Adaptive strategies include cognitive reappraisal, problem-solving, acceptance, and mindfulness. Maladaptive strategies include suppression, rumination, avoidance, and substance use. Psychoeducation about emotions as adaptive signals (not threats) is foundational.",
+    "source": "Gross, J.J. (2015). Emotion regulation: Current status and future prospects. Psychological Inquiry, 26(1), 1-26.",
+    "tags": "psychoeducation emotion-regulation reappraisal suppression rumination acceptance"
+  },
+  {
+    "title": "Attachment Styles",
+    "category": "psychoeducation",
+    "content": "Attachment theory describes how early relational experiences with caregivers shape internal working models of self and others. Secure attachment supports emotional regulation; insecure styles (anxious, avoidant, disorganised) predict relationship difficulties and mental health vulnerability. Understanding one's attachment style can inform patterns in current relationships and therapy.",
+    "source": "Bowlby, J. (1988). A Secure Base: Parent-Child Attachment and Healthy Human Development. Basic Books.",
+    "tags": "psychoeducation attachment bowlby secure anxious avoidant relationships"
+  },
+  {
+    "title": "Setting Healthy Boundaries",
+    "category": "psychoeducation",
+    "content": "Boundaries are the physical, emotional, and relational limits a person sets to protect their wellbeing and communicate their needs. Healthy boundaries balance connection with autonomy; they are communicated assertively and consistently. Difficulty setting boundaries is associated with people-pleasing, burnout, resentment, and relationship dysfunction.",
+    "source": "Cloud, H., & Townsend, J. (1992). Boundaries: When to Say Yes, How to Say No. Zondervan.",
+    "tags": "psychoeducation boundaries assertiveness autonomy relationships burnout self-care"
+  },
+  {
+    "title": "Self-Compassion",
+    "category": "psychoeducation",
+    "content": "Self-compassion involves treating oneself with the same kindness one would offer a good friend during times of suffering or failure. Kristin Neff identifies three components: self-kindness (vs. self-judgment), common humanity (vs. isolation), and mindfulness (vs. over-identification). Self-compassion reduces shame, perfectionism, and self-criticism without reducing motivation.",
+    "source": "Neff, K. (2011). Self-Compassion: The Proven Power of Being Kind to Yourself. William Morrow.",
+    "tags": "psychoeducation self-compassion shame kindness common-humanity mindfulness criticism"
+  },
+  {
+    "title": "Grounding Techniques — 5-4-3-2-1",
+    "category": "psychoeducation",
+    "content": "The 5-4-3-2-1 grounding technique anchors attention to the present moment by systematically identifying 5 things you can see, 4 you can touch, 3 you can hear, 2 you can smell, and 1 you can taste. It interrupts rumination, flashbacks, and dissociation by redirecting attention to sensory experience. Useful for anxiety, PTSD, and panic.",
+    "source": "Shapiro, F. (2018). Eye Movement Desensitization and Reprocessing (EMDR) Therapy (3rd ed.). Guilford Press.",
+    "tags": "psychoeducation grounding 54321 senses present-moment ptsd anxiety dissociation panic"
+  },
+  {
+    "title": "The Window of Tolerance",
+    "category": "psychoeducation",
+    "content": "The window of tolerance describes the optimal zone of arousal for effective functioning: above it (hyperarousal) the person is flooded, reactive, and unable to process; below it (hypoarousal) they are numb, disconnected, and shut down. Trauma narrows this window. Therapy aims to widen it through stabilisation, titrated trauma processing, and self-regulation skills.",
+    "source": "Siegel, D.J. (1999). The Developing Mind. Guilford Press.",
+    "tags": "psychoeducation window-of-tolerance trauma arousal hyperarousal hypoarousal regulation"
+  },
+  {
+    "title": "Progressive Muscle Relaxation",
+    "category": "psychoeducation",
+    "content": "Progressive muscle relaxation (PMR) involves systematically tensing and releasing muscle groups throughout the body to induce deep physical relaxation and increase body awareness. Developed by Jacobson in the 1920s, it reduces physiological arousal associated with anxiety, headaches, and insomnia. Regular practice produces a conditioned relaxation response over time.",
+    "source": "Jacobson, E. (1938). Progressive Relaxation. University of Chicago Press.",
+    "tags": "psychoeducation progressive-muscle-relaxation pmr anxiety relaxation tension arousal"
+  },
+  {
+    "title": "Diaphragmatic Breathing",
+    "category": "psychoeducation",
+    "content": "Diaphragmatic (abdominal) breathing activates the parasympathetic nervous system by stimulating the vagus nerve, reducing heart rate and blood pressure. A standard protocol involves a 4-second inhale, brief hold, and 6-8 second exhale. Prolonged exhalation drives parasympathetic activation. It is a first-line self-regulation skill for anxiety and panic.",
+    "source": "Lehrer, P.M., & Gevirtz, R. (2014). Heart rate variability biofeedback: How and why does it work? Frontiers in Psychology, 5, 756.",
+    "tags": "psychoeducation breathing diaphragmatic vagus parasympathetic anxiety panic relaxation"
+  },
+  {
+    "title": "Journaling for Mental Health",
+    "category": "psychoeducation",
+    "content": "Expressive writing and journaling provide a structured medium for processing difficult emotions, identifying patterns, and increasing self-awareness. Pennebaker's research shows that writing about stressful events improves physical and psychological health by facilitating emotional processing and constructing coherent narratives from fragmented experience.",
+    "source": "Pennebaker, J.W., & Smyth, J.M. (2016). Opening Up by Writing It Down (3rd ed.). Guilford Press.",
+    "tags": "psychoeducation journaling expressive-writing emotion processing self-awareness"
+  },
+  {
+    "title": "Gratitude Practice",
+    "category": "psychoeducation",
+    "content": "Regular gratitude practice — such as writing three specific good things and their causes each day — shifts attentional bias away from threats and problems toward positive aspects of experience. Research by Seligman shows sustained improvements in wellbeing and reductions in depression. Specificity and novelty maintain the practice's effectiveness over time.",
+    "source": "Seligman, M.E.P., et al. (2005). Positive psychology progress: Empirical validation of interventions. American Psychologist, 60(5), 410-421.",
+    "tags": "psychoeducation gratitude wellbeing positive-psychology attention bias depression"
+  },
+  {
+    "title": "Values Clarification",
+    "category": "psychoeducation",
+    "content": "Values clarification helps patients identify what is most important and meaningful to them across life domains (relationships, health, work, creativity, community), providing a compass for committed action. In ACT, values are distinguished from goals — they are directions rather than destinations. Living in alignment with values reduces existential emptiness and depressive avoidance.",
+    "source": "Hayes, S.C., Strosahl, K.D., & Wilson, K.G. (2012). Acceptance and Commitment Therapy (2nd ed.). Guilford Press.",
+    "tags": "psychoeducation values act clarification meaning committed-action depression purpose"
+  },
+  {
+    "title": "Acceptance and Defusion Techniques",
+    "category": "psychoeducation",
+    "content": "Cognitive defusion techniques from ACT aim to change the relationship with unhelpful thoughts rather than their content: observing thoughts as mental events ('I notice I'm having the thought that...'), labelling thought patterns, or using metaphors like 'leaves on a stream'. Defusion reduces the literal believability and behavioural impact of distressing cognitions.",
+    "source": "Hayes, S.C., Strosahl, K.D., & Wilson, K.G. (2012). Acceptance and Commitment Therapy (2nd ed.). Guilford Press.",
+    "tags": "psychoeducation act defusion acceptance thoughts metaphor cognitive-fusion"
+  },
+  {
+    "title": "Relaxation Response",
+    "category": "psychoeducation",
+    "content": "The relaxation response, described by Herbert Benson, is a physiological state opposite to the fight-or-flight response, characterised by decreased heart rate, blood pressure, and metabolic rate. It can be elicited through any repetitive mental focus — meditation, prayer, yoga, or paced breathing. Regular elicitation counters chronic stress and reduces health risk.",
+    "source": "Benson, H. (1975). The Relaxation Response. William Morrow.",
+    "tags": "psychoeducation relaxation-response stress meditation breathing yoga benson"
+  },
+  {
+    "title": "Socratic Dialogue — Examining Core Beliefs",
+    "category": "cbt_technique",
+    "content": "Core belief work in CBT uses Socratic questioning, the downward arrow technique, and historical review to identify deep unconditional beliefs about self, others, and the world (e.g., 'I am unlovable', 'The world is dangerous'). These are distinguished from intermediate beliefs (rules and assumptions) and automatic thoughts. Mode work and compassion-focused approaches can supplement standard CBT for deep schema change.",
+    "source": "Young, J.E., Klosko, J.S., & Weishaar, M.E. (2003). Schema Therapy: A Practitioner's Guide. Guilford Press.",
+    "tags": "cbt core-beliefs schema downward-arrow unconditional assumptions self-concept"
+  },
+  {
+    "title": "Interpersonal Therapy — Core Strategies",
+    "category": "cbt_technique",
+    "content": "Interpersonal therapy (IPT) addresses depression through one of four interpersonal problem areas: grief, role disputes, role transitions, and interpersonal deficits. The therapist takes an active, here-and-now focus on current relationships, helping patients communicate more effectively and build social support. IPT is as effective as CBT for depression and particularly suited to relationship-focused presentations.",
+    "source": "Weissman, M.M., Markowitz, J.C., & Klerman, G.L. (2017). The Guide to Interpersonal Psychotherapy. Oxford University Press.",
+    "tags": "ipt interpersonal-therapy depression grief role-transitions relationships communication"
+  },
+  {
+    "title": "WDEP Framework — Reality Therapy",
+    "category": "mi_strategy",
+    "content": "The WDEP system (Wants, Doing, Evaluation, Planning) from William Glasser's Choice Theory and Reality Therapy helps clients define what they want, examine current behaviour, evaluate whether behaviour is meeting their needs, and make realistic plans for change. It emphasises personal responsibility and the client's capacity to choose more effective behaviour.",
+    "source": "Glasser, W. (1998). Choice Theory: A New Psychology of Personal Freedom. HarperCollins.",
+    "tags": "reality-therapy choice-theory wdep wants doing evaluation planning glasser"
+  },
+  {
+    "title": "Assertiveness Training",
+    "category": "cbt_technique",
+    "content": "Assertiveness training teaches patients to communicate needs, opinions, and limits directly and respectfully, distinguishing assertive behaviour from passive or aggressive responses. Behavioural rehearsal, role-play, and graded practice build confidence. It is effective for social anxiety, low self-esteem, and relationship difficulties where passive communication maintains distress.",
+    "source": "Alberti, R.E., & Emmons, M.L. (2017). Your Perfect Right: Assertiveness and Equality in Your Life and Relationships (10th ed.). Impact Publishers.",
+    "tags": "cbt assertiveness social-anxiety self-esteem communication passive aggressive"
+  },
+  {
+    "title": "Body Scan Meditation",
+    "category": "psychoeducation",
+    "content": "The body scan is a mindfulness practice involving systematic attentional movement through different regions of the body, observing sensations without judgment or intention to change them. It increases interoceptive awareness, reduces stress, and is particularly useful for patients who disconnect from their bodies. It is a core practice in MBSR and MBCT programmes.",
+    "source": "Kabat-Zinn, J. (1990). Full Catastrophe Living. Delacorte Press.",
+    "tags": "mindfulness body-scan mbsr mbct interoception stress relaxation"
+  },
+  {
+    "title": "STOPP — Cognitive Behavioural Coping Card",
+    "category": "cbt_technique",
+    "content": "STOPP is a brief CBT coping tool: Stop, Take a breath, Observe (thoughts, feelings, sensations), Pull back (put in perspective), Practise what works. It provides a quick in-the-moment intervention for managing strong emotions, impulsive urges, or distorted thinking. Its brevity makes it accessible in high-arousal situations where longer techniques are unavailable.",
+    "source": "Vivyan, C. (2009). STOPP — A brief CBT/mindfulness technique. Get Self Help UK. www.getselfhelp.co.uk",
+    "tags": "cbt stopp coping emotion impulse mindfulness brief-intervention"
+  },
+  {
+    "title": "Safety Planning for Suicidality",
+    "category": "condition_guideline",
+    "content": "A safety plan is a personalised, ranked list of coping strategies and support resources for use during a suicidal crisis, developed collaboratively with the patient. It includes warning signs, internal coping strategies, social contacts who can provide distraction, individuals to ask for help, professionals to contact, and means restriction. Safety Planning Intervention (SPI) significantly reduces suicidal behaviour.",
+    "source": "Stanley, B., & Brown, G.K. (2012). Safety planning intervention: A brief intervention to mitigate suicide risk. Cognitive and Behavioral Practice, 19(2), 256-263.",
+    "tags": "safety-planning suicidality crisis coping warning-signs means-restriction support"
+  },
+  {
+    "title": "Motivational Enhancement for Substance Use",
+    "category": "mi_strategy",
+    "content": "Motivational Enhancement Therapy (MET) adapts MI into a structured 2-4 session intervention for substance use disorders, providing personalised feedback from an assessment battery, exploring ambivalence about change, and evoking the client's own reasons for changing. It is particularly effective as a prelude to other treatments or for enhancing engagement with resistant clients.",
+    "source": "Miller, W.R., Zweben, A., DiClemente, C.C., & Rychtarik, R.G. (1992). Motivational Enhancement Therapy Manual. NIAAA Project MATCH Monograph Series.",
+    "tags": "mi met substance-use motivation feedback ambivalence engagement treatment"
+  },
+  {
+    "title": "Trauma-Informed Care — Core Principles",
+    "category": "condition_guideline",
+    "content": "Trauma-informed care recognises the widespread prevalence of trauma and its impact across physical and mental health presentations. Core principles are safety, trustworthiness, peer support, collaboration, empowerment, and cultural sensitivity. Clinicians avoid re-traumatisation by offering choice, transparency, and control. Asking 'What happened to you?' rather than 'What is wrong with you?' shifts the clinical paradigm.",
+    "source": "SAMHSA (2014). SAMHSA's Concept of Trauma and Guidance for a Trauma-Informed Approach. HHS Publication No. SMA 14-4884.",
+    "tags": "trauma-informed care safety empowerment collaboration cultural ptsd"
+  },
+  {
+    "title": "Emotion Focused Therapy — Empathic Reflection",
+    "category": "mi_strategy",
+    "content": "Emotion-focused therapy (EFT) prioritises empathic attunement and reflection of the client's core emotional experience, distinguishing primary adaptive emotions (fear of genuine threat, grief over loss) from secondary reactive emotions and maladaptive emotional schemes. The therapist follows and deepens emotional experience, enabling productive emotional processing and transformation.",
+    "source": "Greenberg, L.S. (2015). Emotion-Focused Therapy: Coaching Clients to Work Through Their Feelings (2nd ed.). APA.",
+    "tags": "eft emotion-focused empathy reflection primary secondary adaptive maladaptive"
+  },
+  {
+    "title": "Validation in DBT",
+    "category": "dbt_skill",
+    "content": "Validation is a core DBT strategy communicating that the client's emotions, thoughts, and behaviours make sense within their context and history, even if they are not necessarily effective or desirable. Linehan identifies six levels of validation, from attentive listening to expressing genuine radical genuineness. Validation is the dialectical counterpart of change strategies and is essential for maintaining the therapeutic alliance with borderline presentations.",
+    "source": "Linehan, M.M. (1993). Cognitive-Behavioral Treatment of Borderline Personality Disorder. Guilford Press.",
+    "tags": "dbt validation alliance borderline emotion acknowledgement genuineness"
+  }
+]

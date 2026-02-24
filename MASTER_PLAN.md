@@ -158,7 +158,7 @@ ada/
 | DEC-AGENT-001 | Two-stage crisis detection (keyword → LLM) | Fast keyword catch + nuanced LLM for edge cases | accepted |
 | DEC-AGENT-002 | Safety-first — always err toward higher severity | Missed CRITICAL is catastrophic; false positive is mild | accepted |
 | DEC-API-001 | JWT auth placeholder only in Phase 1 | Structure wired, real validation deferred to Phase 2 | superseded by DEC-AUTH-001 |
-| DEC-STATE-001 | SQLite via aiosqlite | Zero-ops, async-compatible, swappable later | accepted |
+| DEC-STATE-001 | SQLite via aiosqlite | Zero-ops, async-compatible, swappable later | superseded by DEC-CORE-002 |
 | DEC-TEST-001 | pytest-asyncio auto mode; real SQLite `:memory:` | Real behaviour, no mocks for internal modules | accepted |
 | DEC-TEST-002 | CrisisMonitor tests use keyword + mock LLM paths | Both detection stages tested independently | accepted |
 | DEC-TEST-003 | LLM provider tests use real providers with httpx mocks | Only external HTTP boundary is mocked | accepted |
@@ -202,6 +202,19 @@ ada/
 | ID | Decision | Rationale | Status |
 |----|----------|-----------|--------|
 | DEC-HANDOFF-001 | HandoffPayload typed dataclass alongside legacy context dict in HandoffContext | Typed fields (trigger_phrase, emotional_state, risk_level, active_topics, recommendations, custom) replace opaque dict[str, Any] while preserving backward compatibility; handoff_log table provides clinical-grade audit trail | accepted |
+| DEC-EMOTION-001 | Plutchik 8-emotion model with valence/arousal dimensions | Plutchik's wheel is a well-established, clinically-relevant taxonomy; valence/arousal add continuous dimensions for trend analysis; maps naturally to Pydantic for serialization | accepted |
+| DEC-EMOTION-002 | JSON parsing with regex markdown fence stripping (DEC-KNOWLEDGE-004 pattern) | LLM providers often wrap JSON in markdown code fences; stripping before json.loads() avoids parse failures without adding a dependency | accepted |
+| DEC-EMOTION-003 | EmotionAnalyzerAgent subscribes to MESSAGE_RECEIVED only | Emotion analysis is purely reactive — every incoming patient message triggers analysis; no other event type is relevant to this agent's function | accepted |
+| DEC-SUMMARY-001 | SOAPNote as Pydantic model with list fields for topics and risk flags | SOAP format is the clinical documentation standard; Pydantic enforces field types and enables clean JSON serialization to the session_summaries table | accepted |
+| DEC-SUMMARY-002 | session_summaries table with UNIQUE constraint on session_id | Each session produces at most one SOAP note; UNIQUE constraint enforces idempotency and allows upsert-on-conflict patterns | accepted |
+| DEC-SUMMARY-003 | SessionSummarizer as infrastructure subscriber (not BaseAgent) | SOAP note generation is a post-session infrastructure concern, not a therapy agent; mirrors KnowledgeExtractor pattern (DEC-KNOWLEDGE-003) | accepted |
+| DEC-SUMMARY-004 | Lenient JSON extraction with regex fallback (DEC-KNOWLEDGE-004 pattern) | LLMs occasionally wrap JSON in code fences; fail-open keeps summarization best-effort, not a hard session requirement | accepted |
+| DEC-KNOWLEDGE-006 | SQLite FTS5 with BM25 ranking — no vector DB | ~100 curated entries with well-defined clinical terminology; FTS5 BM25 provides fast, accurate keyword retrieval without external dependencies; Porter stemming handles morphological variants | accepted |
+| DEC-TEST-008 | ClinicalKnowledgeBase tests use real in-memory aiosqlite and real FTS5 | Consistent with DEC-TEST-001 and Sacred Practice #5: no internal mocks. Real FTS5 in SQLite memory DB validates BM25 ranking, Porter stemming, and idempotent seed behaviour that mocks cannot exercise. | accepted |
+| DEC-EMOTION-004 | Unit tests use real in-memory SQLite and real EventBus (no internal mocks) | Consistent with Sacred Practice #5 and DEC-TEST-005: mocks are acceptable only for external boundaries; real DB catches constraint violations and actual SQL behaviour | accepted |
+| DEC-EMOTION-005 | Integration test covers full event flow and DB persistence end-to-end | The integration test verifies EmotionAnalyzerAgent wires correctly into EventBus and produces EmotionAnalyzedEvent with accurate field values persisted to DB | accepted |
+| DEC-SUMMARY-005 | Unit tests use in-memory SQLite and a minimal LLM stub | Consistent with DEC-TEST-005: real DB gives actual SQL execution, catching constraint violations and JSON round-trip bugs that a mock would hide | accepted |
+| DEC-SUMMARY-006 | Integration tests exercise full event → DB → REST pipeline | Unit tests verify summarizer logic in isolation; integration tests verify the wiring: EventBus dispatch triggers the handler, the DB write occurs, and the REST endpoint returns the summary | accepted |
 
 ---
 

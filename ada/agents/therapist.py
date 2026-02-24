@@ -5,16 +5,29 @@ Uses CBT/DBT/MI techniques via system prompts. Maintains session continuity
 by loading prior session context. Detects mood from conversation and can
 trigger structured assessments (PHQ-9, GAD-7, WHO-5).
 
+When a user message contains clinical keywords (coping techniques, CBT/DBT
+terms, breathing exercises, etc.), the agent fires a consultation request to
+KnowledgeAgent before generating its response. The resulting evidence is
+appended to the system prompt so Ada's answer is grounded in clinical data.
+
 @decision DEC-AGENT-001
 @title Two-stage crisis detection (keyword then LLM)
 @status accepted
 @rationale TherapistAgent focuses on therapeutic dialogue and delegates
     crisis detection to CrisisMonitorAgent via the EventBus. This keeps
     each agent's responsibility bounded and testable in isolation.
+
+@decision DEC-KNOWLEDGE-008
+@title TherapistAgent keyword-triggered consultation
+@status accepted
+@rationale Only messages containing clinical keywords trigger consultation,
+    keeping latency low for casual conversation. Fire-and-forget with 2s
+    timeout ensures the therapist never hangs waiting for evidence.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime
@@ -23,6 +36,8 @@ from ada.agents.base import BaseAgent
 from ada.agents.handoff import HandoffMixin
 from ada.core.events import (
     AdaEvent,
+    AgentConsultationRequestEvent,
+    AgentConsultationResponseEvent,
     AgentHandoffResponseEvent,
     AssessmentTriggeredEvent,
     EventTypes,
@@ -77,6 +92,16 @@ _MEDICATION_KEYWORDS = {
     "forgot to take", "ran out of", "ran out",
 }
 
+_CONSULTATION_KEYWORDS = {
+    "technique", "strategy", "exercise", "coping", "skill",
+    "cbt", "dbt", "mindfulness", "breathing", "grounding",
+}
+
+_CONSULTATION_PHRASES = {
+    "how do i", "what can i do", "help me with",
+    "any tips", "what techniques",
+}
+
 
 class TherapistAgent(BaseAgent, HandoffMixin):
     """
@@ -101,6 +126,7 @@ class TherapistAgent(BaseAgent, HandoffMixin):
             EventTypes.MESSAGE_RECEIVED,
             EventTypes.SESSION_STARTED,
             EventTypes.AGENT_HANDOFF_RESPONSE,
+            EventTypes.AGENT_CONSULTATION_RESPONSE,
         ]
 
     async def handle_event(self, event: AdaEvent) -> None:
@@ -115,6 +141,8 @@ class TherapistAgent(BaseAgent, HandoffMixin):
             elif event.event_type == EventTypes.AGENT_HANDOFF_RESPONSE:
                 assert isinstance(event, AgentHandoffResponseEvent)
                 await self._on_handoff_response(event)
+            elif event.event_type == EventTypes.AGENT_CONSULTATION_RESPONSE:
+                pass  # Handled via Future in _consult_knowledge_agent
         except Exception:
             logger.exception("TherapistAgent: unhandled error in handle_event")
 
@@ -165,6 +193,16 @@ class TherapistAgent(BaseAgent, HandoffMixin):
                 context={"trigger_content": user_content[:200]},
             )
 
+        # Check for consultation keywords — ask KnowledgeAgent for evidence
+        consultation_evidence = ""
+        consultation_hit = bool(content_words & _CONSULTATION_KEYWORDS) or any(
+            phrase in lower_content for phrase in _CONSULTATION_PHRASES
+        )
+        if consultation_hit:
+            consultation_evidence = await self._consult_knowledge_agent(
+                session_id, patient_id, user_content
+            )
+
         # Persist user message
         await self.state.save_message({
             "id": event.message_id or str(uuid.uuid4()),
@@ -183,11 +221,20 @@ class TherapistAgent(BaseAgent, HandoffMixin):
             if m["role"] in ("user", "assistant")
         ]
 
+        # Build system prompt, enriched with clinical evidence if available
+        system = _SYSTEM_PROMPT
+        if consultation_evidence:
+            system += (
+                "\n\nRelevant clinical evidence for this conversation:\n"
+                + consultation_evidence
+                + "\n\nIncorporate this evidence naturally into your response when relevant."
+            )
+
         # Generate response
         try:
             response = await self.llm.complete(
                 llm_messages,
-                system=_SYSTEM_PROMPT,
+                system=system,
                 max_tokens=self.config.llm.max_tokens,
                 temperature=self.config.llm.temperature,
             )
@@ -236,6 +283,67 @@ class TherapistAgent(BaseAgent, HandoffMixin):
             event.accepted,
             event.notes,
         )
+
+    async def _consult_knowledge_agent(
+        self, session_id: str, patient_id: str, question: str
+    ) -> str:
+        """
+        Fire a consultation request to KnowledgeAgent and wait up to 2s for a response.
+
+        Subscribes a one-shot Future-backed handler to AGENT_CONSULTATION_RESPONSE,
+        publishes the request, then awaits the future with a 2-second timeout.
+        If KnowledgeAgent is absent or slow, returns "" so the therapist proceeds
+        normally with no evidence enrichment.
+
+        Args:
+            session_id: Current session identifier.
+            patient_id: Current patient identifier.
+            question: The user's message (used as the clinical question).
+
+        Returns:
+            Evidence string from KnowledgeAgent, or "" on timeout/error.
+        """
+        req_id = str(uuid.uuid4())
+        response_future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+
+        async def _capture_response(event: AdaEvent) -> None:
+            if (
+                isinstance(event, AgentConsultationResponseEvent)
+                and event.request_id == req_id
+            ):
+                if not response_future.done():
+                    response_future.set_result(event.answer)
+
+        self.bus.subscribe(
+            EventTypes.AGENT_CONSULTATION_RESPONSE,
+            _capture_response,
+            f"therapist:consultation:{req_id}",
+        )
+
+        await self.bus.publish(
+            AgentConsultationRequestEvent(
+                source=self.name,
+                session_id=session_id,
+                patient_id=patient_id,
+                from_agent=self.name,
+                target_agent="knowledge_agent",
+                question=question,
+                request_id=req_id,
+            )
+        )
+
+        try:
+            evidence = await asyncio.wait_for(response_future, timeout=2.0)
+        except asyncio.TimeoutError:
+            logger.debug("TherapistAgent: consultation timed out for %s", req_id)
+            evidence = ""
+        finally:
+            self.bus.unsubscribe(
+                EventTypes.AGENT_CONSULTATION_RESPONSE,
+                f"therapist:consultation:{req_id}",
+            )
+
+        return evidence
 
     async def _maybe_trigger_assessment(
         self,
