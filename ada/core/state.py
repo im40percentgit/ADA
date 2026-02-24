@@ -1,6 +1,6 @@
 """
 SQLite state manager for Ada — patients, sessions, messages, assessments, crisis alerts,
-medications, knowledge graph, and cognitive screenings.
+medications, knowledge graph, cognitive screenings, and session summaries.
 
 Uses aiosqlite for async access. A single StateManager instance is shared across
 all agents via dependency injection at startup.
@@ -30,6 +30,15 @@ all agents via dependency injection at startup.
     exists yet. Hard-delete (vs soft-delete) is used because cancelled
     appointments are modelled via status="cancelled" — no need to retain
     deleted rows as a separate concept.
+
+@decision DEC-SUMMARY-002
+@title session_summaries table with UNIQUE constraint on session_id
+@status accepted
+@rationale Each session produces at most one SOAP note. A UNIQUE constraint on
+    session_id enforces this at the DB level — no application-layer guard needed.
+    key_topics and risk_flags are stored as JSON strings (consistent with the
+    item_scores / concerns pattern used elsewhere in this file) and deserialized
+    in _session_summary_row() so callers always receive Python lists.
 """
 
 from __future__ import annotations
@@ -193,6 +202,52 @@ CREATE TABLE IF NOT EXISTS appointments (
     updated_at          TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_appointments_patient ON appointments(patient_id);
+
+CREATE TABLE IF NOT EXISTS emotion_analyses (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    patient_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    primary_emotion TEXT NOT NULL,
+    secondary_emotion TEXT,
+    intensity REAL NOT NULL,
+    valence REAL NOT NULL,
+    arousal REAL NOT NULL,
+    confidence REAL NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_emotion_session ON emotion_analyses(session_id);
+CREATE INDEX IF NOT EXISTS idx_emotion_patient ON emotion_analyses(patient_id);
+
+CREATE TABLE IF NOT EXISTS session_summaries (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL UNIQUE,
+    patient_id TEXT NOT NULL,
+    subjective TEXT NOT NULL,
+    objective TEXT NOT NULL,
+    assessment TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    key_topics TEXT NOT NULL DEFAULT '[]',
+    risk_flags TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_summary_session ON session_summaries(session_id);
+CREATE INDEX IF NOT EXISTS idx_summary_patient ON session_summaries(patient_id);
+
+CREATE TABLE IF NOT EXISTS handoff_log (
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT NOT NULL,
+    patient_id      TEXT NOT NULL,
+    from_agent      TEXT NOT NULL,
+    to_agent        TEXT NOT NULL,
+    reason          TEXT NOT NULL,
+    payload         TEXT,
+    accepted        INTEGER NOT NULL DEFAULT 0,
+    response_notes  TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_handoff_log_session ON handoff_log(session_id);
+CREATE INDEX IF NOT EXISTS idx_handoff_log_patient ON handoff_log(patient_id);
 
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
@@ -887,6 +942,138 @@ class StateManager:
         )
 
     # ------------------------------------------------------------------
+    # Emotion analyses
+    # ------------------------------------------------------------------
+
+    async def create_emotion_analysis(self, analysis: dict[str, Any]) -> None:
+        """Insert a new emotion analysis record.
+
+        Args:
+            analysis: Dict with keys: id, session_id, patient_id, message_id,
+                primary_emotion, secondary_emotion (optional), intensity, valence,
+                arousal, confidence. created_at is set by the DB default.
+        """
+        await self._exec(
+            """INSERT INTO emotion_analyses
+               (id, session_id, patient_id, message_id, primary_emotion,
+                secondary_emotion, intensity, valence, arousal, confidence, created_at)
+               VALUES
+               (:id, :session_id, :patient_id, :message_id, :primary_emotion,
+                :secondary_emotion, :intensity, :valence, :arousal, :confidence, :created_at)""",
+            {
+                "secondary_emotion": None,
+                **analysis,
+                "created_at": analysis.get("created_at", _now()),
+            },
+        )
+
+    async def get_emotion_analyses(self, session_id: str) -> list[dict[str, Any]]:
+        """Return all emotion analyses for a session, ordered by created_at.
+
+        Args:
+            session_id: The session to retrieve emotion analyses for.
+
+        Returns:
+            List of dicts with all emotion_analyses columns.
+        """
+        rows = await self._fetchall(
+            "SELECT * FROM emotion_analyses WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        )
+        return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Handoff log
+    # ------------------------------------------------------------------
+
+    async def create_handoff_log(self, entry: dict[str, Any]) -> None:
+        """Insert a handoff audit log entry.
+
+        Called by HandoffMixin on every handoff — both the initial request
+        (accepted=False, response_notes=None) and the accepted/rejected
+        response (accepted=True/False, response_notes=<notes>).
+
+        Args:
+            entry: Dict with keys: id, session_id, patient_id, from_agent,
+                   to_agent, reason, payload (JSON str or None), accepted
+                   (bool/int), response_notes (str or None). created_at is
+                   set automatically by the DB default if not provided.
+        """
+        await self._exec(
+            """INSERT INTO handoff_log
+               (id, session_id, patient_id, from_agent, to_agent, reason,
+                payload, accepted, response_notes, created_at)
+               VALUES
+               (:id, :session_id, :patient_id, :from_agent, :to_agent, :reason,
+                :payload, :accepted, :response_notes, :created_at)""",
+            {
+                "payload": None,
+                "response_notes": None,
+                **entry,
+                "accepted": 1 if entry.get("accepted") else 0,
+                "created_at": entry.get("created_at", _now()),
+            },
+        )
+
+    async def get_handoff_logs(self, session_id: str) -> list[dict[str, Any]]:
+        """Return all handoff log entries for a session, ordered by created_at.
+
+        Args:
+            session_id: The session to retrieve handoff logs for.
+
+        Returns:
+            List of dicts with all handoff_log columns. ``accepted`` is
+            returned as a Python bool.
+        """
+        rows = await self._fetchall(
+            "SELECT * FROM handoff_log WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        )
+        return [_handoff_log_row(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Session summaries
+    # ------------------------------------------------------------------
+
+    async def create_session_summary(self, summary: dict[str, Any]) -> None:
+        """Insert a SOAP session summary record.
+
+        Args:
+            summary: Dict with keys: id, session_id, patient_id, subjective,
+                objective, assessment, plan, key_topics (list), risk_flags (list).
+                created_at defaults to now if omitted.
+        """
+        await self._exec(
+            """INSERT INTO session_summaries
+               (id, session_id, patient_id, subjective, objective, assessment,
+                plan, key_topics, risk_flags, created_at)
+               VALUES
+               (:id, :session_id, :patient_id, :subjective, :objective, :assessment,
+                :plan, :key_topics, :risk_flags, :created_at)""",
+            {
+                **summary,
+                "key_topics": json.dumps(summary.get("key_topics", [])),
+                "risk_flags": json.dumps(summary.get("risk_flags", [])),
+                "created_at": summary.get("created_at", _now()),
+            },
+        )
+
+    async def get_session_summary(self, session_id: str) -> dict[str, Any] | None:
+        """Return the SOAP summary for a session, or None if not yet generated.
+
+        Args:
+            session_id: The session to look up.
+
+        Returns:
+            Dict with all session_summaries columns (key_topics and risk_flags
+            are Python lists), or None if no summary exists.
+        """
+        row = await self._fetchone(
+            "SELECT * FROM session_summaries WHERE session_id = ?", (session_id,)
+        )
+        return _session_summary_row(row) if row else None
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -953,6 +1140,21 @@ def _cognitive_screening_row(row: aiosqlite.Row) -> dict[str, Any]:
     d["domains"] = json.loads(d.get("domains") or "{}")
     d["tasks"] = json.loads(d.get("tasks") or "[]")
     d["concerns"] = json.loads(d.get("concerns") or "[]")
+    return d
+
+
+def _handoff_log_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize a handoff_log row — converts accepted INTEGER to bool."""
+    d = dict(row)
+    d["accepted"] = bool(d.get("accepted", 0))
+    return d
+
+
+def _session_summary_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize a session_summaries row — JSON-decode key_topics and risk_flags."""
+    d = dict(row)
+    d["key_topics"] = json.loads(d.get("key_topics") or "[]")
+    d["risk_flags"] = json.loads(d.get("risk_flags") or "[]")
     return d
 
 

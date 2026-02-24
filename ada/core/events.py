@@ -78,6 +78,12 @@ class EventTypes:
     APPOINTMENT_CREATED = "appointment.created"
     APPOINTMENT_UPCOMING = "appointment.upcoming"
 
+    # Emotion analysis
+    EMOTION_ANALYZED = "emotion.analyzed"
+
+    # Session summarization
+    SESSION_SUMMARIZED = "session.summarized"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -316,3 +322,29 @@ class CognitiveScreeningCompletedEvent(AdaEvent):
     screening_id: str = ""
     overall_score: float = 0.0
     concerns: list = field(default_factory=list)
+
+
+@dataclass
+class EmotionAnalyzedEvent(AdaEvent):
+    """Published by EmotionAnalyzerAgent after analysing a patient message."""
+
+    event_type: str = EventTypes.EMOTION_ANALYZED
+    session_id: str = ""
+    patient_id: str = ""
+    message_id: str = ""
+    primary_emotion: str = ""
+    secondary_emotion: str | None = None
+    intensity: float = 0.0
+    valence: float = 0.0
+    arousal: float = 0.0
+    confidence: float = 0.0
+
+
+@dataclass
+class SessionSummarizedEvent(AdaEvent):
+    """Published by SessionSummarizer after generating and persisting a SOAP note."""
+
+    event_type: str = EventTypes.SESSION_SUMMARIZED
+    session_id: str = ""
+    patient_id: str = ""
+    summary_id: str = ""

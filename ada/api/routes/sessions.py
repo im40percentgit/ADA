@@ -101,3 +101,20 @@ async def get_messages(
 ) -> list[dict[str, Any]]:
     """Get all messages in a session."""
     return await _state(request).get_messages(session_id)
+
+
+@router.get("/sessions/{session_id}/summary")
+async def get_session_summary(
+    session_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get the SOAP clinical summary for a session.
+
+    Returns 404 if the session has no summary yet (either the session has not
+    ended, or the SessionSummarizer has not processed it).
+    """
+    summary = await _state(request).get_session_summary(session_id)
+    if not summary:
+        raise HTTPException(status_code=404, detail="Summary not found")
+    return summary

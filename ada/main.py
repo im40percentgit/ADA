@@ -32,9 +32,11 @@ import structlog
 import uvicorn
 
 from ada.agents.cognitive_assessor import CognitiveAssessorAgent
+from ada.agents.emotion_analyzer import EmotionAnalyzerAgent
 from ada.agents.crisis_monitor import CrisisMonitorAgent
 from ada.agents.medication_manager import MedicationManagerAgent
 from ada.agents.registry import AgentRegistry
+from ada.agents.session_summarizer import SessionSummarizer
 from ada.agents.therapist import TherapistAgent
 from ada.api.app import create_app
 from ada.core.bus import EventBus
@@ -110,8 +112,16 @@ async def run(config: AdaConfig) -> None:
         registry.register(CognitiveAssessorAgent())
         log.info("CognitiveAssessorAgent registered")
 
+    if config.agents.emotion_analyzer.enabled:
+        registry.register(EmotionAnalyzerAgent())
+        log.info("EmotionAnalyzerAgent registered")
+
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))
+
+    # Infrastructure subscribers (not registry-managed)
+    summarizer = SessionSummarizer(bus, state, llm)
+    log.info("SessionSummarizer instantiated")
 
     # FastAPI
     app = create_app(config, bus, state, registry)

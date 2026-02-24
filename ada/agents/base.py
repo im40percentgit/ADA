@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 
 import uuid
 
+from ada.agents.handoff import HandoffPayload
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.events import AdaEvent, AgentHandoffRequestEvent, EventTypes
@@ -173,6 +174,7 @@ class BaseAgent(ABC):
         patient_id: str,
         reason: str,
         context: dict | None = None,
+        payload: HandoffPayload | None = None,
     ) -> str:
         """
         Publish an AgentHandoffRequestEvent to the bus.
@@ -186,12 +188,21 @@ class BaseAgent(ABC):
             session_id: Current session ID.
             patient_id: Current patient ID.
             reason: Human-readable reason for the handoff.
-            context: Optional payload dict passed to the target agent.
+            context: Optional legacy payload dict (backward compat). Prefer
+                     the typed ``payload`` argument for new callers.
+            payload: Optional typed HandoffPayload with structured clinical
+                     context. When provided, its dict representation is merged
+                     into ``context`` so the receiving agent can access it via
+                     either the typed or legacy interface.
 
         Returns:
             The request_id string (UUID4) for response correlation.
         """
         request_id = str(uuid.uuid4())
+        # Merge typed payload into context dict for backward compat receivers
+        merged_context: dict = dict(context or {})
+        if payload is not None:
+            merged_context.update(payload.to_dict())
         await self.bus.publish(
             AgentHandoffRequestEvent(
                 source=self.name,
@@ -200,7 +211,7 @@ class BaseAgent(ABC):
                 from_agent=self.name,
                 target_agent=target_agent,
                 handoff_reason=reason,
-                context=context or {},
+                context=merged_context,
                 request_id=request_id,
             )
         )

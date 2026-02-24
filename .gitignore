@@ -1,6 +1,7 @@
 # Data and temp
 data/
 tmp/
+.worktrees/
 *.db
 
 # Python

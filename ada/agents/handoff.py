@@ -1,10 +1,11 @@
 """
 Handoff protocol helpers for Ada agents.
 
-Provides HandoffContext (data transfer object) and HandoffMixin (receiving-side
-handler logic). The requesting side uses BaseAgent.request_handoff() which
-publishes AgentHandoffRequestEvent. The receiving side uses HandoffMixin to
-subscribe and respond.
+Provides HandoffPayload (typed clinical context), HandoffContext (data transfer
+object), and HandoffMixin (receiving-side handler logic). The requesting side
+uses BaseAgent.request_handoff() which publishes AgentHandoffRequestEvent. The
+receiving side uses HandoffMixin to subscribe and respond, writing an audit
+entry to the handoff_log table on every handoff.
 
 @decision DEC-AGENT-003
 @title AgentHandoff via EventBus AgentHandoffRequestEvent
@@ -16,11 +17,23 @@ subscribe and respond.
     agent references and is consistent with the EventBus-first design. The
     HandoffMixin pattern enables selective adoption — only agents that can
     receive handoffs need to include it.
+
+@decision DEC-HANDOFF-001
+@title HandoffPayload typed dataclass alongside legacy context dict
+@status accepted
+@rationale Typed fields (trigger_phrase, emotional_state, risk_level,
+    active_topics, recommendations, custom) replace the opaque dict[str, Any]
+    while preserving backward compatibility via HandoffContext.context.
+    The handoff_log table provides clinical-grade audit trail for every
+    inter-agent handoff. The custom field allows per-pair extensions without
+    requiring new subtypes.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -31,6 +44,71 @@ from ada.core.events import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Typed payload
+# ---------------------------------------------------------------------------
+
+@dataclass
+class HandoffPayload:
+    """
+    Typed clinical context carried with an inter-agent handoff.
+
+    Replaces the opaque ``dict[str, Any]`` formerly used in
+    ``HandoffContext.context``. The ``custom`` field preserves extensibility
+    for agent-pair–specific data without requiring new subtypes.
+
+    Attributes:
+        trigger_phrase: The text or keyword that prompted the handoff.
+        emotional_state: Patient's inferred emotional state at handoff time.
+        risk_level: Assessed risk level — one of low/moderate/high/critical.
+        active_topics: Clinical topics active in the session at handoff.
+        recommendations: Suggested actions for the receiving agent.
+        custom: Arbitrary extension data for agent-pair–specific context.
+    """
+
+    trigger_phrase: str = ""
+    emotional_state: str | None = None
+    risk_level: str | None = None  # low / moderate / high / critical
+    active_topics: list[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
+    custom: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dict suitable for JSON encoding.
+
+        Returns a new dict; mutating the return value does not affect this
+        instance.
+        """
+        return {
+            "trigger_phrase": self.trigger_phrase,
+            "emotional_state": self.emotional_state,
+            "risk_level": self.risk_level,
+            "active_topics": list(self.active_topics),
+            "recommendations": list(self.recommendations),
+            "custom": dict(self.custom),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "HandoffPayload":
+        """Deserialize from a plain dict, ignoring unknown keys.
+
+        Args:
+            data: Dict produced by ``to_dict()`` or from the ``payload``
+                  column of the ``handoff_log`` table.
+
+        Returns:
+            A new HandoffPayload with fields populated from ``data``.
+        """
+        return cls(
+            trigger_phrase=data.get("trigger_phrase", ""),
+            emotional_state=data.get("emotional_state"),
+            risk_level=data.get("risk_level"),
+            active_topics=list(data.get("active_topics") or []),
+            recommendations=list(data.get("recommendations") or []),
+            custom=dict(data.get("custom") or {}),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +129,9 @@ class HandoffContext:
         patient_id: The patient associated with the session.
         from_agent: Name of the agent initiating the handoff.
         reason: Human-readable description of why the handoff was requested.
-        context: Arbitrary key/value payload from the requesting agent.
+        context: Arbitrary key/value payload from the requesting agent
+                 (preserved for backward compatibility — prefer ``payload``).
+        payload: Typed clinical context for the handoff (Phase 3+).
         request_id: UUID4 correlation ID for matching request to response.
     """
 
@@ -60,6 +140,7 @@ class HandoffContext:
     from_agent: str
     reason: str
     context: dict[str, Any] = field(default_factory=dict)
+    payload: HandoffPayload = field(default_factory=HandoffPayload)
     request_id: str = ""
 
 
@@ -98,7 +179,8 @@ class HandoffMixin:
         Entry point for AGENT_HANDOFF_REQUEST events.
 
         Filters to events targeting this agent, calls _process_handoff, then
-        publishes an AgentHandoffResponseEvent.
+        publishes an AgentHandoffResponseEvent and writes an audit entry to
+        the handoff_log table via ``self.state``.
 
         Args:
             event: The incoming event (expected to be AgentHandoffRequestEvent).
@@ -123,12 +205,21 @@ class HandoffMixin:
             event.handoff_reason,
         )
 
+        # Build typed payload from the legacy context dict when no typed
+        # payload was embedded in the event.  Agents that populate
+        # event.context directly will get a best-effort payload.
+        payload = HandoffPayload(
+            trigger_phrase=str(event.context.get("trigger_content", "")),
+            custom=dict(event.context),
+        )
+
         hc = HandoffContext(
             session_id=event.session_id,
             patient_id=event.patient_id,
             from_agent=event.from_agent,
             reason=event.handoff_reason,
             context=event.context,
+            payload=payload,
             request_id=event.request_id,
         )
 
@@ -162,6 +253,27 @@ class HandoffMixin:
             event.request_id,
             accepted,
         )
+
+        # Write clinical audit log entry — best-effort, never raises.
+        try:
+            state = self.state  # type: ignore[attr-defined]
+            await state.create_handoff_log({
+                "id": str(uuid.uuid4()),
+                "session_id": event.session_id,
+                "patient_id": event.patient_id,
+                "from_agent": event.from_agent,
+                "to_agent": self.name,  # type: ignore[attr-defined]
+                "reason": event.handoff_reason,
+                "payload": json.dumps(payload.to_dict()),
+                "accepted": accepted,
+                "response_notes": notes,
+            })
+        except Exception:
+            logger.exception(
+                "%s: failed to write handoff_log entry (request_id=%s) — audit gap",
+                self.name,  # type: ignore[attr-defined]
+                event.request_id,
+            )
 
     async def _process_handoff(self, context: HandoffContext) -> str:
         """

@@ -72,6 +72,7 @@ class AgentsConfig(BaseModel):
     crisis_monitor: AgentConfig = AgentConfig()
     medication_manager: AgentConfig = AgentConfig()
     cognitive_assessor: AgentConfig = AgentConfig()
+    emotion_analyzer: AgentConfig = AgentConfig()
 
 
 class AuthConfig(BaseModel):

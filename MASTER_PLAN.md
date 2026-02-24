@@ -121,7 +121,7 @@ ada/
 ---
 
 ### Phase 3 — Intelligence Layer
-**Status:** `planned`
+**Status:** `in_progress`
 
 | Deliverable | Description |
 |-------------|-------------|
@@ -184,6 +184,10 @@ ada/
 | DEC-AUTH-002 | FastAPI Depends(get_current_user) — dependency override in tests | Clean injection, no global state, testable without real tokens | accepted |
 | DEC-AUTH-003 | pwdlib[argon2] for password hashing | Argon2 is recommended best practice; pwdlib is small and async-safe | accepted |
 | DEC-AGENT-003 | AgentHandoff via EventBus AgentHandoffRequestEvent | Keeps agents decoupled; handoff is just another event | accepted |
+| DEC-AGENT-004 | Synchronous interaction check via registry, not EventBus (MedicationManager) | REST POST /medications needs interaction warning in the HTTP response body; EventBus roundtrip is async and incompatible with synchronous request/response | accepted |
+| DEC-ASSESS-001 | Separate cognitive_screenings table from assessment_results | PHQ-9/GAD-7/WHO-5 produce fixed integer scores; adaptive screenings produce variable-length task arrays with domain breakdowns — merging would require nullable columns and type discrimination | accepted |
+| DEC-ASSESS-002 | In-memory state for active cognitive assessment sessions | Sessions are short-lived; worst-case failure is assessment restart, not data loss; avoids DB write overhead for every interaction step | accepted |
+| DEC-APPT-001 | Appointments as plain CRUD in state.py — no agent | Appointments are pure data in Phase 2b; events published for future consumers but no subscriber exists yet; hard-delete not needed since cancelled status models the concept | accepted |
 | DEC-KNOWLEDGE-001 | Knowledge graph stored as nodes+edges in SQLite | No external graph DB needed for Phase 2 scale; recursive CTE for traversal | accepted |
 | DEC-KNOWLEDGE-002 | Knowledge endpoints are read-only REST; writes happen via EventBus | Centralises extraction logic; prevents unvalidated client writes to graph | accepted |
 | DEC-KNOWLEDGE-003 | KnowledgeExtractor subscribes to SESSION_ENDED — not a BaseAgent subclass | Infrastructure class, not a therapy agent; keeps agent registry clean | accepted |
@@ -192,6 +196,12 @@ ada/
 | DEC-FRONTEND-003 | useWebSocket hook owns connection lifecycle; useChat owns message state | Separates transport from application-level protocol | accepted |
 | DEC-FRONTEND-011 | localStorage for token storage — no httpOnly cookie in Phase 2 | Pragmatic for SPA + separate API origin; XSS risk accepted for non-production prototype | accepted |
 | DEC-FRONTEND-012 | useAuth holds auth state at App root — no global context in Phase 2 | No need for Context + Provider at this scale; hook can be wrapped if needed later | accepted |
+
+### Phase 3 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-HANDOFF-001 | HandoffPayload typed dataclass alongside legacy context dict in HandoffContext | Typed fields (trigger_phrase, emotional_state, risk_level, active_topics, recommendations, custom) replace opaque dict[str, Any] while preserving backward compatibility; handoff_log table provides clinical-grade audit trail | accepted |
 
 ---
 
