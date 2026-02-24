@@ -21,6 +21,15 @@ all agents via dependency injection at startup.
     an overall float score. Merging these into assessment_results would require
     nullable columns and type discrimination logic throughout the codebase.
     A dedicated table keeps each schema clean and independently evolvable.
+
+@decision DEC-APPT-001
+@title Appointments as plain CRUD in state.py — no agent
+@status accepted
+@rationale Appointments are pure data in Phase 2b. Events are published for
+    future consumers (reminders, caregiver notifications) but no subscriber
+    exists yet. Hard-delete (vs soft-delete) is used because cancelled
+    appointments are modelled via status="cancelled" — no need to retain
+    deleted rows as a separate concept.
 """
 
 from __future__ import annotations
@@ -168,6 +177,22 @@ CREATE TABLE IF NOT EXISTS cognitive_screenings (
     created_at      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_cognitive_screenings_patient ON cognitive_screenings(patient_id);
+
+CREATE TABLE IF NOT EXISTS appointments (
+    id                  TEXT PRIMARY KEY,
+    patient_id          TEXT NOT NULL REFERENCES patients(id),
+    title               TEXT NOT NULL,
+    description         TEXT,
+    scheduled_at        TEXT NOT NULL,
+    duration_minutes    INTEGER NOT NULL DEFAULT 60,
+    appointment_type    TEXT NOT NULL DEFAULT 'therapy',
+    status              TEXT NOT NULL DEFAULT 'scheduled',
+    provider_name       TEXT,
+    notes               TEXT,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_appointments_patient ON appointments(patient_id);
 
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
@@ -785,6 +810,80 @@ class StateManager:
         await self._exec(
             f"UPDATE cognitive_screenings SET {set_clause} WHERE id = :id",
             {**fields, "id": screening_id},
+        )
+
+    # ------------------------------------------------------------------
+    # Appointments
+    # ------------------------------------------------------------------
+
+    async def create_appointment(self, appointment: dict[str, Any]) -> None:
+        """Insert a new appointment record."""
+        now = _now()
+        await self._exec(
+            """INSERT INTO appointments
+               (id, patient_id, title, description, scheduled_at, duration_minutes,
+                appointment_type, status, provider_name, notes, created_at, updated_at)
+               VALUES
+               (:id, :patient_id, :title, :description, :scheduled_at, :duration_minutes,
+                :appointment_type, :status, :provider_name, :notes, :created_at, :updated_at)""",
+            {
+                "description": None,
+                "duration_minutes": 60,
+                "appointment_type": "therapy",
+                "status": "scheduled",
+                "provider_name": None,
+                "notes": None,
+                **appointment,
+                "created_at": appointment.get("created_at", now),
+                "updated_at": appointment.get("updated_at", now),
+            },
+        )
+
+    async def get_appointment(self, appointment_id: str) -> dict[str, Any] | None:
+        """Return a single appointment by ID."""
+        row = await self._fetchone(
+            "SELECT * FROM appointments WHERE id = ?", (appointment_id,)
+        )
+        return dict(row) if row else None
+
+    async def list_appointments(
+        self, patient_id: str, status: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return all appointments for a patient, optionally filtered by status."""
+        if status:
+            rows = await self._fetchall(
+                "SELECT * FROM appointments WHERE patient_id = ? AND status = ? ORDER BY scheduled_at ASC",
+                (patient_id, status),
+            )
+        else:
+            rows = await self._fetchall(
+                "SELECT * FROM appointments WHERE patient_id = ? ORDER BY scheduled_at ASC",
+                (patient_id,),
+            )
+        return [dict(r) for r in rows]
+
+    async def update_appointment(
+        self, appointment_id: str, updates: dict[str, Any]
+    ) -> None:
+        """Update allowed fields on an appointment record."""
+        allowed = {
+            "title", "description", "scheduled_at", "duration_minutes",
+            "appointment_type", "status", "provider_name", "notes",
+        }
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        if not fields:
+            return
+        fields["updated_at"] = _now()
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await self._exec(
+            f"UPDATE appointments SET {set_clause} WHERE id = :id",
+            {**fields, "id": appointment_id},
+        )
+
+    async def delete_appointment(self, appointment_id: str) -> None:
+        """Hard-delete an appointment record."""
+        await self._exec(
+            "DELETE FROM appointments WHERE id = ?", (appointment_id,)
         )
 
     # ------------------------------------------------------------------

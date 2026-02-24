@@ -74,6 +74,10 @@ class EventTypes:
     COGNITIVE_SCREENING_STARTED = "cognitive.screening_started"
     COGNITIVE_SCREENING_COMPLETED = "cognitive.screening_completed"
 
+    # Appointments
+    APPOINTMENT_CREATED = "appointment.created"
+    APPOINTMENT_UPCOMING = "appointment.upcoming"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -266,6 +270,30 @@ class MedicationInteractionDetectedEvent(AdaEvent):
     new_medication: str = ""
     existing_medications: list = field(default_factory=list)
     interaction_notes: str = ""
+
+
+@dataclass
+class AppointmentCreatedEvent(AdaEvent):
+    """Published when a new appointment is created for a patient."""
+
+    event_type: str = EventTypes.APPOINTMENT_CREATED
+    patient_id: str = ""
+    appointment_id: str = ""
+    title: str = ""
+    scheduled_at: str = ""
+    appointment_type: str = ""
+
+
+@dataclass
+class AppointmentUpcomingEvent(AdaEvent):
+    """Published by a scheduler when an appointment is approaching."""
+
+    event_type: str = EventTypes.APPOINTMENT_UPCOMING
+    patient_id: str = ""
+    appointment_id: str = ""
+    title: str = ""
+    scheduled_at: str = ""
+    minutes_until: int = 0
 
 
 @dataclass
