@@ -33,7 +33,7 @@ ada/
     models/        Pydantic domain models (Patient, Session, Message, Assessment)
     api/           FastAPI app + WebSocket + REST routes
   config/          TOML configuration files
-  tests/           pytest-asyncio unit + integration tests (360 passing)
+  tests/           pytest-asyncio unit + integration tests (494 passing)
   web/             React + TypeScript + Vite frontend
 ```
 
@@ -47,7 +47,7 @@ ada/
 | LLM providers | `ada/llm/` | Provider abstraction |
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
-| Tests | `tests/` | 360 unit + integration tests |
+| Tests | `tests/` | 494 unit + integration tests |
 
 ---
 
@@ -121,15 +121,28 @@ ada/
 ---
 
 ### Phase 3 — Intelligence Layer
-**Status:** `in_progress`
+**Status:** `completed`
+**Commits:** `8486aa7` (Phase 3a: Emotion Analysis + Session Summarization), `711417e` (Phase 3b: Knowledge Agent)
 
-| Deliverable | Description |
-|-------------|-------------|
-| Emotion analysis (text NLP) | Sentiment beyond keyword matching |
-| Knowledge Agent | Evidence-based clinical retrieval (RAG) |
-| Inter-agent handoff protocol | Formal handoff with context transfer |
-| Clinical evidence integration | Treatment guideline awareness |
-| Session summarization | Automatic session notes for clinicians |
+#### Phase 3a
+**Status:** `completed`
+**Commits:** `8486aa7`
+
+| Deliverable | Status | Issue |
+|-------------|--------|-------|
+| Typed HandoffPayload + audit log | Done | #12 |
+| Emotion Analysis Agent (Plutchik's 8 + valence/arousal) | Done | #13 |
+| Session Summarizer (SOAP notes) | Done | #14 |
+
+#### Phase 3b
+**Status:** `completed`
+**Commits:** `711417e`
+
+| Deliverable | Status | Issue |
+|-------------|--------|-------|
+| ClinicalKnowledgeBase (FTS5 + BM25) | Done | #15 |
+| KnowledgeAgent (LLM re-ranking) | Done | #15 |
+| TherapistAgent keyword-triggered consultation | Done | #15 |
 
 ---
 
@@ -209,12 +222,16 @@ ada/
 | DEC-SUMMARY-002 | session_summaries table with UNIQUE constraint on session_id | Each session produces at most one SOAP note; UNIQUE constraint enforces idempotency and allows upsert-on-conflict patterns | accepted |
 | DEC-SUMMARY-003 | SessionSummarizer as infrastructure subscriber (not BaseAgent) | SOAP note generation is a post-session infrastructure concern, not a therapy agent; mirrors KnowledgeExtractor pattern (DEC-KNOWLEDGE-003) | accepted |
 | DEC-SUMMARY-004 | Lenient JSON extraction with regex fallback (DEC-KNOWLEDGE-004 pattern) | LLMs occasionally wrap JSON in code fences; fail-open keeps summarization best-effort, not a hard session requirement | accepted |
-| DEC-KNOWLEDGE-006 | SQLite FTS5 with BM25 ranking — no vector DB | ~100 curated entries with well-defined clinical terminology; FTS5 BM25 provides fast, accurate keyword retrieval without external dependencies; Porter stemming handles morphological variants | accepted |
 | DEC-TEST-008 | ClinicalKnowledgeBase tests use real in-memory aiosqlite and real FTS5 | Consistent with DEC-TEST-001 and Sacred Practice #5: no internal mocks. Real FTS5 in SQLite memory DB validates BM25 ranking, Porter stemming, and idempotent seed behaviour that mocks cannot exercise. | accepted |
 | DEC-EMOTION-004 | Unit tests use real in-memory SQLite and real EventBus (no internal mocks) | Consistent with Sacred Practice #5 and DEC-TEST-005: mocks are acceptable only for external boundaries; real DB catches constraint violations and actual SQL behaviour | accepted |
 | DEC-EMOTION-005 | Integration test covers full event flow and DB persistence end-to-end | The integration test verifies EmotionAnalyzerAgent wires correctly into EventBus and produces EmotionAnalyzedEvent with accurate field values persisted to DB | accepted |
 | DEC-SUMMARY-005 | Unit tests use in-memory SQLite and a minimal LLM stub | Consistent with DEC-TEST-005: real DB gives actual SQL execution, catching constraint violations and JSON round-trip bugs that a mock would hide | accepted |
 | DEC-SUMMARY-006 | Integration tests exercise full event → DB → REST pipeline | Unit tests verify summarizer logic in isolation; integration tests verify the wiring: EventBus dispatch triggers the handler, the DB write occurs, and the REST endpoint returns the summary | accepted |
+| DEC-KNOWLEDGE-005 | KnowledgeAgent uses consultation events (AGENT_CONSULTATION_REQUEST/RESPONSE) | Keeps agents decoupled; TherapistAgent doesn't import KnowledgeAgent directly; communication is purely event-based | accepted |
+| DEC-KNOWLEDGE-006 | SQLite FTS5 with BM25 ranking — no vector DB | ~100 curated entries with well-defined clinical terminology; FTS5 BM25 provides fast, accurate keyword retrieval without external dependencies; Porter stemming handles morphological variants | accepted |
+| DEC-KNOWLEDGE-007 | LLM re-ranking synthesizes top-5 FTS5 results into contextual answer | Raw BM25 results lack synthesis; LLM condenses multiple evidence snippets into a coherent clinical summary with citations | accepted |
+| DEC-KNOWLEDGE-008 | TherapistAgent keyword-triggered consultation (not every message) | Consulting on every message wastes resources; keyword/phrase detection targets messages where clinical evidence would be relevant | accepted |
+| DEC-KNOWLEDGE-009 | Fire-and-forget with 2s timeout | Conversation responsiveness over completeness; TherapistAgent proceeds with base prompt if KnowledgeAgent is slow or unavailable | accepted |
 
 ---
 
