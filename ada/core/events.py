@@ -91,6 +91,10 @@ class EventTypes:
     SENSOR_ALERT = "sensor.alert"
     EMOTION_FUSED = "emotion.fused"
 
+    # Multimodal input (Phase 4b)
+    AUDIO_CHUNK_RECEIVED = "audio.chunk_received"
+    VIDEO_FRAME_RECEIVED = "video.frame_received"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -427,3 +431,29 @@ class FusedEmotionEvent(AdaEvent):
     fused_arousal: float = 0.0
     confidence: float = 0.0
     modalities_available: list = field(default_factory=list)
+
+
+@dataclass
+class AudioChunkReceivedEvent(AdaEvent):
+    """Published by media WS when an audio chunk arrives for processing."""
+
+    event_type: str = EventTypes.AUDIO_CHUNK_RECEIVED
+    session_id: str = ""
+    patient_id: str = ""
+    audio_bytes: bytes = b""
+    codec: str = "webm/opus"
+    sample_rate: int = 48000
+    chunk_id: str = ""
+
+
+@dataclass
+class VideoFrameReceivedEvent(AdaEvent):
+    """Published by media WS when a video frame arrives for processing."""
+
+    event_type: str = EventTypes.VIDEO_FRAME_RECEIVED
+    session_id: str = ""
+    patient_id: str = ""
+    frame_bytes: bytes = b""
+    format: str = "jpeg"
+    resolution: str = ""
+    frame_id: str = ""
