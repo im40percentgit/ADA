@@ -116,6 +116,10 @@ class MultimodalConfig(BaseModel):
     physiological_analysis_enabled: bool = True
     physiological_window_size: int = 30
     physiological_trigger_interval: int = 10
+    # Phase 4c: Fusion
+    fusion_enabled: bool = True
+    fusion_staleness_half_life: float = 10.0
+    fusion_min_weight: float = 0.01
 
 
 class APIConfig(BaseModel):

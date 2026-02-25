@@ -37,6 +37,7 @@ from ada.agents.crisis_monitor import CrisisMonitorAgent
 from ada.agents.facial_emotion import FacialEmotionAgent
 from ada.agents.knowledge_agent import KnowledgeAgent
 from ada.agents.medication_manager import MedicationManagerAgent
+from ada.agents.fusion import MultimodalFusionAgent
 from ada.agents.physiological import PhysiologicalAgent
 from ada.agents.registry import AgentRegistry
 from ada.agents.session_summarizer import SessionSummarizer
@@ -138,6 +139,10 @@ async def run(config: AdaConfig) -> None:
         if config.multimodal.physiological_analysis_enabled:
             registry.register(PhysiologicalAgent())
             log.info("PhysiologicalAgent registered")
+
+        if config.multimodal.fusion_enabled:
+            registry.register(MultimodalFusionAgent())
+            log.info("MultimodalFusionAgent registered")
 
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))
