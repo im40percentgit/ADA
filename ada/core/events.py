@@ -84,6 +84,13 @@ class EventTypes:
     # Session summarization
     SESSION_SUMMARIZED = "session.summarized"
 
+    # Multimodal (Phase 4)
+    VOICE_ANALYZED = "voice.analyzed"
+    FACE_ANALYZED = "face.analyzed"
+    SENSOR_READING = "sensor.reading"
+    SENSOR_ALERT = "sensor.alert"
+    EMOTION_FUSED = "emotion.fused"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -348,3 +355,75 @@ class SessionSummarizedEvent(AdaEvent):
     session_id: str = ""
     patient_id: str = ""
     summary_id: str = ""
+
+
+@dataclass
+class VoiceAnalyzedEvent(AdaEvent):
+    """Published by VoiceEmotionAgent after analysing an audio chunk."""
+
+    event_type: str = EventTypes.VOICE_ANALYZED
+    session_id: str = ""
+    patient_id: str = ""
+    audio_chunk_id: str = ""
+    emotion: str = ""
+    pitch_mean: float = 0.0
+    energy_mean: float = 0.0
+    speech_rate: float = 0.0
+    confidence: float = 0.0
+
+
+@dataclass
+class FaceAnalyzedEvent(AdaEvent):
+    """Published by FacialEmotionAgent after analysing a video frame."""
+
+    event_type: str = EventTypes.FACE_ANALYZED
+    session_id: str = ""
+    patient_id: str = ""
+    frame_id: str = ""
+    emotion: str = ""
+    action_units: dict = field(default_factory=dict)
+    confidence: float = 0.0
+
+
+@dataclass
+class SensorReadingEvent(AdaEvent):
+    """Published by SensorSimulator or IoT gateway for each sensor reading."""
+
+    event_type: str = EventTypes.SENSOR_READING
+    session_id: str = ""
+    patient_id: str = ""
+    sensor_type: str = ""    # hr, gsr, spo2
+    value: float = 0.0
+    unit: str = ""           # bpm, μS, %
+
+
+@dataclass
+class SensorAlertEvent(AdaEvent):
+    """Published by PhysiologicalAgent when a sensor reading is anomalous."""
+
+    event_type: str = EventTypes.SENSOR_ALERT
+    session_id: str = ""
+    patient_id: str = ""
+    sensor_type: str = ""
+    alert_type: str = ""     # spike, drop, threshold
+    value: float = 0.0
+    threshold: float = 0.0
+    description: str = ""
+
+
+@dataclass
+class FusedEmotionEvent(AdaEvent):
+    """Published by MultimodalFusionAgent after combining all modality signals."""
+
+    event_type: str = EventTypes.EMOTION_FUSED
+    session_id: str = ""
+    patient_id: str = ""
+    text_emotion: str = ""
+    voice_emotion: str = ""
+    face_emotion: str = ""
+    physiological_state: str = ""
+    fused_emotion: str = ""
+    fused_valence: float = 0.0
+    fused_arousal: float = 0.0
+    confidence: float = 0.0
+    modalities_available: list = field(default_factory=list)

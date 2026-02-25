@@ -234,6 +234,65 @@ CREATE TABLE IF NOT EXISTS session_summaries (
 CREATE INDEX IF NOT EXISTS idx_summary_session ON session_summaries(session_id);
 CREATE INDEX IF NOT EXISTS idx_summary_patient ON session_summaries(patient_id);
 
+CREATE TABLE IF NOT EXISTS audio_analyses (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    patient_id TEXT NOT NULL,
+    audio_chunk_id TEXT NOT NULL,
+    emotion TEXT NOT NULL,
+    pitch_mean REAL NOT NULL,
+    energy_mean REAL NOT NULL,
+    speech_rate REAL NOT NULL,
+    confidence REAL NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_audio_session ON audio_analyses(session_id);
+CREATE INDEX IF NOT EXISTS idx_audio_patient ON audio_analyses(patient_id);
+
+CREATE TABLE IF NOT EXISTS face_analyses (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    patient_id TEXT NOT NULL,
+    frame_id TEXT NOT NULL,
+    emotion TEXT NOT NULL,
+    action_units TEXT NOT NULL DEFAULT '{}',
+    confidence REAL NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_face_session ON face_analyses(session_id);
+CREATE INDEX IF NOT EXISTS idx_face_patient ON face_analyses(patient_id);
+
+CREATE TABLE IF NOT EXISTS sensor_readings (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    patient_id TEXT NOT NULL,
+    sensor_type TEXT NOT NULL,
+    value REAL NOT NULL,
+    unit TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sensor_session ON sensor_readings(session_id);
+CREATE INDEX IF NOT EXISTS idx_sensor_patient ON sensor_readings(patient_id);
+CREATE INDEX IF NOT EXISTS idx_sensor_type ON sensor_readings(sensor_type);
+
+CREATE TABLE IF NOT EXISTS fused_emotions (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    patient_id TEXT NOT NULL,
+    text_emotion TEXT,
+    voice_emotion TEXT,
+    face_emotion TEXT,
+    physiological_state TEXT,
+    fused_emotion TEXT NOT NULL,
+    fused_valence REAL NOT NULL,
+    fused_arousal REAL NOT NULL,
+    confidence REAL NOT NULL,
+    modalities_available TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fused_session ON fused_emotions(session_id);
+CREATE INDEX IF NOT EXISTS idx_fused_patient ON fused_emotions(patient_id);
+
 CREATE TABLE IF NOT EXISTS handoff_log (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL,
@@ -1072,6 +1131,144 @@ class StateManager:
             "SELECT * FROM session_summaries WHERE session_id = ?", (session_id,)
         )
         return _session_summary_row(row) if row else None
+
+    # ------------------------------------------------------------------
+    # Audio analyses (Phase 4 multimodal)
+    # ------------------------------------------------------------------
+
+    async def create_audio_analysis(
+        self, *, id: str, session_id: str, patient_id: str,
+        audio_chunk_id: str, emotion: str, pitch_mean: float,
+        energy_mean: float, speech_rate: float, confidence: float,
+    ) -> None:
+        assert self._conn is not None, "StateManager not initialized"
+        await self._conn.execute(
+            """INSERT INTO audio_analyses
+               (id, session_id, patient_id, audio_chunk_id, emotion,
+                pitch_mean, energy_mean, speech_rate, confidence)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (id, session_id, patient_id, audio_chunk_id, emotion,
+             pitch_mean, energy_mean, speech_rate, confidence),
+        )
+        await self._conn.commit()
+
+    async def get_audio_analyses(self, session_id: str) -> list[dict]:
+        assert self._conn is not None, "StateManager not initialized"
+        cursor = await self._conn.execute(
+            "SELECT * FROM audio_analyses WHERE session_id = ? ORDER BY created_at",
+            (session_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    # ------------------------------------------------------------------
+    # Face analyses (Phase 4 multimodal)
+    # ------------------------------------------------------------------
+
+    async def create_face_analysis(
+        self, *, id: str, session_id: str, patient_id: str,
+        frame_id: str, emotion: str, action_units: dict,
+        confidence: float,
+    ) -> None:
+        assert self._conn is not None, "StateManager not initialized"
+        await self._conn.execute(
+            """INSERT INTO face_analyses
+               (id, session_id, patient_id, frame_id, emotion,
+                action_units, confidence)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (id, session_id, patient_id, frame_id, emotion,
+             json.dumps(action_units), confidence),
+        )
+        await self._conn.commit()
+
+    async def get_face_analyses(self, session_id: str) -> list[dict]:
+        assert self._conn is not None, "StateManager not initialized"
+        cursor = await self._conn.execute(
+            "SELECT * FROM face_analyses WHERE session_id = ? ORDER BY created_at",
+            (session_id,),
+        )
+        rows = await cursor.fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["action_units"] = json.loads(d["action_units"])
+            result.append(d)
+        return result
+
+    # ------------------------------------------------------------------
+    # Sensor readings (Phase 4 multimodal)
+    # ------------------------------------------------------------------
+
+    async def create_sensor_reading(
+        self, *, id: str, session_id: str, patient_id: str,
+        sensor_type: str, value: float, unit: str,
+    ) -> None:
+        assert self._conn is not None, "StateManager not initialized"
+        await self._conn.execute(
+            """INSERT INTO sensor_readings
+               (id, session_id, patient_id, sensor_type, value, unit)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (id, session_id, patient_id, sensor_type, value, unit),
+        )
+        await self._conn.commit()
+
+    async def get_sensor_readings(
+        self, session_id: str, *, sensor_type: str | None = None,
+    ) -> list[dict]:
+        assert self._conn is not None, "StateManager not initialized"
+        if sensor_type:
+            cursor = await self._conn.execute(
+                """SELECT * FROM sensor_readings
+                   WHERE session_id = ? AND sensor_type = ?
+                   ORDER BY created_at""",
+                (session_id, sensor_type),
+            )
+        else:
+            cursor = await self._conn.execute(
+                "SELECT * FROM sensor_readings WHERE session_id = ? ORDER BY created_at",
+                (session_id,),
+            )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    # ------------------------------------------------------------------
+    # Fused emotions (Phase 4 multimodal)
+    # ------------------------------------------------------------------
+
+    async def create_fused_emotion(
+        self, *, id: str, session_id: str, patient_id: str,
+        fused_emotion: str, fused_valence: float, fused_arousal: float,
+        confidence: float, modalities_available: list[str],
+        text_emotion: str | None = None, voice_emotion: str | None = None,
+        face_emotion: str | None = None, physiological_state: str | None = None,
+    ) -> None:
+        assert self._conn is not None, "StateManager not initialized"
+        await self._conn.execute(
+            """INSERT INTO fused_emotions
+               (id, session_id, patient_id, text_emotion, voice_emotion,
+                face_emotion, physiological_state, fused_emotion,
+                fused_valence, fused_arousal, confidence, modalities_available)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (id, session_id, patient_id, text_emotion, voice_emotion,
+             face_emotion, physiological_state, fused_emotion,
+             fused_valence, fused_arousal, confidence,
+             json.dumps(modalities_available)),
+        )
+        await self._conn.commit()
+
+    async def get_fused_emotions(self, session_id: str) -> list[dict]:
+        assert self._conn is not None, "StateManager not initialized"
+        cursor = await self._conn.execute(
+            "SELECT * FROM fused_emotions WHERE session_id = ? ORDER BY created_at",
+            (session_id,),
+        )
+        rows = await cursor.fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["modalities_available"] = json.loads(d["modalities_available"])
+            result.append(d)
+        return result
 
     # ------------------------------------------------------------------
     # Internal helpers

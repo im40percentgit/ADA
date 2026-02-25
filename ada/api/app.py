@@ -20,7 +20,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ada.api.routes import appointments, assessments, auth, chat, cognitive, knowledge, medications, patients, sessions
+from ada.api.routes import appointments, assessments, auth, chat, cognitive, knowledge, media, medications, patients, sessions
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
@@ -75,6 +75,8 @@ def create_app(
     # Routers
     app.include_router(auth.router)          # /api/auth/*
     app.include_router(chat.router)
+    app.include_router(media.router)        # /ws/media/*
+    app.include_router(media.rest_router)   # /api/sessions/*/sensor|audio|video-frame
     app.include_router(patients.router, prefix="/api")
     app.include_router(sessions.router, prefix="/api")
     app.include_router(assessments.router, prefix="/api")

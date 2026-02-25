@@ -40,3 +40,8 @@ path = "data/ada.db"
 [logging]
 level = "INFO"
 format = "console"
+
+[multimodal]
+enabled = false
+sensor_simulator_preset = "relaxed"
+sensor_simulator_interval = 1.0
