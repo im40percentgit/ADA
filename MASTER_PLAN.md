@@ -34,7 +34,7 @@ ada/
     api/           FastAPI app + WebSocket + REST routes
   config/          TOML configuration files
   sensors/       SensorSimulator (physiological data streams)
-  tests/           pytest-asyncio unit + integration tests (558 passing)
+  tests/           pytest-asyncio unit + integration tests (610 passing)
   web/             React + TypeScript + Vite frontend
 ```
 
@@ -167,16 +167,26 @@ ada/
 | MultimodalConfig section in AdaConfig | Done | #16 |
 | Integration tests — sensor→EventBus→DB pipeline (5 e2e tests) | Done | #16 |
 
-#### Phase 4b — ML Agents (Planned)
-**Status:** `planned`
+#### Phase 4b — ML Agents
+**Status:** `completed`
+**Design:** `docs/plans/2026-02-25-phase4b-ml-agents-design.md`
+**Plan:** `docs/plans/2026-02-25-phase4b-ml-agents-plan.md`
+**Commits:** `590c662` (merge), `b1479d2`..`7faa974` (8 feature commits)
 
-| Deliverable | Description |
-|-------------|-------------|
-| Voice emotion (RAVDESS-based) | Audio sentiment analysis |
-| Facial emotion (Swin Transformer) | Webcam-based affect detection |
-| MultimodalFusionAgent | Weighted ensemble with time-windowed buffering |
-| IoT sensors (GSR, pulse oximeter) | Real hardware gateway replacing simulator |
-| Edge computing | Low-latency inference at device |
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| librosa/opencv/numpy deps + ada.ml module | Done | Task 1 |
+| AUDIO_CHUNK_RECEIVED + VIDEO_FRAME_RECEIVED events | Done | Task 2 |
+| ada/ml/audio_features.py — librosa pitch/energy/MFCC | Done | Task 3 |
+| ada/ml/face_features.py — OpenCV Haar cascade + AU estimation | Done | Task 4 |
+| VoiceEmotionAgent | Done | Task 5 |
+| FacialEmotionAgent | Done | Task 6 |
+| PhysiologicalAgent (sliding window) | Done | Task 7 |
+| Config extensions + agent registration | Done | Task 8 |
+| Integration tests | Done | Task 9 |
+| MultimodalFusionAgent | Deferred to Phase 4c | Architecturally distinct |
+| Frontend media capture (MediaCapture.tsx, VoiceIndicator, FaceOverlay) | Deferred to Phase 4c | Phase 4c scope |
+| IoT sensors (real hardware gateway) | Deferred | Future phase |
 
 ---
 
