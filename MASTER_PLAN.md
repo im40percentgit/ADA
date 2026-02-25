@@ -33,7 +33,8 @@ ada/
     models/        Pydantic domain models (Patient, Session, Message, Assessment)
     api/           FastAPI app + WebSocket + REST routes
   config/          TOML configuration files
-  tests/           pytest-asyncio unit + integration tests (494 passing)
+  sensors/       SensorSimulator (physiological data streams)
+  tests/           pytest-asyncio unit + integration tests (558 passing)
   web/             React + TypeScript + Vite frontend
 ```
 
@@ -47,7 +48,8 @@ ada/
 | LLM providers | `ada/llm/` | Provider abstraction |
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
-| Tests | `tests/` | 494 unit + integration tests |
+| Sensor simulator | `ada/sensors/` | SensorSimulator presets |
+| Tests | `tests/` | 558 unit + integration tests |
 
 ---
 
@@ -150,8 +152,8 @@ ada/
 **Status:** `in_progress`
 
 #### Phase 4a — Infrastructure & PWA Shell
-**Status:** `in_progress`
-**Branch:** `feature/phase4a`
+**Status:** `completed`
+**Commits:** `dc8787b` (merge), `9210257`..`b012b05` (10 feature commits)
 
 | Deliverable | Status | Issue |
 |-------------|--------|-------|
@@ -161,9 +163,9 @@ ada/
 | SensorSimulator — realistic physiological data streams (HR, GSR, SpO2 presets) | Done | #16 |
 | Media WebSocket endpoint (/ws/media/{session_id}) — binary ingest | Done | #16 |
 | REST fallback endpoints for audio/video/sensor upload | Done | #16 |
-| PWA shell — manifest, service worker, mobile-installable | In Progress | #16 |
-| MultimodalConfig section in AdaConfig | Pending | #16 |
-| Integration tests — sensor→EventBus→DB pipeline | Pending | #16 |
+| PWA shell — manifest, service worker, mobile-installable | Done | #16 |
+| MultimodalConfig section in AdaConfig | Done | #16 |
+| Integration tests — sensor→EventBus→DB pipeline (5 e2e tests) | Done | #16 |
 
 #### Phase 4b — ML Agents (Planned)
 **Status:** `planned`
