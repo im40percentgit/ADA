@@ -32,8 +32,10 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, W
 from starlette.websockets import WebSocketState
 
 from ada.core.events import (
+    AudioChunkReceivedEvent,
     EventTypes,
     SensorReadingEvent,
+    VideoFrameReceivedEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,20 +142,42 @@ async def _handle_sensor(bus, session_id: str, data: dict) -> None:
 
 
 async def _handle_audio(bus, session_id: str, metadata: dict, audio_bytes: bytes, chunk_id: str) -> None:
-    """Log audio chunk receipt. ML processing deferred to Phase 4b."""
+    """Publish AudioChunkReceivedEvent for ML processing."""
+    meta = metadata.get("metadata", {})
+    await bus.publish(
+        AudioChunkReceivedEvent(
+            source="media_ws",
+            session_id=session_id,
+            patient_id=metadata.get("patient_id", meta.get("patient_id", "")),
+            audio_bytes=audio_bytes,
+            codec=meta.get("codec", "webm/opus"),
+            sample_rate=int(meta.get("sample_rate", 48000)),
+            chunk_id=chunk_id,
+        )
+    )
     logger.debug(
-        "Media WS: audio chunk %s (%d bytes, codec=%s)",
-        chunk_id, len(audio_bytes),
-        metadata.get("metadata", {}).get("codec", "unknown"),
+        "Media WS: audio chunk %s published (%d bytes, codec=%s)",
+        chunk_id, len(audio_bytes), meta.get("codec", "unknown"),
     )
 
 
 async def _handle_video(bus, session_id: str, metadata: dict, frame_bytes: bytes, chunk_id: str) -> None:
-    """Log video frame receipt. ML processing deferred to Phase 4b."""
+    """Publish VideoFrameReceivedEvent for ML processing."""
+    meta = metadata.get("metadata", {})
+    await bus.publish(
+        VideoFrameReceivedEvent(
+            source="media_ws",
+            session_id=session_id,
+            patient_id=metadata.get("patient_id", meta.get("patient_id", "")),
+            frame_bytes=frame_bytes,
+            format=meta.get("format", "jpeg"),
+            resolution=meta.get("resolution", ""),
+            frame_id=chunk_id,
+        )
+    )
     logger.debug(
-        "Media WS: video frame %s (%d bytes, format=%s)",
-        chunk_id, len(frame_bytes),
-        metadata.get("metadata", {}).get("format", "unknown"),
+        "Media WS: video frame %s published (%d bytes, format=%s)",
+        chunk_id, len(frame_bytes), meta.get("format", "unknown"),
     )
 
 
@@ -218,12 +242,24 @@ async def post_sensor_reading(
 @rest_router.post("/sessions/{session_id}/audio", status_code=201)
 async def post_audio_chunk(
     session_id: str,
+    request: Request,
     file: UploadFile = File(...),
     patient_id: str = Form(""),
 ) -> dict:
     """Upload an audio chunk via REST multipart/form-data (fallback for non-WS clients)."""
     audio_bytes = await file.read()
     chunk_id = str(uuid.uuid4())
+    bus = request.app.state.bus
+    await bus.publish(
+        AudioChunkReceivedEvent(
+            source="rest_api",
+            session_id=session_id,
+            patient_id=patient_id,
+            audio_bytes=audio_bytes,
+            codec="wav",
+            chunk_id=chunk_id,
+        )
+    )
     logger.debug("REST: audio chunk %s (%d bytes)", chunk_id, len(audio_bytes))
     return {"chunk_id": chunk_id, "size_bytes": len(audio_bytes), "session_id": session_id}
 
@@ -231,11 +267,23 @@ async def post_audio_chunk(
 @rest_router.post("/sessions/{session_id}/video-frame", status_code=201)
 async def post_video_frame(
     session_id: str,
+    request: Request,
     file: UploadFile = File(...),
     patient_id: str = Form(""),
 ) -> dict:
     """Upload a video frame via REST multipart/form-data (fallback for non-WS clients)."""
     frame_bytes = await file.read()
     frame_id = str(uuid.uuid4())
+    bus = request.app.state.bus
+    await bus.publish(
+        VideoFrameReceivedEvent(
+            source="rest_api",
+            session_id=session_id,
+            patient_id=patient_id,
+            frame_bytes=frame_bytes,
+            format="jpeg",
+            frame_id=frame_id,
+        )
+    )
     logger.debug("REST: video frame %s (%d bytes)", frame_id, len(frame_bytes))
     return {"frame_id": frame_id, "size_bytes": len(frame_bytes), "session_id": session_id}

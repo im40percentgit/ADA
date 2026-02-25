@@ -34,11 +34,14 @@ import uvicorn
 from ada.agents.cognitive_assessor import CognitiveAssessorAgent
 from ada.agents.emotion_analyzer import EmotionAnalyzerAgent
 from ada.agents.crisis_monitor import CrisisMonitorAgent
+from ada.agents.facial_emotion import FacialEmotionAgent
 from ada.agents.knowledge_agent import KnowledgeAgent
 from ada.agents.medication_manager import MedicationManagerAgent
+from ada.agents.physiological import PhysiologicalAgent
 from ada.agents.registry import AgentRegistry
 from ada.agents.session_summarizer import SessionSummarizer
 from ada.agents.therapist import TherapistAgent
+from ada.agents.voice_emotion import VoiceEmotionAgent
 from ada.knowledge.clinical_kb import ClinicalKnowledgeBase
 from ada.api.app import create_app
 from ada.core.bus import EventBus
@@ -121,6 +124,20 @@ async def run(config: AdaConfig) -> None:
     if config.agents.knowledge_agent.enabled:
         registry.register(KnowledgeAgent())
         log.info("KnowledgeAgent registered")
+
+    # Phase 4b: Multimodal ML agents
+    if config.multimodal.enabled:
+        if config.multimodal.voice_analysis_enabled:
+            registry.register(VoiceEmotionAgent())
+            log.info("VoiceEmotionAgent registered")
+
+        if config.multimodal.face_analysis_enabled:
+            registry.register(FacialEmotionAgent())
+            log.info("FacialEmotionAgent registered")
+
+        if config.multimodal.physiological_analysis_enabled:
+            registry.register(PhysiologicalAgent())
+            log.info("PhysiologicalAgent registered")
 
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))
