@@ -104,6 +104,14 @@ class AuthConfig(BaseModel):
         return key
 
 
+class MultimodalConfig(BaseModel):
+    """Phase 4 multimodal pipeline configuration."""
+
+    enabled: bool = False  # Off by default until Phase 4b ML agents are ready
+    sensor_simulator_preset: str = "relaxed"
+    sensor_simulator_interval: float = 1.0  # seconds between readings
+
+
 class APIConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
@@ -143,6 +151,7 @@ class AdaConfig(BaseSettings):
     auth: AuthConfig = AuthConfig()
     database: DatabaseConfig = DatabaseConfig()
     logging: LoggingConfig = LoggingConfig()
+    multimodal: MultimodalConfig = MultimodalConfig()
 
     @classmethod
     def from_toml(cls, *paths: str | Path) -> "AdaConfig":
