@@ -34,7 +34,7 @@ ada/
     api/           FastAPI app + WebSocket + REST routes
   config/          TOML configuration files
   sensors/       SensorSimulator (physiological data streams)
-  tests/           pytest-asyncio unit + integration tests (610 passing)
+  tests/           pytest-asyncio unit + integration tests (650 passing)
   web/             React + TypeScript + Vite frontend
 ```
 
@@ -49,7 +49,7 @@ ada/
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
 | Sensor simulator | `ada/sensors/` | SensorSimulator presets |
-| Tests | `tests/` | 558 unit + integration tests |
+| Tests | `tests/` | 650 unit + integration tests |
 
 ---
 
@@ -184,9 +184,21 @@ ada/
 | PhysiologicalAgent (sliding window) | Done | Task 7 |
 | Config extensions + agent registration | Done | Task 8 |
 | Integration tests | Done | Task 9 |
-| MultimodalFusionAgent | Deferred to Phase 4c | Architecturally distinct |
-| Frontend media capture (MediaCapture.tsx, VoiceIndicator, FaceOverlay) | Deferred to Phase 4c | Phase 4c scope |
+| Frontend media capture (MediaCapture.tsx, VoiceIndicator, FaceOverlay) | Deferred to Phase 4d | Phase 4d scope |
 | IoT sensors (real hardware gateway) | Deferred | Future phase |
+
+#### Phase 4c — MultimodalFusionAgent
+**Status:** `completed`
+**Design:** `docs/plans/2026-02-25-phase4c-fusion-agent-design.md`
+**Plan:** `docs/plans/2026-02-25-phase4c-fusion-agent-plan.md`
+**Commits:** `1a84ac3`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Pure math fusion module (recency_weight, emotion_to_va, va_to_emotion, fuse_signals) | Done | Task 1 |
+| MultimodalFusionAgent (BaseAgent subclass, per-session buffer, staleness decay) | Done | Task 2 |
+| Config extensions (fusion_enabled, half_life, min_weight) + agent registration | Done | Task 3 |
+| Unit tests (35) + integration tests (5) | Done | Task 4 |
 
 ---
 
@@ -266,6 +278,8 @@ ada/
 
 ### Phase 4 Decisions
 
+#### Phase 4a — Infrastructure
+
 | ID | Decision | Rationale | Status |
 |----|----------|-----------|--------|
 | DEC-MULTIMODAL-001 | Separate /ws/media/ from /ws/chat/ | Media streams (audio at ~100ms chunks, video at ~1fps) generate high-frequency data that could block the chat WebSocket's response loop. Separate connections allow independent failure and flow control. | accepted |
@@ -273,6 +287,35 @@ ada/
 | DEC-MULTIMODAL-003 | Four dedicated tables for multimodal data (audio, face, sensor, fused) | Each modality produces a distinct schema. Merging into a single table would require nullable columns and type discrimination logic. Separate tables keep each schema clean and independently queryable, consistent with the existing pattern. | accepted |
 | DEC-MULTIMODAL-004 | Simulated sensors first, real IoT gateway later | Proves the full data pipeline architecture without requiring physical hardware. Presets generate clinically-plausible ranges so integration tests exercise real data flows. | accepted |
 | DEC-MULTIMODAL-005 | REST fallback for audio/video/sensor ingest (multipart/form-data) | WebSocket is preferred for real-time streaming but REST fallback ensures mobile clients and low-bandwidth environments can still submit media data. Mirrors the pattern used for chat (WebSocket primary, REST secondary). | accepted |
+
+#### Phase 4b — ML Agents
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-ML-001 | LLM classification over dedicated ML models | Feature extraction uses real signal processing (librosa, OpenCV) but classification is delegated to Claude. Avoids ~2GB model downloads, works on any CPU, leverages Claude's clinical emotion understanding. | accepted |
+| DEC-ML-002 | Backend agents only, no frontend in Phase 4b | Phase 4b focuses on server-side processing. Frontend media capture (MediaCapture.tsx, VoiceIndicator.tsx, FaceOverlay.tsx) deferred to Phase 4d. | accepted |
+| DEC-ML-003 | Three independent agents, fusion deferred | PhysiologicalAgent, VoiceEmotionAgent, FacialEmotionAgent produce signals independently. MultimodalFusionAgent (combining all signals) deferred to Phase 4c. | accepted |
+| DEC-ML-004 | Input events carry raw bytes for agent processing | Agents need raw media bytes for feature extraction. Passing bytes through the EventBus avoids double-buffering and keeps agents stateless with respect to the transport layer. | accepted |
+| DEC-ML-005 | librosa for audio feature extraction | librosa provides well-tested, CPU-friendly pitch tracking (pyin), RMS energy, onset detection, and MFCCs. Extracted features are human-interpretable, suitable for LLM classification prompts. | accepted |
+| DEC-ML-006 | Synthetic audio fixtures for deterministic testing | Programmatically generated sine waves provide deterministic, dependency-free test inputs. Real audio files would introduce binary blobs and platform-dependent codec behaviour. | accepted |
+| DEC-ML-007 | OpenCV Haar cascade + geometric AU estimation | OpenCV's Haar cascade is CPU-only and ships with opencv-python-headless. Full 68-point landmark detection would require dlib or mediapipe. AU interface is stable — swap in real landmark-based coding later. | accepted |
+| DEC-ML-008 | Synthetic face fixtures via OpenCV drawing | Programmatically generated faces avoid external file dependencies in the test suite. Geometric patterns are sufficient to exercise the feature extraction pipeline. | accepted |
+| DEC-ML-009 | VoiceEmotionAgent follows EmotionAnalyzerAgent pattern | handle_event → LLM call → parse JSON → publish event → persist to DB. Consistency makes the agent predictable and testable using the same MockLLMProvider approach. | accepted |
+| DEC-ML-010 | VoiceEmotionAgent tests use synthetic audio + canned LLM responses | Feature extraction tested separately in test_audio_features.py. Agent tests focus on event routing, LLM interaction, and DB persistence using canned responses. | accepted |
+| DEC-ML-011 | FacialEmotionAgent skips frames with no face detected | If OpenCV cannot detect a face, there's nothing meaningful to classify. Skipping avoids wasting LLM calls and producing low-confidence noise in face_analyses. | accepted |
+| DEC-ML-012 | FacialEmotionAgent tests mock feature extraction for face-detected path | Haar cascade detection of synthetic faces is non-deterministic. Mocking extract_features gives deterministic agent test behaviour while real feature extraction is tested in test_face_features.py. | accepted |
+| DEC-ML-013 | Sliding window with configurable trigger interval for PhysiologicalAgent | Sensor readings arrive at ~1Hz. Classifying every reading wastes LLM calls. A sliding window of 30 readings with a trigger every 10 new readings gives trend context while controlling cost. | accepted |
+| DEC-ML-014 | PhysiologicalAgent tests verify sliding window trigger behavior | Key behavior: readings accumulate in window, classification triggers after trigger_interval readings, alerts produce SensorAlertEvents. Window size and trigger interval are configurable. | accepted |
+| DEC-ML-015 | Integration tests verify full pipeline from fixture to DB | Unit tests verify individual components. Integration tests verify the complete wiring: fixture → agent → EventBus → DB persistence. | accepted |
+
+#### Phase 4c — Fusion Agent
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-FUSION-001 | Deterministic weighted average over LLM fusion | Each upstream agent already used Claude for classification. Fusion combines outputs — a math problem, not reasoning. Deterministic fusion is fast (~0ms), predictable, and testable without mocks. | accepted |
+| DEC-FUSION-002 | Trigger-on-any with staleness decay | Fusion fires on every incoming signal. Missing modalities get zero weight instead of blocking. Handles therapy sessions where modalities come and go (user mutes mic, covers camera). | accepted |
+| DEC-FUSION-003 | Exponential staleness decay (half-life model) | weight = 2^(-age/half_life). Default half_life=10s. At 10s, weight=0.5; at 60s, weight≈0.016 (discarded). Avoids hard cutoffs — signals gradually lose influence. | accepted |
+| DEC-FUSION-004 | Backend fusion only, no frontend in Phase 4c | Phase 4c focuses on server-side fusion agent. Frontend media capture (MediaCapture.tsx, VoiceIndicator, FaceOverlay) deferred to Phase 4d. | accepted |
 
 ---
 
