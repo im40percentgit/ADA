@@ -147,14 +147,33 @@ ada/
 ---
 
 ### Phase 4 — Multimodal & Mobile
+**Status:** `in_progress`
+
+#### Phase 4a — Infrastructure & PWA Shell
+**Status:** `in_progress`
+**Branch:** `feature/phase4a`
+
+| Deliverable | Status | Issue |
+|-------------|--------|-------|
+| Multimodal Pydantic models (VoiceAnalysis, FaceAnalysis, SensorReading, FusedEmotion) | Done | #16 |
+| Multimodal event types (VOICE_ANALYZED, FACE_ANALYZED, SENSOR_READING, EMOTION_FUSED) | Done | #16 |
+| Multimodal storage tables (audio_analyses, face_analyses, sensor_readings, fused_emotions) | Done | #16 |
+| SensorSimulator — realistic physiological data streams (HR, GSR, SpO2 presets) | Done | #16 |
+| Media WebSocket endpoint (/ws/media/{session_id}) — binary ingest | Done | #16 |
+| REST fallback endpoints for audio/video/sensor upload | Done | #16 |
+| PWA shell — manifest, service worker, mobile-installable | In Progress | #16 |
+| MultimodalConfig section in AdaConfig | Pending | #16 |
+| Integration tests — sensor→EventBus→DB pipeline | Pending | #16 |
+
+#### Phase 4b — ML Agents (Planned)
 **Status:** `planned`
 
 | Deliverable | Description |
 |-------------|-------------|
 | Voice emotion (RAVDESS-based) | Audio sentiment analysis |
 | Facial emotion (Swin Transformer) | Webcam-based affect detection |
-| Mobile shell (PWA/React Native) | Native mobile experience |
-| IoT sensors (GSR, pulse oximeter) | Physiological data integration |
+| MultimodalFusionAgent | Weighted ensemble with time-windowed buffering |
+| IoT sensors (GSR, pulse oximeter) | Real hardware gateway replacing simulator |
 | Edge computing | Low-latency inference at device |
 
 ---
@@ -232,6 +251,16 @@ ada/
 | DEC-KNOWLEDGE-007 | LLM re-ranking synthesizes top-5 FTS5 results into contextual answer | Raw BM25 results lack synthesis; LLM condenses multiple evidence snippets into a coherent clinical summary with citations | accepted |
 | DEC-KNOWLEDGE-008 | TherapistAgent keyword-triggered consultation (not every message) | Consulting on every message wastes resources; keyword/phrase detection targets messages where clinical evidence would be relevant | accepted |
 | DEC-KNOWLEDGE-009 | Fire-and-forget with 2s timeout | Conversation responsiveness over completeness; TherapistAgent proceeds with base prompt if KnowledgeAgent is slow or unavailable | accepted |
+
+### Phase 4 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-MULTIMODAL-001 | Separate /ws/media/ from /ws/chat/ | Media streams (audio at ~100ms chunks, video at ~1fps) generate high-frequency data that could block the chat WebSocket's response loop. Separate connections allow independent failure and flow control. | accepted |
+| DEC-MULTIMODAL-002 | Multimodal events as plain dataclasses on the existing EventBus | Reusing the EventBus and AdaEvent base keeps multimodal signals consistent with all other domain events. No new pub/sub infrastructure needed — agents subscribe to VOICE_ANALYZED, FACE_ANALYZED, etc. exactly as they do for EMOTION_ANALYZED. | accepted |
+| DEC-MULTIMODAL-003 | Four dedicated tables for multimodal data (audio, face, sensor, fused) | Each modality produces a distinct schema. Merging into a single table would require nullable columns and type discrimination logic. Separate tables keep each schema clean and independently queryable, consistent with the existing pattern. | accepted |
+| DEC-MULTIMODAL-004 | Simulated sensors first, real IoT gateway later | Proves the full data pipeline architecture without requiring physical hardware. Presets generate clinically-plausible ranges so integration tests exercise real data flows. | accepted |
+| DEC-MULTIMODAL-005 | REST fallback for audio/video/sensor ingest (multipart/form-data) | WebSocket is preferred for real-time streaming but REST fallback ensures mobile clients and low-bandwidth environments can still submit media data. Mirrors the pattern used for chat (WebSocket primary, REST secondary). | accepted |
 
 ---
 
