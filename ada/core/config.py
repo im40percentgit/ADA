@@ -110,6 +110,12 @@ class MultimodalConfig(BaseModel):
     enabled: bool = False  # Off by default until Phase 4b ML agents are ready
     sensor_simulator_preset: str = "relaxed"
     sensor_simulator_interval: float = 1.0  # seconds between readings
+    # Phase 4b: per-agent toggles
+    voice_analysis_enabled: bool = True
+    face_analysis_enabled: bool = True
+    physiological_analysis_enabled: bool = True
+    physiological_window_size: int = 30
+    physiological_trigger_interval: int = 10
 
 
 class APIConfig(BaseModel):
