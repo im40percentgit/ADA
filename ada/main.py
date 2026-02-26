@@ -158,7 +158,7 @@ async def run(config: AdaConfig) -> None:
         log.info("Clinical KB ready", count=await clinical_kb.count())
 
     # Inject KB into KnowledgeAgent
-    for agent in registry.active_agents.values():
+    for agent in registry.active_agents:
         if isinstance(agent, KnowledgeAgent):
             agent.set_kb(clinical_kb)
             log.info("KnowledgeAgent: clinical KB injected")
