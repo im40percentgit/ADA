@@ -2,8 +2,8 @@
 WebSocket chat endpoint — /ws/chat/{session_id}.
 
 Streams therapist responses in real time. The WebSocket receives user
-messages, publishes them to the EventBus, and forwards MESSAGE_SENT
-and MESSAGE_STREAM_CHUNK events back to the client.
+messages, publishes them to the EventBus, and forwards MESSAGE_SENT,
+EMOTION_FUSED, and SENSOR_READING events back to the client.
 
 Authentication protocol (Phase 2):
     After connection is accepted, the client must send within 5 seconds:
@@ -19,6 +19,15 @@ Authentication protocol (Phase 2):
     APIs.  The standard pattern for browser WebSockets is to send the
     token as the first message after connection is accepted.  A 5-second
     timeout ensures unauthenticated connections are closed quickly.
+
+@decision DEC-API-004
+@title Chat WebSocket forwards EMOTION_FUSED and SENSOR_READING events to client
+@status accepted
+@rationale The frontend needs emotion and vitals updates delivered over the
+    same WebSocket channel as chat messages. Subscribing in the chat handler
+    keeps the client transport unified (one connection for all real-time
+    data) and avoids a second authenticated WebSocket from the browser.
+    Unsubscribe is guaranteed in the finally block to prevent handler leaks.
 """
 
 from __future__ import annotations
@@ -34,8 +43,10 @@ from starlette.websockets import WebSocketState
 
 from ada.core.events import (
     EventTypes,
+    FusedEmotionEvent,
     MessageReceivedEvent,
     MessageSentEvent,
+    SensorReadingEvent,
     SessionStartedEvent,
 )
 
@@ -63,24 +74,32 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
 
     # --- Auth handshake: first message must be {"type":"auth","token":"..."} ---
     config = websocket.app.state.config
-    from ada.api.auth import decode_token
-    import jwt as _jwt
 
-    try:
-        raw_auth = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
-        auth_msg = json.loads(raw_auth)
-        if auth_msg.get("type") != "auth" or not auth_msg.get("token"):
-            raise ValueError("Missing auth type or token")
-        token = auth_msg["token"]
-        payload = decode_token(token, config.auth.secret_key, config.auth.algorithm)
-        if payload.get("type") != "access":
-            raise ValueError("Wrong token type")
-    except (asyncio.TimeoutError, Exception) as exc:
-        logger.warning("WebSocket: auth failed for session %s — %s", session_id, exc)
-        await websocket.close(code=4001)
-        return
+    if config.auth.enabled:
+        from ada.api.auth import decode_token
 
-    logger.info("WebSocket: session %s authenticated (user=%s)", session_id, payload.get("sub"))
+        try:
+            raw_auth = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+            auth_msg = json.loads(raw_auth)
+            if auth_msg.get("type") != "auth" or not auth_msg.get("token"):
+                raise ValueError("Missing auth type or token")
+            token = auth_msg["token"]
+            payload = decode_token(token, config.auth.secret_key, config.auth.algorithm)
+            if payload.get("type") != "access":
+                raise ValueError("Wrong token type")
+        except (asyncio.TimeoutError, Exception) as exc:
+            logger.warning("WebSocket: auth failed for session %s — %s", session_id, exc)
+            await websocket.close(code=4001)
+            return
+
+        logger.info("WebSocket: session %s authenticated (user=%s)", session_id, payload.get("sub"))
+    else:
+        # Auth disabled (test/dev mode) — consume the auth frame if present
+        try:
+            await asyncio.wait_for(websocket.receive_text(), timeout=2.0)
+        except (asyncio.TimeoutError, Exception):
+            pass
+        logger.info("WebSocket: session %s connected (auth disabled)", session_id)
 
     bus = websocket.app.state.bus
     state_manager = websocket.app.state.state_manager
@@ -92,7 +111,41 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         if event.session_id == session_id:
             await response_queue.put(event)
 
+    async def on_emotion_fused(event: FusedEmotionEvent) -> None:
+        """Forward fused emotion events to the chat client."""
+        if event.session_id != session_id:
+            return
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json({
+                    "type": "emotion_update",
+                    "emotion": event.fused_emotion,
+                    "valence": event.fused_valence,
+                    "arousal": event.fused_arousal,
+                    "confidence": event.confidence,
+                    "modalities": event.modalities_available,
+                })
+        except Exception:
+            pass  # Client disconnected mid-send — suppress, let finally clean up
+
+    async def on_sensor_reading(event: SensorReadingEvent) -> None:
+        """Forward sensor readings to the chat client as vitals updates."""
+        if event.session_id != session_id:
+            return
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json({
+                    "type": "vitals_update",
+                    "sensor_type": event.sensor_type,
+                    "value": event.value,
+                    "unit": event.unit,
+                })
+        except Exception:
+            pass  # Client disconnected mid-send — suppress
+
     bus.subscribe(EventTypes.MESSAGE_SENT, on_message_sent, f"ws:{session_id}")
+    bus.subscribe(EventTypes.EMOTION_FUSED, on_emotion_fused, f"ws-emotion:{session_id}")
+    bus.subscribe(EventTypes.SENSOR_READING, on_sensor_reading, f"ws-sensor:{session_id}")
 
     try:
         # Notify session start
@@ -154,6 +207,8 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         logger.exception("WebSocket: unhandled error in session %s", session_id)
     finally:
         bus.unsubscribe(EventTypes.MESSAGE_SENT, f"ws:{session_id}")
+        bus.unsubscribe(EventTypes.EMOTION_FUSED, f"ws-emotion:{session_id}")
+        bus.unsubscribe(EventTypes.SENSOR_READING, f"ws-sensor:{session_id}")
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.close()
         logger.info("WebSocket: session %s disconnected", session_id)
