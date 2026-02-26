@@ -20,7 +20,9 @@ Ada lives within the **CerebrumCraft** ecosystem alongside CerebrumCoin, inherit
 ### Architecture
 
 ```
-User → WebSocket → FastAPI → EventBus → [TherapistAgent + CrisisMonitor] → LLMProvider → Response
+User → Chat WS → FastAPI → EventBus → [TherapistAgent + CrisisMonitor] → LLMProvider → Response
+Browser Media → Media WS → EventBus → [Voice/Face/Physio Agents] → FusionAgent → Chat WS → UI
+SensorSimulator → EventBus → PhysiologicalAgent → FusionAgent → Chat WS → VitalsStrip/EmotionChip
 ```
 
 ```
@@ -34,7 +36,7 @@ ada/
     api/           FastAPI app + WebSocket + REST routes
   config/          TOML configuration files
   sensors/       SensorSimulator (physiological data streams)
-  tests/           pytest-asyncio unit + integration tests (650 passing)
+  tests/           pytest-asyncio unit + integration tests (623 passing)
   web/             React + TypeScript + Vite frontend
 ```
 
@@ -49,7 +51,7 @@ ada/
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
 | Sensor simulator | `ada/sensors/` | SensorSimulator presets |
-| Tests | `tests/` | 650 unit + integration tests |
+| Tests | `tests/` | 623 unit + integration tests |
 
 ---
 
@@ -64,11 +66,10 @@ ada/
 - Pluggable LLM providers (Claude native + OpenAI-compat for local models)
 - Multi-agent architecture expandable to cognitive assessment, medication management, caregiver coordination
 
-### Non-Goals (Phase 1)
+### Non-Goals (Current)
 
-- Real authentication (JWT structure placeholder only)
 - Multi-tenancy or cloud deployment configuration
-- Video/audio modalities
+- Real IoT sensor hardware (simulated only)
 - EHR/EMR integration
 
 ---
@@ -149,7 +150,7 @@ ada/
 ---
 
 ### Phase 4 — Multimodal & Mobile
-**Status:** `in_progress`
+**Status:** `completed`
 
 #### Phase 4a — Infrastructure & PWA Shell
 **Status:** `completed`
@@ -199,6 +200,27 @@ ada/
 | MultimodalFusionAgent (BaseAgent subclass, per-session buffer, staleness decay) | Done | Task 2 |
 | Config extensions (fusion_enabled, half_life, min_weight) + agent registration | Done | Task 3 |
 | Unit tests (35) + integration tests (5) | Done | Task 4 |
+
+#### Phase 4d — Frontend Media Capture
+**Status:** `completed`
+**Commits:** `d38f951` (feature), `f377b27` (merge)
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Multimodal WS message types (WsEmotionUpdate, WsVitalsUpdate) | Done | types/index.ts |
+| Chat WS forwards EMOTION_FUSED + SENSOR_READING events | Done | chat.py |
+| Simulator REST endpoints (POST start/stop) | Done | simulator.py |
+| useMediaWebSocket hook (binary protocol) | Done | Two-frame JSON+ArrayBuffer |
+| useMediaCapture hook (getUserMedia + MediaRecorder + canvas) | Done | 500ms audio, 1fps video |
+| useSensorSimulator hook (REST start/stop) | Done | Preset selector |
+| useChat extended (emotion_update + vitals_update) | Done | New state: currentEmotion, currentVitals |
+| EmotionChip component (valence-colored emotion badge) | Done | Plutchik emoji mapping |
+| VitalsStrip component (HR/GSR/SpO2 inline metrics) | Done | Hidden when no data |
+| VoiceIndicator component (AnalyserNode FFT waveform) | Done | Canvas-based |
+| FacePreview component (self-view video thumbnail) | Done | Floating bottom-right |
+| MediaControls component (mic/camera/simulator toggles) | Done | Chat header integration |
+| Chat.tsx integration (all components wired) | Done | Full layout |
+| Tests (11 new: 4 integration + 7 unit, 623 total passing) | Done | Zero regressions |
 
 ---
 
@@ -316,6 +338,19 @@ ada/
 | DEC-FUSION-002 | Trigger-on-any with staleness decay | Fusion fires on every incoming signal. Missing modalities get zero weight instead of blocking. Handles therapy sessions where modalities come and go (user mutes mic, covers camera). | accepted |
 | DEC-FUSION-003 | Exponential staleness decay (half-life model) | weight = 2^(-age/half_life). Default half_life=10s. At 10s, weight=0.5; at 60s, weight≈0.016 (discarded). Avoids hard cutoffs — signals gradually lose influence. | accepted |
 | DEC-FUSION-004 | Backend fusion only, no frontend in Phase 4c | Phase 4c focuses on server-side fusion agent. Frontend media capture (MediaCapture.tsx, VoiceIndicator, FaceOverlay) deferred to Phase 4d. | accepted |
+
+#### Phase 4d — Frontend Media Capture
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-API-004 | Chat WS subscribes to EMOTION_FUSED + SENSOR_READING per-session | Bridges backend multimodal pipeline to frontend without a separate WebSocket connection. Session_id filtering prevents cross-session leakage. Unsubscribe in finally block guarantees no leaked handlers. | accepted |
+| DEC-API-005 | Simulator REST endpoints with asyncio.Task tracking | Background tasks tracked in app.state.simulators per session. 409 on duplicate start, idempotent stop. Task-done callback auto-cleans completed entries. | accepted |
+| DEC-FRONTEND-013 | useMediaCapture separates audio (MediaRecorder) from video (canvas snapshot) | MediaRecorder produces webm/opus chunks natively at 500ms timeslice. Video uses canvas.toBlob(jpeg) at 1fps — different APIs, different intervals, different codecs. Separate streams allow independent toggle. | accepted |
+| DEC-FRONTEND-014 | useMediaWebSocket two-frame binary protocol (JSON header + ArrayBuffer) | Matches the existing backend media.py protocol exactly. JSON metadata (type, codec, format) precedes binary payload. Avoids base64 encoding overhead. | accepted |
+| DEC-FRONTEND-015 | EmotionChip valence-based color mapping (positive/neutral/negative) | Three-tier color scheme (green/gray/red) maps directly to Plutchik valence. Simple, clinically intuitive, accessible. Falls back to neutral emoji for unknown emotions. | accepted |
+| DEC-FRONTEND-016 | VitalsStrip renders null until any sensor data arrives | Avoids empty UI chrome. Individual metrics null-checked independently — partial data shown while sensors warm up. | accepted |
+| DEC-FRONTEND-017 | VoiceIndicator uses AnalyserNode FFT for real-time waveform | AnalyserNode provides frequency data without additional processing. Canvas-based rendering avoids DOM overhead for high-frequency updates. | accepted |
+| DEC-FRONTEND-018 | FacePreview as floating thumbnail, not inline | Small fixed-position overlay in bottom-right avoids disrupting chat layout. Video ref shared between preview display and canvas snapshot capture — single MediaStream consumer. | accepted |
 
 ---
 
