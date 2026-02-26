@@ -1,8 +1,9 @@
 /**
  * useChat — chat state management hook
  *
- * Owns the message list, streaming state, crisis alerts, and assessment
- * prompts received over WebSocket. Delegates transport to useWebSocket.
+ * Owns the message list, streaming state, crisis alerts, assessment
+ * prompts, emotion state, and vitals received over WebSocket.
+ * Delegates transport to useWebSocket.
  *
  * @decision DEC-FRONTEND-004
  * @title useChat accumulates streaming tokens into a mutable message buffer
@@ -12,6 +13,14 @@
  *   token), we accumulate tokens into a ref buffer and flush to state when
  *   the complete message arrives. This keeps rendering smooth while still
  *   showing live streaming via a single in-progress message entry.
+ *
+ * @decision DEC-FRONTEND-013
+ * @title useChat stores latest emotion and vitals state (not history)
+ * @status accepted
+ * @rationale The EmotionChip and VitalsStrip components show current state
+ *   only — they do not render history charts. Storing only the latest value
+ *   avoids unbounded state growth during long sessions with frequent sensor
+ *   updates. A future phase can add a rolling buffer for trend visualisation.
  */
 
 import { useState, useCallback, useRef } from 'react'
@@ -22,11 +31,19 @@ import type {
   WsInboundMessage,
   WsCrisisAlert,
   WsAssessmentPrompt,
+  WsEmotionUpdate,
+  WsVitalsUpdate,
 } from '../types'
 
 let messageCounter = 0
 function nextId(): string {
   return `msg-${++messageCounter}-${Date.now()}`
+}
+
+export interface CurrentVitals {
+  hr: number | null
+  gsr: number | null
+  spo2: number | null
 }
 
 export interface UseChatReturn {
@@ -36,6 +53,8 @@ export interface UseChatReturn {
   wsStatus: WsStatus
   sendMessage: (content: string) => void
   clearAssessmentPrompt: () => void
+  currentEmotion: WsEmotionUpdate | null
+  currentVitals: CurrentVitals
 }
 
 export function useChat(sessionId: string): UseChatReturn {
@@ -43,6 +62,12 @@ export function useChat(sessionId: string): UseChatReturn {
   const [crisisAlert, setCrisisAlert] = useState<WsCrisisAlert | null>(null)
   const [assessmentPrompt, setAssessmentPrompt] = useState<WsAssessmentPrompt | null>(null)
   const [wsStatus, setWsStatus] = useState<WsStatus>('connecting')
+  const [currentEmotion, setCurrentEmotion] = useState<WsEmotionUpdate | null>(null)
+  const [currentVitals, setCurrentVitals] = useState<CurrentVitals>({
+    hr: null,
+    gsr: null,
+    spo2: null,
+  })
 
   // Streaming accumulation buffer — keyed by a transient message id
   const streamingIdRef = useRef<string | null>(null)
@@ -133,6 +158,20 @@ export function useChat(sessionId: string): UseChatReturn {
         ])
         break
       }
+
+      case 'emotion_update': {
+        setCurrentEmotion(msg as WsEmotionUpdate)
+        break
+      }
+
+      case 'vitals_update': {
+        const vitals = msg as WsVitalsUpdate
+        setCurrentVitals((prev) => ({
+          ...prev,
+          [vitals.sensor_type]: vitals.value,
+        }))
+        break
+      }
     }
   }, [])
 
@@ -170,5 +209,7 @@ export function useChat(sessionId: string): UseChatReturn {
     wsStatus,
     sendMessage,
     clearAssessmentPrompt,
+    currentEmotion,
+    currentVitals,
   }
 }

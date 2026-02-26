@@ -1,9 +1,16 @@
 /**
- * Chat — main conversation interface
+ * Chat — main conversation interface with multimodal media capture.
  *
- * Composes useChat hook, ChatMessage list, CrisisAlert banner, and
- * AssessmentForm overlay. Handles auto-scroll to the latest message
- * and keyboard submission (Enter to send).
+ * Composes useChat, useMediaCapture, useMediaWebSocket, and useSensorSimulator
+ * into the full Ada therapy chat experience. Media modalities (mic, camera,
+ * sensor simulator) are optional — the text chat works independently.
+ *
+ * Layout:
+ *   Header row: [Ada] [status dot] [EmotionChip] [VoiceIndicator] [MediaControls]
+ *   Sub-header: [VitalsStrip]
+ *   Body: scrolling message list
+ *   Footer: status bar + input area
+ *   Floating: FacePreview (bottom-right)
  *
  * @decision DEC-FRONTEND-009
  * @title Chat uses useEffect scroll-to-bottom on message list changes
@@ -15,14 +22,32 @@
  *   behavior: 'smooth' is used for incremental streaming tokens so the scroll
  *   feels natural; 'auto' (instant) is used for the first message of a new
  *   exchange to jump immediately to context.
+ *
+ * @decision DEC-FRONTEND-018
+ * @title Chat wires media capture callbacks directly to media WebSocket sends
+ * @status accepted
+ * @rationale The onAudioChunk and onVideoFrame callbacks from useMediaCapture
+ *   are passed directly to useMediaWebSocket.sendAudioChunk/sendVideoFrame.
+ *   There is no intermediate state layer for raw media bytes — storing blobs
+ *   in React state would be expensive and unnecessary since they are fire-and-
+ *   forget uploads. The WebSocket send is the terminal action.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChat } from '../hooks/useChat'
+import { useMediaCapture } from '../hooks/useMediaCapture'
+import { useMediaWebSocket } from '../hooks/useMediaWebSocket'
+import { useSensorSimulator } from '../hooks/useSensorSimulator'
 import { ChatMessage } from './ChatMessage'
 import { CrisisAlert } from './CrisisAlert'
 import { AssessmentForm } from './AssessmentForm'
+import { EmotionChip } from './EmotionChip'
+import { VitalsStrip } from './VitalsStrip'
+import { VoiceIndicator } from './VoiceIndicator'
+import { FacePreview } from './FacePreview'
+import { MediaControls } from './MediaControls'
 import type { Assessment } from '../types'
+import type { SimulatorPreset } from '../hooks/useSensorSimulator'
 
 interface ChatProps {
   sessionId: string
@@ -37,8 +62,54 @@ const WS_STATUS_LABELS: Record<string, string> = {
 }
 
 export function Chat({ sessionId, patientId }: ChatProps) {
-  const { messages, crisisAlert, assessmentPrompt, wsStatus, sendMessage, clearAssessmentPrompt } =
-    useChat(sessionId)
+  const {
+    messages,
+    crisisAlert,
+    assessmentPrompt,
+    wsStatus,
+    sendMessage,
+    clearAssessmentPrompt,
+    currentEmotion,
+    currentVitals,
+  } = useChat(sessionId)
+
+  // Media WebSocket — handles binary audio/video uploads
+  const { sendAudioChunk, sendVideoFrame } = useMediaWebSocket({ sessionId })
+
+  // Media capture — mic + camera with callbacks into the media WS
+  const {
+    audioEnabled,
+    videoEnabled,
+    toggleAudio,
+    toggleVideo,
+    audioStream,
+    videoRef,
+    error: mediaError,
+  } = useMediaCapture({
+    onAudioChunk: useCallback(
+      (blob: Blob) => sendAudioChunk(blob, patientId),
+      [sendAudioChunk, patientId],
+    ),
+    onVideoFrame: useCallback(
+      (blob: Blob) => sendVideoFrame(blob, patientId),
+      [sendVideoFrame, patientId],
+    ),
+  })
+
+  // Sensor simulator
+  const {
+    running: simulatorRunning,
+    start: startSimulator,
+    stop: stopSimulator,
+    error: simulatorError,
+  } = useSensorSimulator(sessionId)
+
+  const handleStartSimulator = useCallback(
+    (preset: SimulatorPreset) => {
+      startSimulator(preset, patientId)
+    },
+    [startSimulator, patientId],
+  )
 
   const [inputValue, setInputValue] = useState('')
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -72,7 +143,6 @@ export function Chat({ sessionId, patientId }: ChatProps) {
   }
 
   function handleAssessmentComplete(_result: Assessment) {
-    // Assessment submitted — dismiss the overlay after a short delay
     setTimeout(clearAssessmentPrompt, 2000)
   }
 
@@ -97,6 +167,29 @@ export function Chat({ sessionId, patientId }: ChatProps) {
           </div>
         </div>
       )}
+
+      {/* Chat header — emotion chip, voice indicator, media controls */}
+      <div className="chat__header">
+        <span className="chat__header-title">Ada</span>
+        <div className="chat__header-media">
+          <EmotionChip emotion={currentEmotion} />
+          <VoiceIndicator stream={audioStream} />
+          <MediaControls
+            audioEnabled={audioEnabled}
+            videoEnabled={videoEnabled}
+            simulatorRunning={simulatorRunning}
+            onToggleAudio={toggleAudio}
+            onToggleVideo={toggleVideo}
+            onStartSimulator={handleStartSimulator}
+            onStopSimulator={stopSimulator}
+            mediaError={mediaError}
+            simulatorError={simulatorError}
+          />
+        </div>
+      </div>
+
+      {/* Vitals strip — hidden until first sensor reading */}
+      <VitalsStrip vitals={currentVitals} />
 
       {/* Message list */}
       <main
@@ -154,6 +247,9 @@ export function Chat({ sessionId, patientId }: ChatProps) {
           Send
         </button>
       </div>
+
+      {/* Floating camera preview */}
+      <FacePreview videoRef={videoRef} videoEnabled={videoEnabled} />
     </div>
   )
 }

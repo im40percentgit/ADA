@@ -91,12 +91,30 @@ export interface WsErrorMessage {
   message: string
 }
 
+export interface WsEmotionUpdate {
+  type: 'emotion_update'
+  emotion: string
+  valence: number
+  arousal: number
+  confidence: number
+  modalities: string[]
+}
+
+export interface WsVitalsUpdate {
+  type: 'vitals_update'
+  sensor_type: 'hr' | 'gsr' | 'spo2'
+  value: number
+  unit: string
+}
+
 export type WsInboundMessage =
   | WsTokenMessage
   | WsCompleteMessage
   | WsCrisisAlert
   | WsAssessmentPrompt
   | WsErrorMessage
+  | WsEmotionUpdate
+  | WsVitalsUpdate
 
 // ---------------------------------------------------------------------------
 // UI-only chat message (combines streaming + complete states)
