@@ -188,3 +188,60 @@ export interface SubmitAssessmentRequest {
   instrument: AssessmentInstrument
   scores: number[]
 }
+
+// ---------------------------------------------------------------------------
+// Caregiver dashboard
+// ---------------------------------------------------------------------------
+
+export interface CaregiverSessionSummary {
+  subjective: string
+  assessment: string
+  plan: string
+  key_topics: string[]
+  risk_flags: string[]
+}
+
+export interface CaregiverSession {
+  id: string
+  started_at: string
+  ended_at: string | null
+  summary: CaregiverSessionSummary | null
+}
+
+export interface CaregiverAlert {
+  severity: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL'
+  timestamp: string
+  escalation_action: string | null
+}
+
+export interface CaregiverAssessmentEntry {
+  total_score: number
+  severity: string
+  timestamp: string
+}
+
+export interface CaregiverMedication {
+  name: string
+  dosage: string | null
+  frequency: string | null
+  active: boolean
+}
+
+export interface CaregiverAppointment {
+  title: string
+  scheduled_at: string
+  status: string
+}
+
+export interface CaregiverOverview {
+  patient: { name: string; dob: string | null; emergency_contact: string | null }
+  recent_sessions: CaregiverSession[]
+  crisis_alerts: CaregiverAlert[]
+  assessments: {
+    phq9: CaregiverAssessmentEntry[]
+    gad7: CaregiverAssessmentEntry[]
+    who5: CaregiverAssessmentEntry[]
+  }
+  medications: CaregiverMedication[]
+  appointments: CaregiverAppointment[]
+}

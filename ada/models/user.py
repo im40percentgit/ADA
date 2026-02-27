@@ -22,7 +22,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-Role = Literal["user", "clinician", "admin"]
+Role = Literal["user", "clinician", "admin", "caregiver"]
 
 
 class UserCreate(BaseModel):

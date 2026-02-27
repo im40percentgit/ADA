@@ -386,6 +386,11 @@ class StateManager:
         row = await self._fetchone("SELECT * FROM patients WHERE id = ?", (patient_id,))
         return _patient_row(row) if row else None
 
+    async def get_patient_by_caregiver(self, caregiver_id: str) -> dict[str, Any] | None:
+        """Find the patient linked to this caregiver."""
+        row = await self._fetchone("SELECT * FROM patients WHERE caregiver_id = ?", (caregiver_id,))
+        return _patient_row(row) if row else None
+
     async def list_patients(self) -> list[dict[str, Any]]:
         rows = await self._fetchall("SELECT * FROM patients ORDER BY created_at DESC")
         return [_patient_row(r) for r in rows]

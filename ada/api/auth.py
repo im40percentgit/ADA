@@ -214,6 +214,23 @@ def require_role(*roles: Role):
 
 
 # ---------------------------------------------------------------------------
+# Caregiver authorization helper
+# ---------------------------------------------------------------------------
+
+async def _resolve_caregiver_patient(user: User, state_manager) -> str:
+    """Return the patient_id linked to this caregiver, or raise 404.
+
+    Used by caregiver-scoped endpoints to look up the patient the caregiver
+    is authorised to view. Raises HTTP 404 (not 403) so that the existence
+    of patient records is not leaked to orphaned caregiver tokens.
+    """
+    patient = await state_manager.get_patient_by_caregiver(user.id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="No patient linked to this caregiver")
+    return patient["id"]
+
+
+# ---------------------------------------------------------------------------
 # Token ID generator
 # ---------------------------------------------------------------------------
 

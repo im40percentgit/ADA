@@ -36,6 +36,7 @@ import type {
   CreatePatientRequest,
   CreateSessionRequest,
   SubmitAssessmentRequest,
+  CaregiverOverview,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -130,6 +131,14 @@ export function submitAssessment(body: SubmitAssessmentRequest): Promise<Assessm
 
 export function getMoodHistory(patientId: string): Promise<MoodDataPoint[]> {
   return request<MoodDataPoint[]>(`/mood-history?patient_id=${encodeURIComponent(patientId)}`)
+}
+
+// ---------------------------------------------------------------------------
+// Caregiver dashboard
+// ---------------------------------------------------------------------------
+
+export function getCaregiverOverview(): Promise<CaregiverOverview> {
+  return request<CaregiverOverview>('/caregiver/overview')
 }
 
 // ---------------------------------------------------------------------------

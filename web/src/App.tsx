@@ -34,6 +34,7 @@ import { SessionList } from './components/SessionList'
 import { Chat } from './components/Chat'
 import { MoodChart } from './components/MoodChart'
 import { Login } from './components/Login'
+import { CaregiverDashboard } from './components/CaregiverDashboard'
 import { useAuth } from './hooks/useAuth'
 import './App.css'
 
@@ -59,6 +60,15 @@ export default function App() {
   // Unauthenticated — show login/register gate
   if (!isAuthenticated) {
     return <Login onLogin={login} onRegister={register} error={error} />
+  }
+
+  // Caregiver role — show dedicated dashboard instead of chat/mood
+  if (currentUser?.role === 'caregiver') {
+    return (
+      <div className="app">
+        <CaregiverDashboard onLogout={logout} />
+      </div>
+    )
   }
 
   // Resolve patient ID: prefer the linked patient on the user account
