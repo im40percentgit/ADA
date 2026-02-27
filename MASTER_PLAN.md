@@ -51,7 +51,7 @@ ada/
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
 | Sensor simulator | `ada/sensors/` | SensorSimulator presets |
-| Tests | `tests/` | 623 unit + integration tests |
+| Tests | `tests/` | 683 unit + integration tests |
 
 ---
 
@@ -220,7 +220,7 @@ ada/
 | FacePreview component (self-view video thumbnail) | Done | Floating bottom-right |
 | MediaControls component (mic/camera/simulator toggles) | Done | Chat header integration |
 | Chat.tsx integration (all components wired) | Done | Full layout |
-| Tests (11 new: 4 integration + 7 unit, 623 total passing) | Done | Zero regressions |
+| Tests (11 new: 4 integration + 7 unit, 661 total passing) | Done | Zero regressions |
 
 ---
 
@@ -351,6 +351,33 @@ ada/
 | DEC-FRONTEND-016 | VitalsStrip renders null until any sensor data arrives | Avoids empty UI chrome. Individual metrics null-checked independently — partial data shown while sensors warm up. | accepted |
 | DEC-FRONTEND-017 | VoiceIndicator uses AnalyserNode FFT for real-time waveform | AnalyserNode provides frequency data without additional processing. Canvas-based rendering avoids DOM overhead for high-frequency updates. | accepted |
 | DEC-FRONTEND-018 | FacePreview as floating thumbnail, not inline | Small fixed-position overlay in bottom-right avoids disrupting chat layout. Video ref shared between preview display and canvas snapshot capture — single MediaStream consumer. | accepted |
+
+### Phase 5 — Caregiver Dashboard
+**Status:** `completed`
+**Design:** `docs/plans/2026-02-26-caregiver-dashboard-design.md`
+**Commits:** `78cdff7`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `caregiver` role in `Role` Literal | Done | `ada/models/user.py` |
+| `get_patient_by_caregiver` query | Done | `ada/core/state.py` |
+| `_resolve_caregiver_patient` auth helper | Done | `ada/api/auth.py` — 404 for orphaned caregivers |
+| `GET /api/caregiver/overview` aggregation endpoint | Done | `ada/api/routes/caregiver.py` — strips `trigger_text` for privacy |
+| StatusCard component | Done | WHO-5 trend arrow, time since last session |
+| AlertsCard component | Done | Severity-based styling, relative timestamps |
+| SessionsCard component | Done | SOAP plan, key topics, risk flags |
+| WellbeingChart component | Done | Recharts LineChart, WHO-5 percentage over time |
+| CaregiverDashboard container | Done | 60s polling, role-gated routing in App.tsx |
+| Dashboard CSS (card grid, responsive) | Done | `web/src/App.css` |
+| Unit tests (14: auth + overview) | Done | `tests/unit/test_caregiver_auth.py`, `test_caregiver_overview.py` |
+| Integration test (8: full flow) | Done | `tests/integration/test_caregiver_flow.py` |
+| Total tests: 683 passing (was 661) | Done | 0 regressions |
+
+### Phase 5 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-CARE-001 | Single GET /api/caregiver/overview aggregation endpoint | Avoids N+1 round-trips from the frontend. Dashboard loads once and polls on a 60-second interval. Aggregating server-side keeps the frontend simple and avoids exposing fine-grained patient data endpoints to caregiver-role tokens. | accepted |
 
 ---
 
