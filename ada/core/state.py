@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS users (
     id              TEXT PRIMARY KEY,
     email           TEXT NOT NULL UNIQUE,
     hashed_password TEXT NOT NULL,
-    role            TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user','clinician','admin')),
+    role            TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user','clinician','admin','caregiver')),
     patient_id      TEXT REFERENCES patients(id),
     created_at      TEXT NOT NULL,
     is_active       INTEGER NOT NULL DEFAULT 1
