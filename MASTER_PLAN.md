@@ -315,7 +315,7 @@ ada/
 | ID | Decision | Rationale | Status |
 |----|----------|-----------|--------|
 | DEC-ML-001 | LLM classification over dedicated ML models | Feature extraction uses real signal processing (librosa, OpenCV) but classification is delegated to Claude. Avoids ~2GB model downloads, works on any CPU, leverages Claude's clinical emotion understanding. | accepted |
-| DEC-ML-002 | Backend agents only, no frontend in Phase 4b | Phase 4b focuses on server-side processing. Frontend media capture (MediaCapture.tsx, VoiceIndicator.tsx, FaceOverlay.tsx) deferred to Phase 4d. | accepted |
+| DEC-ML-002 | Backend agents only, no frontend in Phase 4b | Phase 4b focuses on server-side processing. Frontend media capture deferred to Phase 4d. **Superseded:** Phase 4d delivered frontend (commit d38f951). | superseded |
 | DEC-ML-003 | Three independent agents, fusion deferred | PhysiologicalAgent, VoiceEmotionAgent, FacialEmotionAgent produce signals independently. MultimodalFusionAgent (combining all signals) deferred to Phase 4c. | accepted |
 | DEC-ML-004 | Input events carry raw bytes for agent processing | Agents need raw media bytes for feature extraction. Passing bytes through the EventBus avoids double-buffering and keeps agents stateless with respect to the transport layer. | accepted |
 | DEC-ML-005 | librosa for audio feature extraction | librosa provides well-tested, CPU-friendly pitch tracking (pyin), RMS energy, onset detection, and MFCCs. Extracted features are human-interpretable, suitable for LLM classification prompts. | accepted |
@@ -337,7 +337,9 @@ ada/
 | DEC-FUSION-001 | Deterministic weighted average over LLM fusion | Each upstream agent already used Claude for classification. Fusion combines outputs — a math problem, not reasoning. Deterministic fusion is fast (~0ms), predictable, and testable without mocks. | accepted |
 | DEC-FUSION-002 | Trigger-on-any with staleness decay | Fusion fires on every incoming signal. Missing modalities get zero weight instead of blocking. Handles therapy sessions where modalities come and go (user mutes mic, covers camera). | accepted |
 | DEC-FUSION-003 | Exponential staleness decay (half-life model) | weight = 2^(-age/half_life). Default half_life=10s. At 10s, weight=0.5; at 60s, weight≈0.016 (discarded). Avoids hard cutoffs — signals gradually lose influence. | accepted |
-| DEC-FUSION-004 | Backend fusion only, no frontend in Phase 4c | Phase 4c focuses on server-side fusion agent. Frontend media capture (MediaCapture.tsx, VoiceIndicator, FaceOverlay) deferred to Phase 4d. | accepted |
+| DEC-FUSION-004 | Backend fusion only, no frontend in Phase 4c | Phase 4c focuses on server-side fusion agent. Frontend media capture deferred to Phase 4d. **Superseded:** Phase 4d delivered (commit d38f951). | superseded |
+| DEC-FUSION-005 | Unit tests cover pure math independently from agent wiring | Pure math tests are synchronous and fast. They give precise coverage of the fusion module's arithmetic without introducing EventBus async complexity. | accepted |
+| DEC-FUSION-006 | Integration tests verify full fusion pipeline end-to-end | Unit tests verify math and event routing in isolation. Integration tests verify the complete wiring: fixture -> agent -> EventBus -> DB persistence. | accepted |
 
 #### Phase 4d — Frontend Media Capture
 
@@ -378,6 +380,12 @@ ada/
 | ID | Decision | Rationale | Status |
 |----|----------|-----------|--------|
 | DEC-CARE-001 | Single GET /api/caregiver/overview aggregation endpoint | Avoids N+1 round-trips from the frontend. Dashboard loads once and polls on a 60-second interval. Aggregating server-side keeps the frontend simple and avoids exposing fine-grained patient data endpoints to caregiver-role tokens. | accepted |
+| DEC-CARE-002 | Integration test exercises real StateManager + full HTTP round-trip | Unit tests cover edge cases and auth with dependency overrides. Integration test uses real in-memory SQLite to catch schema mismatches (like the timestamp vs created_at bug). | accepted |
+| DEC-FRONTEND-020 | CaregiverDashboard polls at 60s interval — no WebSocket | The caregiver dashboard is a read-only summary view. Real-time push via WebSocket adds complexity without proportional benefit for a polling-friendly use case. | accepted |
+| DEC-FRONTEND-021 | StatusCard derives trend from WHO-5 deltas, not PHQ-9/GAD-7 | WHO-5 measures positive wellbeing (not disorder severity), making it more intuitive for non-clinical caregivers to interpret as "how they're doing." | accepted |
+| DEC-FRONTEND-022 | AlertsCard uses index as key — alerts have no stable ID from backend | The CaregiverAlert type from GET /api/caregiver/overview has no ID field. Index-based keys are acceptable since the list is small and replaced on each poll. | accepted |
+| DEC-FRONTEND-023 | SessionsCard shows plan + topics + risk_flags, omits subjective/assessment | The subjective and assessment SOAP fields contain clinical detail inappropriate for non-clinical caregivers. Plan and key_topics convey actionable information safely. | accepted |
+| DEC-FRONTEND-024 | WellbeingChart displays WHO-5 as percentage (0-100), not raw score (0-25) | The WHO-5 raw score (0-25) is unfamiliar to non-clinical caregivers. Percentage is universally understood and aligns with the published WHO-5 scoring guidelines. | accepted |
 
 ---
 
