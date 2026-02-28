@@ -41,3 +41,10 @@ htmlcov/
 
 # Mypy
 .mypy_cache/
+
+# Tool configs
+.claude/
+.serena/
+
+# Logs
+firebase-debug.log
