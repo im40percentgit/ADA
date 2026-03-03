@@ -52,33 +52,49 @@ from ada.llm.factory import create_llm_provider
 
 
 def configure_logging(config: AdaConfig) -> None:
-    """Set up structlog with console or JSON output."""
+    """Set up structlog with console or JSON output.
+
+    Shared processors (level, timestamp, contextvars) are applied by both
+    structlog-native loggers and the stdlib ProcessorFormatter so that
+    uvicorn, httpx, and other third-party libraries emit structured output
+    through the same pipeline.
+    """
     log_level = getattr(logging, config.logging.level.upper(), logging.INFO)
 
-    processors = [
+    shared_processors: list = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
     ]
 
     if config.logging.format == "json":
-        processors.append(structlog.processors.JSONRenderer())
+        renderer = structlog.processors.JSONRenderer()
     else:
-        processors.append(structlog.dev.ConsoleRenderer())
+        renderer = structlog.dev.ConsoleRenderer()
 
     structlog.configure(
-        processors=processors,
+        processors=shared_processors + [renderer],
         wrapper_class=structlog.make_filtering_bound_logger(log_level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
     )
 
-    # Also configure stdlib logging so third-party libs use same level
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
-        stream=sys.stdout,
+    # Route stdlib logging through structlog's ProcessorFormatter so
+    # uvicorn / httpx / third-party libs emit structured output too.
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            renderer,
+        ],
     )
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(log_level)
 
 
 async def run(config: AdaConfig) -> None:

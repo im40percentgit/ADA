@@ -135,6 +135,9 @@ class DatabaseConfig(BaseModel):
 class LoggingConfig(BaseModel):
     level: str = "INFO"
     format: str = "console"  # "console" | "json"
+    request_id_header: str = "X-Request-ID"
+    access_log: bool = True
+    slow_request_threshold_ms: int = 2000
 
 
 # ---------------------------------------------------------------------------
