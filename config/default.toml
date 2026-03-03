@@ -40,6 +40,9 @@ path = "data/ada.db"
 [logging]
 level = "INFO"
 format = "console"
+request_id_header = "X-Request-ID"
+access_log = true
+slow_request_threshold_ms = 2000
 
 [multimodal]
 enabled = false

@@ -20,6 +20,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from ada.api.middleware.logging import StructlogRequestMiddleware
 from ada.api.routes import appointments, assessments, auth, caregiver, chat, cognitive, knowledge, media, medications, patients, sessions, simulator
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
@@ -71,6 +72,9 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Request tracing — assigns request_id, emits structured access log
+    app.add_middleware(StructlogRequestMiddleware, logging_config=config.logging)
 
     # Routers
     app.include_router(auth.router)          # /api/auth/*
