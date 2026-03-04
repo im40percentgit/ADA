@@ -1,0 +1,41 @@
+# Multi-stage frontend build for Ada web UI.
+#
+# Stage 1 (builder): Installs deps and compiles TypeScript + Vite bundle.
+# Stage 2 (runtime): Serves the static dist/ output with `serve`.
+#
+# The web directory is the build context root for this stage — paths are
+# relative to the repo root (not web/), since docker-compose sets context: .
+
+# --- Stage 1: Build ---
+FROM node:20-slim AS builder
+
+WORKDIR /app
+
+# Install deps before copying source for layer caching.
+# package-lock.json is committed so npm ci is deterministic.
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+
+# Copy the full web/ source tree and build.
+# Build command: tsc && vite build
+# Output directory: dist/ (Vite default, confirmed in web/vite.config.ts)
+COPY web/ ./
+RUN npm run build
+
+# --- Stage 2: Serve ---
+FROM node:20-slim AS runtime
+
+# `serve` is a lightweight static file server compatible with Vite SPAs.
+# It handles client-side routing via --single flag automatically.
+RUN npm install -g serve
+
+WORKDIR /app
+
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+
+CMD ["serve", "-s", "dist", "-l", "3000"]

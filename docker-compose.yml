@@ -1,0 +1,66 @@
+# Ada — Docker Compose
+#
+# @decision DEC-DOCKER-001
+# Single-process uvicorn — SQLite write-contention constraint. See Dockerfile.
+#
+# Production topology (Phase 6c):
+#   web (node:serve) → backend (python uvicorn) → ada-data (named volume)
+#
+# Phase 6d will add Caddy in front of both services. For now, ports are exposed
+# directly so the stack is testable as a standalone unit.
+#
+# Override file (docker-compose.override.yml) adds:
+#   - Hot-reload volume mounts for development
+#   - ADA_ENV=development + console logging
+#   - Explicit port bindings (inherited here, but override makes them explicit)
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ada-data:/app/data
+    env_file:
+      # Optional — docker-compose silently ignores a missing .env file.
+      # Copy .env.example to .env and fill in secrets before first run.
+      - path: .env
+        required: false
+    environment:
+      ADA_ENV: production
+      ADA_LOGGING__FORMAT: json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ada-net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ada-net
+
+volumes:
+  # Named volume for SQLite database and any file uploads.
+  # Data persists across container restarts and image rebuilds.
+  # To reset: docker compose down -v
+  ada-data:
+    driver: local
+
+networks:
+  ada-net:
+    driver: bridge
