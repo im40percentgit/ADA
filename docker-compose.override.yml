@@ -6,13 +6,17 @@
 #   - Ada source and config are bind-mounted read-only so code changes
 #     are reflected without rebuilding the image (uvicorn --reload required).
 #   - ADA_ENV=development loads config/development.toml for console logging.
-#   - Explicit port bindings (same as production but documented here).
+#   - Backend port 8000 re-exposed for direct API access (bypassing Caddy).
+#   - Caddy uses Caddyfile.dev (self-signed TLS via internal CA).
 #
 # For production deployment, use:
 #   docker compose -f docker-compose.yml up
 
 services:
   backend:
+    ports:
+      # Re-expose in dev for direct API testing without going through Caddy.
+      - "8000:8000"
     volumes:
       # Bind-mount source for live reload — the named volume for data is
       # inherited from docker-compose.yml and still applies.
@@ -22,14 +26,17 @@ services:
     environment:
       ADA_ENV: development
       ADA_LOGGING__FORMAT: console
-    # In development, disable the health-check dependency so the backend
-    # can be started independently without waiting for itself.
-    # The override does NOT need to redeclare healthcheck — it inherits.
 
   web:
+    # In dev, web still does the one-shot copy into web-dist.
+    # For full hot-reload, run `npm run dev` locally pointing at localhost:8000.
     environment:
-      # Vite-served frontend in dev uses `npm run dev`, not `serve`.
-      # This override keeps the production serve container but points it
-      # at the same backend. For full hot-reload, run `npm run dev` locally
-      # instead of using this container.
       NODE_ENV: development
+
+  caddy:
+    volumes:
+      # Override the Caddyfile with the dev variant (self-signed TLS, no ACME).
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - web-dist:/srv/web:ro

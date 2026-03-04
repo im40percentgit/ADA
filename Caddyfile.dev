@@ -1,0 +1,46 @@
+# Ada — Caddy Development Config
+#
+# Development Caddyfile — self-signed TLS via Caddy's internal CA.
+# No ACME challenges, no outbound port 80 requirement.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev-tls.yml up
+#
+# The `tls internal` directive instructs Caddy to generate a locally-trusted
+# certificate using its built-in CA. On first run, trust the CA cert with:
+#   docker compose exec caddy caddy trust
+# (or add ~/.local/share/caddy/pki/authorities/local/root.crt to your browser)
+
+localhost {
+    tls internal
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(self), microphone=(self)"
+        -Server
+    }
+
+    # API routes → backend
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # WebSocket routes → backend
+    handle /ws/* {
+        reverse_proxy backend:8000
+    }
+
+    # Health check passthrough
+    handle /health* {
+        reverse_proxy backend:8000
+    }
+
+    # Frontend — static files with SPA fallback
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+}
