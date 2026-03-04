@@ -1,0 +1,20 @@
+# Production config layer — loaded when ADA_ENV=production.
+#
+# This file overrides defaults from config/default.toml.
+# Secrets (API keys, JWT secret) must be supplied as environment variables
+# — they are never stored in config files.
+#
+# CORS origins are intentionally empty: Phase 6d (Caddy) will terminate
+# TLS and handle CORS at the proxy layer. The FastAPI app itself should
+# not need to serve cross-origin requests in production.
+
+[logging]
+format = "json"
+
+[api]
+# Empty list means no origins are whitelisted at the app level.
+# Caddy reverse proxy handles CORS headers in production.
+cors_origins = []
+
+[rate_limit]
+enabled = true

@@ -1,0 +1,50 @@
+# .dockerignore — Exclude files from the Docker build context.
+#
+# Keeping the build context small speeds up `docker build` and prevents
+# accidental inclusion of secrets or large local artifacts.
+
+# Version control
+.git
+.github
+
+# Claude/dev tooling
+.claude
+.worktrees
+.serena
+
+# Frontend build artifacts (built inside the container)
+web/node_modules
+web/dist
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+*.egg
+dist/
+build/
+
+# Local data (persisted in named volumes, not in image)
+data/
+
+# Dev/test tooling
+tmp/
+tests/
+docs/
+*.md
+!README.md
+
+# Secrets — never in the image
+.env
+.env.*
+!.env.example
+
+# Misc
+firebase-debug.log
+*.log
+.DS_Store
