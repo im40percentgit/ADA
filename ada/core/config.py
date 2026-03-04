@@ -122,6 +122,52 @@ class MultimodalConfig(BaseModel):
     fusion_min_weight: float = 0.01
 
 
+class RateLimitConfig(BaseModel):
+    """
+    In-process sliding window rate limiting configuration.
+
+    @decision DEC-SEC-001
+    @title In-memory sliding window rate limiter (no Redis)
+    @status accepted
+    @rationale Single-process deployment (SQLite write-contention). Revisit for
+        multi-instance deployments. Each IP gets its own deque of timestamps;
+        entries older than 60 s are pruned on each request.
+    """
+
+    enabled: bool = True
+    auth_requests_per_minute: int = 10
+    api_requests_per_minute: int = 120
+    ws_connections_per_ip: int = 5
+
+
+class SecurityConfig(BaseModel):
+    """
+    Security policy: body size limits and strict CORS headers.
+
+    @decision DEC-SEC-002
+    @title Security headers + body size at middleware level
+    @status accepted
+    @rationale Defense-in-depth. Path-differentiated body limits allow media
+        routes to receive larger payloads (10 MB) while keeping the general
+        API surface small (1 MB). Headers are injected once at the middleware
+        layer so every route benefits without per-handler boilerplate.
+    """
+
+    max_body_size_bytes: int = 1_048_576         # 1 MB
+    max_media_body_size_bytes: int = 10_485_760  # 10 MB
+    cors_allow_methods: list[str] = [
+        "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+    ]
+    cors_allow_headers: list[str] = [
+        "Authorization",
+        "Content-Type",
+        "X-Request-ID",
+        "X-Session-ID",
+        "Accept",
+        "Origin",
+    ]
+
+
 class APIConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
@@ -165,6 +211,8 @@ class AdaConfig(BaseSettings):
     database: DatabaseConfig = DatabaseConfig()
     logging: LoggingConfig = LoggingConfig()
     multimodal: MultimodalConfig = MultimodalConfig()
+    rate_limit: RateLimitConfig = RateLimitConfig()
+    security: SecurityConfig = SecurityConfig()
 
     @classmethod
     def from_toml(cls, *paths: str | Path) -> "AdaConfig":

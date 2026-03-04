@@ -56,3 +56,15 @@ physiological_trigger_interval = 10
 fusion_enabled = true
 fusion_staleness_half_life = 10.0
 fusion_min_weight = 0.01
+
+[rate_limit]
+enabled = true
+auth_requests_per_minute = 10
+api_requests_per_minute = 120
+ws_connections_per_ip = 5
+
+[security]
+max_body_size_bytes = 1048576
+max_media_body_size_bytes = 10485760
+cors_allow_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+cors_allow_headers = ["Authorization", "Content-Type", "X-Request-ID", "X-Session-ID", "Accept", "Origin"]
