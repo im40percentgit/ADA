@@ -3,24 +3,27 @@
 # @decision DEC-DOCKER-001
 # Single-process uvicorn — SQLite write-contention constraint. See Dockerfile.
 #
-# Production topology (Phase 6c):
-#   web (node:serve) → backend (python uvicorn) → ada-data (named volume)
+# Production topology (Phase 6d):
+#   Internet → caddy (80/443) → backend (python uvicorn) → ada-data (named volume)
+#                             → web-dist (static files, populated by web container)
 #
-# Phase 6d will add Caddy in front of both services. For now, ports are exposed
-# directly so the stack is testable as a standalone unit.
+# The web container builds the SPA and copies dist/ into the web-dist volume,
+# then exits (restart: "no"). Caddy serves the static files from that volume.
+# Backend port 8000 is NOT exposed externally — Caddy proxies internally.
 #
 # Override file (docker-compose.override.yml) adds:
 #   - Hot-reload volume mounts for development
 #   - ADA_ENV=development + console logging
-#   - Explicit port bindings (inherited here, but override makes them explicit)
+#   - Explicit port bindings for direct dev access (backend 8000, web 3000)
+#   - Caddy using Caddyfile.dev (self-signed TLS)
 
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    # No external ports — Caddy proxies to backend:8000 on ada-net.
+    # Override file re-exposes 8000 for direct dev access.
     volumes:
       - ada-data:/app/data
     env_file:
@@ -45,11 +48,34 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
+    volumes:
+      - web-dist:/srv/web
+    # Web container copies dist/ to the shared volume then exits.
+    # Caddy serves the static files from web-dist.
+    entrypoint: ["sh", "-c", "cp -r /app/dist/* /srv/web/ && echo 'Static files deployed'"]
+    # No restart — this is a one-shot init container.
+    restart: "no"
+    networks:
+      - ada-net
+
+  caddy:
+    image: caddy:2
     ports:
-      - "3000:3000"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - web-dist:/srv/web:ro
+    environment:
+      ADA_DOMAIN: ${ADA_DOMAIN:-localhost}
     depends_on:
       backend:
         condition: service_healthy
+      web:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - ada-net
@@ -59,6 +85,16 @@ volumes:
   # Data persists across container restarts and image rebuilds.
   # To reset: docker compose down -v
   ada-data:
+    driver: local
+  # Caddy TLS certificate storage — persists across restarts so ACME
+  # certificates are not re-requested on every container restart.
+  caddy-data:
+    driver: local
+  # Caddy runtime config cache.
+  caddy-config:
+    driver: local
+  # Shared volume: web container writes built SPA files; Caddy reads them.
+  web-dist:
     driver: local
 
 networks:

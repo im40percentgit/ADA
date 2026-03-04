@@ -1,0 +1,59 @@
+# Ada — Caddy Production Config
+#
+# @decision DEC-INFRA-001
+# @title Caddy over nginx — automatic TLS, human-readable config, zero certbot
+# @status accepted
+# @rationale Caddy automatically provisions and renews TLS certificates via
+#     ACME (Let's Encrypt). nginx requires manual certbot setup, cron jobs,
+#     and separate redirect configuration. Caddy's config syntax is also
+#     significantly more readable, reducing operational errors.
+#
+# @decision DEC-INFRA-002
+# @title TLS termination at Caddy; backend stays plain HTTP
+# @status accepted
+# @rationale The backend runs on an internal Docker network unreachable from
+#     outside. Encrypting internal traffic adds latency and complexity with
+#     no security benefit. Caddy handles all external TLS.
+#
+# Runtime config:
+#   ADA_DOMAIN — set via docker-compose environment; defaults to localhost.
+#   On a real deployment, set ADA_DOMAIN=ada.example.com in .env.
+#
+# Topology:
+#   Internet → Caddy (80/443) → backend:8000 (API/WS)
+#                             → /srv/web (static SPA files from web-dist volume)
+
+{$ADA_DOMAIN:localhost} {
+    # Security headers (defense-in-depth, supplements middleware)
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(self), microphone=(self)"
+        -Server
+    }
+
+    # API routes → backend
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # WebSocket routes → backend
+    handle /ws/* {
+        reverse_proxy backend:8000
+    }
+
+    # Health check passthrough
+    handle /health* {
+        reverse_proxy backend:8000
+    }
+
+    # Frontend — static files with SPA fallback
+    # Files are populated by the web container into the web-dist volume.
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+}
