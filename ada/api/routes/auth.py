@@ -53,12 +53,28 @@ async def register(body: UserCreate, request: Request) -> dict:
         )
     user_id = str(uuid.uuid4())
     now = datetime.now(tz=timezone.utc).isoformat()
+    patient_id = body.patient_id
+
+    # Auto-create a patient record for 'user' role accounts without one
+    if not patient_id and body.role == "user":
+        patient_id = str(uuid.uuid4())
+        patient_record = {
+            "id": patient_id,
+            "name": body.email.split("@")[0],
+            "dob": None,
+            "preferences": "{}",
+            "emergency_contact": None,
+            "caregiver_id": None,
+            "created_at": now,
+        }
+        await state.create_patient(patient_record)
+
     record = {
         "id": user_id,
         "email": body.email,
         "hashed_password": hash_password(body.password),
         "role": body.role,
-        "patient_id": body.patient_id,
+        "patient_id": patient_id,
         "created_at": now,
         "is_active": 1,
     }
