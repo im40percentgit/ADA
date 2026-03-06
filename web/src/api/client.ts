@@ -100,7 +100,7 @@ export function createPatient(body: CreatePatientRequest): Promise<Patient> {
 // ---------------------------------------------------------------------------
 
 export function listSessions(patientId: string): Promise<Session[]> {
-  return request<Session[]>(`/sessions?patient_id=${encodeURIComponent(patientId)}`)
+  return request<Session[]>(`/patients/${encodeURIComponent(patientId)}/sessions`)
 }
 
 export function createSession(body: CreateSessionRequest): Promise<Session> {
@@ -115,7 +115,7 @@ export function createSession(body: CreateSessionRequest): Promise<Session> {
 // ---------------------------------------------------------------------------
 
 export function listAssessments(patientId: string): Promise<Assessment[]> {
-  return request<Assessment[]>(`/assessments?patient_id=${encodeURIComponent(patientId)}`)
+  return request<Assessment[]>(`/patients/${encodeURIComponent(patientId)}/assessments`)
 }
 
 export function submitAssessment(body: SubmitAssessmentRequest): Promise<Assessment> {
@@ -130,7 +130,7 @@ export function submitAssessment(body: SubmitAssessmentRequest): Promise<Assessm
 // ---------------------------------------------------------------------------
 
 export function getMoodHistory(patientId: string): Promise<MoodDataPoint[]> {
-  return request<MoodDataPoint[]>(`/mood-history?patient_id=${encodeURIComponent(patientId)}`)
+  return request<MoodDataPoint[]>(`/patients/${encodeURIComponent(patientId)}/mood-history`)
 }
 
 // ---------------------------------------------------------------------------
