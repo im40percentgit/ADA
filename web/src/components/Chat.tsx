@@ -38,6 +38,7 @@ import { useChat } from '../hooks/useChat'
 import { useMediaCapture } from '../hooks/useMediaCapture'
 import { useMediaWebSocket } from '../hooks/useMediaWebSocket'
 import { useSensorSimulator } from '../hooks/useSensorSimulator'
+import { endSession } from '../api/client'
 import { ChatMessage } from './ChatMessage'
 import { CrisisAlert } from './CrisisAlert'
 import { AssessmentForm } from './AssessmentForm'
@@ -71,7 +72,7 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     clearAssessmentPrompt,
     currentEmotion,
     currentVitals,
-  } = useChat(sessionId)
+  } = useChat(sessionId, patientId)
 
   // Media WebSocket — handles binary audio/video uploads
   const { sendAudioChunk, sendVideoFrame } = useMediaWebSocket({ sessionId })
@@ -112,9 +113,19 @@ export function Chat({ sessionId, patientId }: ChatProps) {
   )
 
   const [inputValue, setInputValue] = useState('')
+  const [sessionEnded, setSessionEnded] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const prevMessageCountRef = useRef(0)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const handleEndSession = useCallback(async () => {
+    try {
+      await endSession(sessionId)
+      setSessionEnded(true)
+    } catch {
+      // Silently fail — session may already be ended
+    }
+  }, [sessionId])
 
   // Auto-scroll: smooth for streaming updates, instant for new messages
   useEffect(() => {
@@ -171,6 +182,17 @@ export function Chat({ sessionId, patientId }: ChatProps) {
       {/* Chat header — emotion chip, voice indicator, media controls */}
       <div className="chat__header">
         <span className="chat__header-title">Ada</span>
+        {!sessionEnded && (
+          <button
+            className="chat__end-btn"
+            onClick={handleEndSession}
+            type="button"
+            title="End this session"
+          >
+            End Session
+          </button>
+        )}
+        {sessionEnded && <span className="chat__ended-badge">Session Ended</span>}
         <div className="chat__header-media">
           <EmotionChip emotion={currentEmotion} />
           <VoiceIndicator stream={audioStream} />

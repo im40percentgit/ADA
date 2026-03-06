@@ -31,6 +31,7 @@
 import type {
   Patient,
   Session,
+  Message,
   Assessment,
   MoodDataPoint,
   CreatePatientRequest,
@@ -107,6 +108,17 @@ export function createSession(body: CreateSessionRequest): Promise<Session> {
   return request<Session>('/sessions', {
     method: 'POST',
     body: JSON.stringify(body),
+  })
+}
+
+export function getSessionMessages(sessionId: string): Promise<Message[]> {
+  return request<Message[]>(`/sessions/${encodeURIComponent(sessionId)}/messages`)
+}
+
+export function endSession(sessionId: string, moodEnd?: number): Promise<Session> {
+  return request<Session>(`/sessions/${encodeURIComponent(sessionId)}/end`, {
+    method: 'POST',
+    body: JSON.stringify({ mood_end: moodEnd ?? null }),
   })
 }
 

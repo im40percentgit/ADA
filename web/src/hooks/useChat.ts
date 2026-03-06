@@ -23,9 +23,9 @@
  *   updates. A future phase can add a rolling buffer for trend visualisation.
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useWebSocket, type WsStatus } from './useWebSocket'
-import { wsUrl } from '../api/client'
+import { wsUrl, getSessionMessages } from '../api/client'
 import type {
   ChatMessage,
   WsInboundMessage,
@@ -57,7 +57,7 @@ export interface UseChatReturn {
   currentVitals: CurrentVitals
 }
 
-export function useChat(sessionId: string): UseChatReturn {
+export function useChat(sessionId: string, patientId: string): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [crisisAlert, setCrisisAlert] = useState<WsCrisisAlert | null>(null)
   const [assessmentPrompt, setAssessmentPrompt] = useState<WsAssessmentPrompt | null>(null)
@@ -68,6 +68,23 @@ export function useChat(sessionId: string): UseChatReturn {
     gsr: null,
     spo2: null,
   })
+
+  // Load persisted message history on mount
+  useEffect(() => {
+    let cancelled = false
+    getSessionMessages(sessionId).then((history) => {
+      if (cancelled || history.length === 0) return
+      setMessages(history.map((m) => ({
+        id: m.id,
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        agent: m.agent ?? undefined,
+        streaming: false,
+        timestamp: new Date(m.timestamp),
+      })))
+    }).catch(() => { /* session may be new with no messages */ })
+    return () => { cancelled = true }
+  }, [sessionId])
 
   // Streaming accumulation buffer — keyed by a transient message id
   const streamingIdRef = useRef<string | null>(null)
@@ -195,9 +212,9 @@ export function useChat(sessionId: string): UseChatReturn {
           timestamp: new Date(),
         },
       ])
-      send({ content: trimmed })
+      send({ content: trimmed, patient_id: patientId })
     },
-    [send],
+    [send, patientId],
   )
 
   const clearAssessmentPrompt = useCallback(() => setAssessmentPrompt(null), [])

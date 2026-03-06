@@ -846,6 +846,30 @@ html, body, #root {
   letter-spacing: -0.01em;
 }
 
+.chat__end-btn {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary, #6b7280);
+  cursor: pointer;
+  margin-left: 12px;
+}
+
+.chat__end-btn:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.chat__ended-badge {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #6b7280);
+  margin-left: 12px;
+  font-style: italic;
+}
+
 .chat__header-media {
   display: flex;
   align-items: center;

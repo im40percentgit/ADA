@@ -31,7 +31,7 @@ export interface UseWebSocketOptions {
 }
 
 export interface UseWebSocketReturn {
-  send: (payload: { content: string }) => void
+  send: (payload: Record<string, string>) => void
   close: () => void
   status: WsStatus
 }
@@ -104,7 +104,7 @@ export function useWebSocket({
     }
   }, [connect])
 
-  const send = useCallback((payload: { content: string }) => {
+  const send = useCallback((payload: Record<string, string>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(payload))
     }
