@@ -22,6 +22,7 @@ from ada.agents.registry import AgentRegistry
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
+from ada.llm.router import make_null_router
 
 
 @pytest.fixture
@@ -32,7 +33,7 @@ async def app_setup():
     await state.initialize()
     bus = EventBus()
     await bus.start()
-    registry = AgentRegistry(bus, config, state, None)
+    registry = AgentRegistry(bus, config, state, make_null_router())
     app = create_app(config, bus, state, registry)
     yield app, bus, state, config
     await bus.stop()

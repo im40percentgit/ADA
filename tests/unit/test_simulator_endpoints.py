@@ -27,6 +27,7 @@ from ada.agents.registry import AgentRegistry
 from ada.api.app import create_app
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
+from ada.llm.router import make_null_router
 from ada.core.events import EventTypes, SensorReadingEvent
 from ada.core.state import StateManager
 
@@ -49,7 +50,7 @@ async def client_stack(config):
     state = StateManager(":memory:")
     await state.initialize()
     await bus.start()
-    registry = AgentRegistry(bus=bus, config=config, state=state, llm=None)
+    registry = AgentRegistry(bus=bus, config=config, state=state, router=make_null_router())
     app = create_app(config=config, bus=bus, state=state, registry=registry)
     with TestClient(app) as client:
         yield client, bus

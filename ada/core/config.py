@@ -187,6 +187,35 @@ class LoggingConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Model routing config
+# ---------------------------------------------------------------------------
+
+class ModelProfile(BaseModel):
+    """Configuration for a single model profile."""
+    provider: str  # "claude" | "openai_compat"
+    model: str
+    max_tokens: int = 1024
+    temperature: float = 0.7
+    base_url: str | None = None  # for openai_compat
+    api_key_env: str | None = None
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, v: str) -> str:
+        allowed = {"claude", "openai_compat"}
+        if v not in allowed:
+            raise ValueError(f"provider must be one of {allowed}, got {v!r}")
+        return v
+
+
+class ModelRoutingConfig(BaseModel):
+    """Per-agent model routing configuration."""
+    profiles: dict[str, ModelProfile] = {}
+    agent_mapping: dict[str, str] = {}
+    default_profile: str = "conversational"
+
+
+# ---------------------------------------------------------------------------
 # Root config
 # ---------------------------------------------------------------------------
 
@@ -213,6 +242,7 @@ class AdaConfig(BaseSettings):
     multimodal: MultimodalConfig = MultimodalConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
     security: SecurityConfig = SecurityConfig()
+    model_routing: ModelRoutingConfig | None = None
 
     @classmethod
     def from_toml(cls, *paths: str | Path) -> "AdaConfig":

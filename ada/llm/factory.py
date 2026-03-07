@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 
-from ada.core.config import AdaConfig
+from ada.core.config import AdaConfig, ModelProfile
 from ada.llm.base import LLMProvider
 from ada.llm.claude import ClaudeProvider
 from ada.llm.openai_compat import OpenAICompatProvider
@@ -71,5 +71,50 @@ def create_llm_provider(config: AdaConfig) -> LLMProvider:
 
     raise ValueError(
         f"Unknown LLM provider: {provider_name!r}. "
+        "Valid options are 'claude' and 'openai_compat'."
+    )
+
+
+def create_llm_provider_from_profile(profile: ModelProfile) -> LLMProvider:
+    """
+    Create a provider from a ModelProfile config.
+
+    Args:
+        profile: A ModelProfile specifying provider type, model, and parameters.
+
+    Returns:
+        A ready-to-use LLMProvider implementation.
+
+    Raises:
+        ValueError: If an unknown provider is specified in the profile.
+    """
+    import os
+
+    if profile.provider == "claude":
+        api_key_env = profile.api_key_env or "ANTHROPIC_API_KEY"
+        api_key = os.environ.get(api_key_env, "")
+        if not api_key:
+            logger.warning("create_llm_provider_from_profile: %s is not set", api_key_env)
+        return ClaudeProvider(
+            api_key=api_key,
+            model=profile.model,
+            default_max_tokens=profile.max_tokens,
+            default_temperature=profile.temperature,
+        )
+
+    if profile.provider == "openai_compat":
+        api_key_env = profile.api_key_env or "OPENAI_API_KEY"
+        api_key = os.environ.get(api_key_env, "none")
+        base_url = profile.base_url or "http://localhost:8080/v1"
+        return OpenAICompatProvider(
+            base_url=base_url,
+            api_key=api_key,
+            model=profile.model,
+            default_max_tokens=profile.max_tokens,
+            default_temperature=profile.temperature,
+        )
+
+    raise ValueError(
+        f"Unknown provider in profile: {profile.provider!r}. "
         "Valid options are 'claude' and 'openai_compat'."
     )
