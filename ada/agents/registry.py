@@ -22,7 +22,7 @@ from ada.agents.base import BaseAgent
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
-from ada.llm.base import LLMProvider
+from ada.llm.router import ModelRouter
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +46,12 @@ class AgentRegistry:
         bus: EventBus,
         config: AdaConfig,
         state: StateManager,
-        llm: LLMProvider,
+        router: ModelRouter,
     ) -> None:
         self._bus = bus
         self._config = config
         self._state = state
-        self._llm = llm
+        self._router = router
         self._agents: list[BaseAgent] = []
         self._active: list[BaseAgent] = []
 
@@ -60,15 +60,17 @@ class AgentRegistry:
         Register an agent for lifecycle management.
 
         Initialises the agent immediately (injects dependencies).
+        The router resolves the appropriate LLM provider per agent name.
         The agent will be started when start_all() is called.
 
         Args:
             agent: An uninitialised BaseAgent subclass instance.
         """
         try:
-            agent.initialize(self._bus, self._config, self._state, self._llm)
+            llm = self._router.get_provider(agent.name)
+            agent.initialize(self._bus, self._config, self._state, llm)
             self._agents.append(agent)
-            logger.info("AgentRegistry: registered %s", agent.name)
+            logger.info("AgentRegistry: registered %s (profile resolved)", agent.name)
         except Exception:
             logger.exception("AgentRegistry: failed to initialise %s — skipping", agent.name)
 

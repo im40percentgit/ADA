@@ -68,3 +68,36 @@ max_body_size_bytes = 1048576
 max_media_body_size_bytes = 10485760
 cors_allow_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
 cors_allow_headers = ["Authorization", "Content-Type", "X-Request-ID", "X-Session-ID", "Accept", "Origin"]
+
+[model_routing]
+default_profile = "conversational"
+
+[model_routing.profiles.conversational]
+provider = "claude"
+model = "claude-sonnet-4-5-20250514"
+max_tokens = 1024
+temperature = 0.7
+api_key_env = "ANTHROPIC_API_KEY"
+
+[model_routing.profiles.reasoning]
+provider = "openai_compat"
+model = "deepseek-r1-distill-qwen3-8b"
+base_url = "http://localhost:8081/v1"
+max_tokens = 2048
+temperature = 0.3
+
+[model_routing.profiles.lightweight]
+provider = "openai_compat"
+model = "deepseek-r1-distill-qwen3-8b"
+base_url = "http://localhost:8081/v1"
+max_tokens = 512
+temperature = 0.2
+
+[model_routing.agent_mapping]
+therapist = "conversational"
+crisis_monitor = "reasoning"
+emotion_analyzer = "conversational"
+cognitive_assessor = "reasoning"
+medication_manager = "reasoning"
+knowledge = "lightweight"
+session_summarizer = "conversational"

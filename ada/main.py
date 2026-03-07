@@ -48,7 +48,7 @@ from ada.api.app import create_app
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
-from ada.llm.factory import create_llm_provider
+from ada.llm.router import ModelRouter, create_model_router
 
 
 def configure_logging(config: AdaConfig) -> None:
@@ -111,12 +111,12 @@ async def run(config: AdaConfig) -> None:
     await bus.start()
     log.info("EventBus started")
 
-    # LLM provider
-    llm = create_llm_provider(config)
-    log.info("LLM provider created", provider=config.llm.provider)
+    # Model router (per-agent LLM provider resolution)
+    router = create_model_router(config)
+    log.info("Model router created", profiles=router.provider_names)
 
     # Agents
-    registry = AgentRegistry(bus, config, state, llm)
+    registry = AgentRegistry(bus, config, state, router)
 
     if config.agents.therapist.enabled:
         registry.register(TherapistAgent())
@@ -180,7 +180,7 @@ async def run(config: AdaConfig) -> None:
             log.info("KnowledgeAgent: clinical KB injected")
 
     # Infrastructure subscribers (not registry-managed)
-    summarizer = SessionSummarizer(bus, state, llm)
+    summarizer = SessionSummarizer(bus, state, router.get_provider("session_summarizer"))
     log.info("SessionSummarizer instantiated")
 
     # FastAPI

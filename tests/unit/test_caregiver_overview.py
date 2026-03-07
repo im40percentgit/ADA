@@ -38,6 +38,7 @@ from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
 from ada.llm.base import LLMProvider, LLMResponse
+from ada.llm.router import make_null_router
 from ada.models.user import User
 
 
@@ -98,7 +99,7 @@ def _make_client(
     """Authenticated test client with real in-memory state."""
     config = AdaConfig()
     bus = EventBus()
-    registry = AgentRegistry(bus, config, state, _NullLLM())
+    registry = AgentRegistry(bus, config, state, make_null_router(_NullLLM()))
     app = create_app(config, bus, state, registry)
     app.dependency_overrides[get_current_user] = lambda: user
     with TestClient(app, raise_server_exceptions=True) as client:
@@ -112,7 +113,7 @@ def _make_unauthenticated_client(
     """No auth override — verifies route is protected."""
     config = AdaConfig()
     bus = EventBus()
-    registry = AgentRegistry(bus, config, state, _NullLLM())
+    registry = AgentRegistry(bus, config, state, make_null_router(_NullLLM()))
     app = create_app(config, bus, state, registry)
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client

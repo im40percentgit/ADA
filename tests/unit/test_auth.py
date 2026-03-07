@@ -37,6 +37,7 @@ from ada.core.config import AdaConfig
 from ada.core.state import StateManager
 from ada.agents.registry import AgentRegistry
 from ada.llm.base import LLMProvider, LLMResponse
+from ada.llm.router import make_null_router
 from ada.models.user import User
 
 
@@ -74,7 +75,7 @@ def bus() -> EventBus:
 
 @pytest.fixture
 def registry(bus, config, state) -> AgentRegistry:
-    return AgentRegistry(bus, config, state, _NullLLM())
+    return AgentRegistry(bus, config, state, make_null_router(_NullLLM()))
 
 
 @pytest.fixture

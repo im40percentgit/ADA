@@ -30,6 +30,7 @@ from ada.core.config import AdaConfig
 from ada.core.events import EventTypes, SessionEndedEvent
 from ada.core.state import StateManager
 from ada.agents.registry import AgentRegistry
+from ada.llm.router import make_null_router
 from ada.knowledge.extractor import KnowledgeExtractor, _build_transcript, _parse_llm_response
 from ada.llm.base import LLMProvider, LLMResponse
 from ada.models.knowledge import KnowledgeEdge, KnowledgeGraph, KnowledgeNode, KnowledgeSnapshot
@@ -81,7 +82,7 @@ _FAKE_USER = User(
 def _make_client(state: StateManager) -> TestClient:
     config = AdaConfig()
     bus = EventBus()
-    registry = AgentRegistry(bus, config, state, _NullLLM())
+    registry = AgentRegistry(bus, config, state, make_null_router(_NullLLM()))
     app = create_app(config, bus, state, registry)
     app.dependency_overrides[get_current_user] = lambda: _FAKE_USER
     return TestClient(app)
@@ -232,7 +233,7 @@ class TestKnowledgeAPI:
         """Without dependency override the endpoint requires a real token."""
         config = AdaConfig()
         bus = EventBus()
-        registry = AgentRegistry(bus, config, state, _NullLLM())
+        registry = AgentRegistry(bus, config, state, make_null_router(_NullLLM()))
         app = create_app(config, bus, state, registry)
         # No dependency_overrides — auth not bypassed
         with TestClient(app, raise_server_exceptions=False) as client:

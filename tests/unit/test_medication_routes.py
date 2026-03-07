@@ -42,6 +42,7 @@ from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
 from ada.llm.base import LLMProvider, LLMResponse
+from ada.llm.router import make_null_router
 from ada.models.user import User
 
 
@@ -112,7 +113,7 @@ def _make_client(
     config = AdaConfig()
     bus = EventBus()
     actual_llm = llm or _NullLLM()
-    registry = AgentRegistry(bus, config, state, actual_llm)
+    registry = AgentRegistry(bus, config, state, make_null_router(actual_llm))
 
     if with_agent:
         agent = MedicationManagerAgent()
@@ -133,7 +134,7 @@ def _make_unauthenticated_client(
     """Client with NO auth override — tests that routes are protected."""
     config = AdaConfig()
     bus = EventBus()
-    registry = AgentRegistry(bus, config, state, _NullLLM())
+    registry = AgentRegistry(bus, config, state, make_null_router(_NullLLM()))
     app = create_app(config, bus, state, registry)
     # No dependency_overrides — real auth applies
     with TestClient(app, raise_server_exceptions=False) as client:

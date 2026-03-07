@@ -45,6 +45,7 @@ from ada.agents.registry import AgentRegistry
 from ada.api.app import create_app
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
+from ada.llm.router import make_null_router
 from ada.core.events import EventTypes, SessionEndedEvent
 from ada.core.state import StateManager
 from ada.knowledge.extractor import KnowledgeExtractor
@@ -123,7 +124,7 @@ def client(state: StateManager, config: AdaConfig, extraction_llm: MockLLMProvid
     populated before any request is made.
     """
     bus = EventBus()
-    registry = AgentRegistry(bus, config, state, extraction_llm)
+    registry = AgentRegistry(bus, config, state, make_null_router(extraction_llm))
     app = create_app(config, bus, state, registry)
 
     with TestClient(app) as c:

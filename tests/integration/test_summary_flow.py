@@ -37,6 +37,7 @@ from ada.api.app import create_app
 from ada.api.auth import get_current_user
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
+from ada.llm.router import make_null_router
 from ada.core.events import EventTypes, SessionEndedEvent, SessionSummarizedEvent
 from ada.core.state import StateManager
 from ada.models.user import User
@@ -109,7 +110,7 @@ def _make_client(
 ) -> Generator[TestClient, None, None]:
     """Authenticated TestClient wired with a real SessionSummarizer."""
     config = AdaConfig()
-    registry = AgentRegistry(bus, config, state, llm)
+    registry = AgentRegistry(bus, config, state, make_null_router(llm))
     app = create_app(config, bus, state, registry)
     app.dependency_overrides[get_current_user] = lambda: _FAKE_USER
     with TestClient(app, raise_server_exceptions=True) as client:
@@ -216,7 +217,7 @@ class TestSummaryFlow:
     async def test_rest_endpoint_requires_auth(self, state, bus, llm):
         """GET /sessions/{id}/summary without auth returns 401/403."""
         config = AdaConfig()
-        registry = AgentRegistry(bus, config, state, llm)
+        registry = AgentRegistry(bus, config, state, make_null_router(llm))
         app = create_app(config, bus, state, registry)
         # No dependency_overrides — real auth enforced
         with TestClient(app, raise_server_exceptions=False) as client:
