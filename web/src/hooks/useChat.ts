@@ -168,7 +168,7 @@ export function useChat(sessionId: string, patientId: string): UseChatReturn {
           {
             id: nextId(),
             role: 'assistant',
-            content: `[Error: ${msg.message}]`,
+            content: `[Error: ${msg.detail ?? msg.message ?? 'Unknown error'}]`,
             streaming: false,
             timestamp: new Date(),
           },

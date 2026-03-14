@@ -44,7 +44,7 @@ class OpenAICompatProvider(LLMProvider):
         model: str = "local-model",
         default_max_tokens: int = 1024,
         default_temperature: float = 0.7,
-        timeout: float = 60.0,
+        timeout: float = 120.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
@@ -84,7 +84,11 @@ class OpenAICompatProvider(LLMProvider):
         response.raise_for_status()
         data = response.json()
 
-        content = data["choices"][0]["message"]["content"]
+        message = data["choices"][0]["message"]
+        content = message.get("content") or ""
+        # Reasoning models (e.g. Qwen3) put output in reasoning_content
+        if not content and message.get("reasoning_content"):
+            content = message["reasoning_content"]
         usage = data.get("usage", {})
 
         return LLMResponse(
