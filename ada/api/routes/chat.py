@@ -189,9 +189,9 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                 )
             )
 
-            # Wait for the agent's response (timeout 30s)
+            # Wait for the agent's response (timeout 120s for reasoning models)
             try:
-                response_event = await asyncio.wait_for(response_queue.get(), timeout=30.0)
+                response_event = await asyncio.wait_for(response_queue.get(), timeout=120.0)
                 if websocket.client_state == WebSocketState.CONNECTED:
                     await websocket.send_json({
                         "type": "message",
