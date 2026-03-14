@@ -51,7 +51,7 @@ ada/
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
 | Sensor simulator | `ada/sensors/` | SensorSimulator presets |
-| Tests | `tests/` | 683 unit + integration tests |
+| Tests | `tests/` | 678+ unit + integration tests |
 
 ---
 
@@ -386,6 +386,87 @@ ada/
 | DEC-FRONTEND-022 | AlertsCard uses index as key — alerts have no stable ID from backend | The CaregiverAlert type from GET /api/caregiver/overview has no ID field. Index-based keys are acceptable since the list is small and replaced on each poll. | accepted |
 | DEC-FRONTEND-023 | SessionsCard shows plan + topics + risk_flags, omits subjective/assessment | The subjective and assessment SOAP fields contain clinical detail inappropriate for non-clinical caregivers. Plan and key_topics convey actionable information safely. | accepted |
 | DEC-FRONTEND-024 | WellbeingChart displays WHO-5 as percentage (0-100), not raw score (0-25) | The WHO-5 raw score (0-25) is unfamiliar to non-clinical caregivers. Percentage is universally understood and aligns with the published WHO-5 scoring guidelines. | accepted |
+
+---
+
+### Phase 6 — Observability, Hardening & Deployment
+**Status:** `completed`
+
+#### Phase 6a — Structured Logging + Request Tracing
+**Status:** `completed`
+**Commits:** `52cdd66` (merge), `3a7368f`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/api/middleware/__init__.py` | Done | Package marker |
+| `ada/api/middleware/logging.py` — StructlogRequestMiddleware | Done | Raw ASGI, contextvars, slow-request warning |
+| `ada/core/config.py` — LoggingConfig extension | Done | request_id_header, access_log, slow_request_threshold_ms |
+| `ada/main.py` — configure_logging() update | Done | stdlib ProcessorFormatter routing |
+| `ada/api/app.py` — middleware registration | Done | Added after CORS |
+| `config/default.toml` — [logging] extension | Done | request_id_header, access_log, slow_request_threshold_ms |
+| `tests/unit/test_logging_middleware.py` — 5 tests | Done | UUID4 gen, echo, access log, suppression, lifespan passthrough |
+
+#### Phase 6b — API Hardening
+**Status:** `completed`
+**Commits:** `ef74041` (merge), `cc6619e`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/api/middleware/rate_limit.py` — SlidingWindowRateLimiter | Done | Per-IP deque, auth 10/min, API 120/min, 429 + Retry-After |
+| `ada/api/middleware/security_headers.py` — SecurityHeadersMiddleware | Done | X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy |
+| Body size enforcement at middleware level | Done | 1 MB general, 10 MB media routes |
+| `ada/core/config.py` — SecurityConfig extension | Done | CORS tightened from ["*"] to explicit allow-lists |
+| `/health/ready` endpoint | Done | Probes DB, returns 503 when degraded |
+| `tests/unit/test_rate_limit_middleware.py` + `test_security_middleware.py` + `test_health_ready.py` | Done | 8 new tests |
+
+#### Phase 6c — Docker Compose Containerization
+**Status:** `completed`
+**Commits:** `559e426` (merge), `fc5ff8c`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `Dockerfile` — multi-stage backend build | Done | python:3.12-slim |
+| `Dockerfile.web` — multi-stage frontend build | Done | node:20-slim |
+| `docker-compose.yml` — production orchestration | Done | Named volume + healthchecks |
+| `docker-compose.override.yml` — dev overrides | Done | Bind-mounts + console logging |
+| `.dockerignore` | Done | Excludes git, node_modules, data/, secrets |
+| `.env.example` | Done | Documents required secrets |
+| `config/production.toml` | Done | JSON logging, empty CORS (Caddy handles it) |
+| `docker/entrypoint.sh` | Done | sh entrypoint with exec for signal forwarding |
+
+#### Phase 6d — Caddy Reverse Proxy + TLS
+**Status:** `completed`
+**Commits:** `710d0ca` (merge), `8801a7e`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Caddy service in docker-compose | Done | TLS termination, HSTS, security headers |
+| API/WS proxying to backend:8000 | Done | Internal network only in production |
+| SPA static file serving via shared volume | Done | Web service as one-shot init container |
+| `Caddyfile.dev` with self-signed TLS | Done | `tls internal` for local dev |
+| ADA_DOMAIN env var for domain config | Done | Configurable per environment |
+
+#### Cross-Phase: Per-Agent Model Routing
+**Commits:** `d9e2eb0` (merge), `69eaf6f`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/llm/router.py` — ModelRouter class | Done | Maps agent names to model profiles |
+| `ada/core/config.py` — ModelProfile + ModelRoutingConfig | Done | Pydantic v2 models |
+| `ada/llm/factory.py` — create_llm_provider_from_profile() | Done | Profile-to-provider factory |
+| `ada/agents/registry.py` — accepts ModelRouter | Done | Per-agent provider resolution |
+| `tests/unit/test_model_router.py` | Done | Router + fallback + null router tests |
+
+### Phase 6 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-OBS-001 | Correlation IDs via structlog contextvars, raw ASGI middleware | contextvars are async-safe — no request_id leakage between concurrent uvicorn requests. Raw ASGI middleware (not BaseHTTPMiddleware) avoids double-wrapped async generator issues with streaming responses. Pattern recommended by Starlette maintainers. | accepted |
+| DEC-SEC-001 | In-memory sliding window rate limiter (no Redis) | Single-process deployment (SQLite write-contention). Each IP gets its own deque of timestamps; entries older than 60s are pruned on each request. Revisit for multi-instance deployments. | accepted |
+| DEC-SEC-002 | Security headers + body size at middleware level | Defense-in-depth. Path-differentiated body limits allow media routes to receive larger payloads (10 MB) while keeping the general API surface small (1 MB). Headers injected once at the middleware layer so every route benefits without per-handler boilerplate. | accepted |
+| DEC-INFRA-001 | Caddy over nginx for reverse proxy | Automatic TLS via ACME, human-readable config, built-in security headers. | accepted |
+| DEC-INFRA-002 | TLS at Caddy; backend plain HTTP on internal network | Backend never exposed to public internet; TLS termination at edge reduces internal complexity. | accepted |
+| DEC-LLM-002 | Config-driven per-agent model routing with fallback | Mental health AI benefits from hybrid models: warm conversational models for therapy, reasoning models for clinical assessment. A router maps agent names to model profiles, each backed by a pre-instantiated provider. Unknown agents fall back to default_profile. When no model_routing config exists, falls back to legacy single-provider mode. | accepted |
 
 ---
 
