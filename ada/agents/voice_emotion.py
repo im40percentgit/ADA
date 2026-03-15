@@ -59,6 +59,22 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
+def _extract_json(text: str) -> str:
+    """Extract JSON object from mixed text (for models that add prose)."""
+    # Try the whole text first
+    stripped = _strip_fences(text)
+    try:
+        json.loads(stripped)
+        return stripped
+    except (json.JSONDecodeError, ValueError):
+        pass
+    # Find first { ... } block
+    match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+    if match:
+        return match.group(0)
+    return stripped
+
+
 class VoiceEmotionAgent(BaseAgent):
     """
     Voice emotion analysis agent.
@@ -123,7 +139,7 @@ class VoiceEmotionAgent(BaseAgent):
 
         # Parse JSON response
         try:
-            cleaned = _strip_fences(raw)
+            cleaned = _extract_json(raw)
             data = json.loads(cleaned)
             emotion = str(data["emotion"])
             confidence = float(data["confidence"])

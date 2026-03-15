@@ -84,7 +84,8 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
 
     bus = websocket.app.state.bus
     pending_binary: dict | None = None  # Holds metadata while awaiting binary frame
-    audio_buffer: list[bytes] = []  # Accumulate webm chunks for valid decode
+    audio_header: bytes = b""  # First webm chunk contains EBML header — retained for all decodes
+    audio_buffer: list[bytes] = []  # Accumulate webm cluster chunks
     audio_buffer_meta: dict = {}  # Metadata from first audio chunk
     audio_buffer_start: float = 0.0
     AUDIO_BUFFER_INTERVAL = 3.0  # Flush every 3 seconds
@@ -117,17 +118,22 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
                 msg_type = pending_binary.get("type", "")
 
                 if msg_type == "audio_chunk":
-                    # Buffer audio chunks — webm chunks aren't self-contained
-                    if not audio_buffer:
+                    # Buffer audio chunks — webm chunks aren't self-contained.
+                    # First chunk has EBML header; subsequent are cluster data.
+                    raw = message["bytes"]
+                    if not audio_header:
+                        # Save the first chunk as the header (EBML + Tracks)
+                        audio_header = raw
                         audio_buffer_meta = pending_binary
                         audio_buffer_start = time.monotonic()
-                    audio_buffer.append(message["bytes"])
+                    else:
+                        audio_buffer.append(raw)
                     # Flush when enough time has passed
-                    if time.monotonic() - audio_buffer_start >= AUDIO_BUFFER_INTERVAL:
-                        combined = b"".join(audio_buffer)
+                    if audio_buffer and time.monotonic() - audio_buffer_start >= AUDIO_BUFFER_INTERVAL:
+                        combined = audio_header + b"".join(audio_buffer)
                         await _handle_audio(bus, session_id, audio_buffer_meta, combined, chunk_id)
                         audio_buffer.clear()
-                        audio_buffer_meta = {}
+                        audio_buffer_start = time.monotonic()
                 elif msg_type == "video_frame":
                     await _handle_video(bus, session_id, pending_binary, message["bytes"], chunk_id)
 
@@ -138,8 +144,8 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
         logger.exception("Media WS: unhandled error in session %s", session_id)
     finally:
         # Flush remaining audio buffer
-        if audio_buffer:
-            combined = b"".join(audio_buffer)
+        if audio_buffer and audio_header:
+            combined = audio_header + b"".join(audio_buffer)
             chunk_id = str(uuid.uuid4())
             await _handle_audio(bus, session_id, audio_buffer_meta, combined, chunk_id)
             audio_buffer.clear()
