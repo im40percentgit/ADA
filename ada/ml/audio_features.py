@@ -18,7 +18,11 @@ from __future__ import annotations
 
 import io
 import logging
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import librosa
 import numpy as np
@@ -39,6 +43,33 @@ class AudioFeatures:
     duration_s: float = 0.0       # Audio duration in seconds
     valid: bool = True            # Whether extraction succeeded
     error: str = ""               # Error message if extraction failed
+
+
+_HAS_FFMPEG = shutil.which("ffmpeg") is not None
+
+
+def _ffmpeg_decode(audio_bytes: bytes, sr: int) -> tuple[np.ndarray | None, int]:
+    """Convert audio bytes (webm/opus/etc.) to PCM via ffmpeg."""
+    if not _HAS_FFMPEG:
+        logger.warning("ffmpeg not found — cannot decode webm/opus audio")
+        return None, sr
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
+            tmp_in.write(audio_bytes)
+            tmp_in_path = tmp_in.name
+        tmp_out_path = tmp_in_path.replace(".webm", ".wav")
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", tmp_in_path, "-ar", str(sr), "-ac", "1", tmp_out_path],
+            capture_output=True, timeout=10,
+        )
+        y, actual_sr = librosa.load(tmp_out_path, sr=sr, mono=True)
+        return y, actual_sr
+    except Exception as exc:
+        logger.warning("ffmpeg decode failed: %s", exc)
+        return None, sr
+    finally:
+        Path(tmp_in_path).unlink(missing_ok=True)
+        Path(tmp_out_path).unlink(missing_ok=True)
 
 
 def extract_features(
@@ -63,8 +94,14 @@ def extract_features(
         return AudioFeatures(valid=False, error="Empty audio data")
 
     try:
-        # Decode audio bytes to waveform
-        y, actual_sr = librosa.load(io.BytesIO(audio_bytes), sr=sr, mono=True)
+        # Try direct decode first; if it fails (e.g. webm/opus), convert via ffmpeg
+        audio_buf = io.BytesIO(audio_bytes)
+        try:
+            y, actual_sr = librosa.load(audio_buf, sr=sr, mono=True)
+        except Exception:
+            y, actual_sr = _ffmpeg_decode(audio_bytes, sr)
+            if y is None:
+                return AudioFeatures(valid=False, error="ffmpeg decode failed")
 
         if len(y) == 0:
             return AudioFeatures(valid=False, error="Decoded waveform is empty")
