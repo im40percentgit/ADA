@@ -27,6 +27,7 @@ class LLMResponse:
     input_tokens: int = 0
     output_tokens: int = 0
     stop_reason: str = "end_turn"
+    reasoning: str = ""
 
 
 class LLMProvider(ABC):

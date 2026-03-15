@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import AsyncIterator
 
 import httpx
@@ -86,9 +87,22 @@ class OpenAICompatProvider(LLMProvider):
 
         message = data["choices"][0]["message"]
         content = message.get("content") or ""
+        reasoning = message.get("reasoning_content") or ""
         # Reasoning models (e.g. Qwen3) put output in reasoning_content
-        if not content and message.get("reasoning_content"):
-            content = message["reasoning_content"]
+        if not content and reasoning:
+            content = reasoning
+
+        # Strip <think>...</think> blocks from content (reasoning models
+        # like Qwen3/DeepSeek embed chain-of-thought in the response)
+        think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+        if think_match:
+            if not reasoning:
+                reasoning = think_match.group(1).strip()
+            content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+
+        if reasoning:
+            logger.info("LLM reasoning captured (%d chars)", len(reasoning))
+
         usage = data.get("usage", {})
 
         return LLMResponse(
@@ -97,6 +111,7 @@ class OpenAICompatProvider(LLMProvider):
             input_tokens=usage.get("prompt_tokens", 0),
             output_tokens=usage.get("completion_tokens", 0),
             stop_reason=data["choices"][0].get("finish_reason", "stop"),
+            reasoning=reasoning,
         )
 
     async def stream(
