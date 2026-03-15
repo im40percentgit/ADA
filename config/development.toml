@@ -40,6 +40,17 @@ base_url = "http://localhost:8080/v1"
 max_tokens = 256
 temperature = 0.7
 
+[multimodal]
+enabled = true
+voice_analysis_enabled = true
+face_analysis_enabled = true
+sensor_enabled = true
+fusion_enabled = true
+
 [model_routing.agent_mapping]
 therapist = "local"
 crisis_monitor = "local"
+voice_emotion = "local"
+facial_emotion = "local"
+physiological = "local"
+fusion = "local"

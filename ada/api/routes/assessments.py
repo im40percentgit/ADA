@@ -90,8 +90,9 @@ async def get_mood_history(
     results = await _state(request).get_assessments(patient_id, "who5")
     return [
         {
-            "timestamp": r["timestamp"],
-            "total_score": r["total_score"],
+            "date": r["timestamp"],
+            "score": r["total_score"],
+            "session_id": r.get("session_id", ""),
             "percentage": r["total_score"] * 4,
             "severity": r["severity"],
         }
