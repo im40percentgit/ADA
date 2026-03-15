@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
@@ -83,6 +84,10 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
 
     bus = websocket.app.state.bus
     pending_binary: dict | None = None  # Holds metadata while awaiting binary frame
+    audio_buffer: list[bytes] = []  # Accumulate webm chunks for valid decode
+    audio_buffer_meta: dict = {}  # Metadata from first audio chunk
+    audio_buffer_start: float = 0.0
+    AUDIO_BUFFER_INTERVAL = 3.0  # Flush every 3 seconds
 
     try:
         while True:
@@ -112,7 +117,17 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
                 msg_type = pending_binary.get("type", "")
 
                 if msg_type == "audio_chunk":
-                    await _handle_audio(bus, session_id, pending_binary, message["bytes"], chunk_id)
+                    # Buffer audio chunks — webm chunks aren't self-contained
+                    if not audio_buffer:
+                        audio_buffer_meta = pending_binary
+                        audio_buffer_start = time.monotonic()
+                    audio_buffer.append(message["bytes"])
+                    # Flush when enough time has passed
+                    if time.monotonic() - audio_buffer_start >= AUDIO_BUFFER_INTERVAL:
+                        combined = b"".join(audio_buffer)
+                        await _handle_audio(bus, session_id, audio_buffer_meta, combined, chunk_id)
+                        audio_buffer.clear()
+                        audio_buffer_meta = {}
                 elif msg_type == "video_frame":
                     await _handle_video(bus, session_id, pending_binary, message["bytes"], chunk_id)
 
@@ -122,6 +137,12 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
     except Exception:
         logger.exception("Media WS: unhandled error in session %s", session_id)
     finally:
+        # Flush remaining audio buffer
+        if audio_buffer:
+            combined = b"".join(audio_buffer)
+            chunk_id = str(uuid.uuid4())
+            await _handle_audio(bus, session_id, audio_buffer_meta, combined, chunk_id)
+            audio_buffer.clear()
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.close()
         logger.info("Media WS: session %s disconnected", session_id)

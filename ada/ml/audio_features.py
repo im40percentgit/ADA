@@ -53,23 +53,36 @@ def _ffmpeg_decode(audio_bytes: bytes, sr: int) -> tuple[np.ndarray | None, int]
     if not _HAS_FFMPEG:
         logger.warning("ffmpeg not found — cannot decode webm/opus audio")
         return None, sr
+    tmp_in_path = ""
+    tmp_out_path = ""
     try:
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
             tmp_in.write(audio_bytes)
             tmp_in_path = tmp_in.name
         tmp_out_path = tmp_in_path.replace(".webm", ".wav")
-        subprocess.run(
+        result = subprocess.run(
             ["ffmpeg", "-y", "-i", tmp_in_path, "-ar", str(sr), "-ac", "1", tmp_out_path],
             capture_output=True, timeout=10,
         )
+        if result.returncode != 0:
+            stderr = result.stderr.decode(errors="replace")[-200:]
+            logger.debug("ffmpeg exited %d for %d-byte chunk: %s",
+                         result.returncode, len(audio_bytes), stderr.strip())
+            return None, sr
+        out_path = Path(tmp_out_path)
+        if not out_path.exists() or out_path.stat().st_size == 0:
+            logger.debug("ffmpeg produced no output for %d-byte input", len(audio_bytes))
+            return None, sr
         y, actual_sr = librosa.load(tmp_out_path, sr=sr, mono=True)
         return y, actual_sr
     except Exception as exc:
         logger.warning("ffmpeg decode failed: %s", exc)
         return None, sr
     finally:
-        Path(tmp_in_path).unlink(missing_ok=True)
-        Path(tmp_out_path).unlink(missing_ok=True)
+        if tmp_in_path:
+            Path(tmp_in_path).unlink(missing_ok=True)
+        if tmp_out_path:
+            Path(tmp_out_path).unlink(missing_ok=True)
 
 
 def extract_features(
