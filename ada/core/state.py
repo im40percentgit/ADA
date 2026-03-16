@@ -308,6 +308,20 @@ CREATE TABLE IF NOT EXISTS handoff_log (
 CREATE INDEX IF NOT EXISTS idx_handoff_log_session ON handoff_log(session_id);
 CREATE INDEX IF NOT EXISTS idx_handoff_log_patient ON handoff_log(patient_id);
 
+CREATE TABLE IF NOT EXISTS transcriptions (
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT NOT NULL,
+    patient_id      TEXT NOT NULL,
+    audio_chunk_id  TEXT NOT NULL,
+    text            TEXT NOT NULL,
+    language        TEXT NOT NULL DEFAULT '',
+    confidence      REAL NOT NULL DEFAULT 0.0,
+    duration_s      REAL NOT NULL DEFAULT 0.0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_transcriptions_session ON transcriptions(session_id);
+CREATE INDEX IF NOT EXISTS idx_transcriptions_patient ON transcriptions(patient_id);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -1161,6 +1175,37 @@ class StateManager:
         assert self._conn is not None, "StateManager not initialized"
         cursor = await self._conn.execute(
             "SELECT * FROM audio_analyses WHERE session_id = ? ORDER BY created_at",
+            (session_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    # ------------------------------------------------------------------
+    # Transcriptions (Phase 7 STT)
+    # ------------------------------------------------------------------
+
+    async def create_transcription(
+        self, *, id: str, session_id: str, patient_id: str,
+        audio_chunk_id: str, text: str, language: str,
+        confidence: float, duration_s: float,
+    ) -> None:
+        """Persist a transcription record produced by TranscriptionAgent."""
+        assert self._conn is not None, "StateManager not initialized"
+        await self._conn.execute(
+            """INSERT INTO transcriptions
+               (id, session_id, patient_id, audio_chunk_id,
+                text, language, confidence, duration_s)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (id, session_id, patient_id, audio_chunk_id,
+             text, language, confidence, duration_s),
+        )
+        await self._conn.commit()
+
+    async def get_transcriptions(self, session_id: str) -> list[dict]:
+        """Return all transcriptions for a session, ordered chronologically."""
+        assert self._conn is not None, "StateManager not initialized"
+        cursor = await self._conn.execute(
+            "SELECT * FROM transcriptions WHERE session_id = ? ORDER BY created_at",
             (session_id,),
         )
         rows = await cursor.fetchall()

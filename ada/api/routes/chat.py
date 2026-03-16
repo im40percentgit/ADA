@@ -1,9 +1,10 @@
 """
-WebSocket chat endpoint — /ws/chat/{session_id}.
+WebSocket chat endpoint -- /ws/chat/{session_id}.
 
 Streams therapist responses in real time. The WebSocket receives user
 messages, publishes them to the EventBus, and forwards MESSAGE_SENT,
-EMOTION_FUSED, and SENSOR_READING events back to the client.
+EMOTION_FUSED, SENSOR_READING, and TRANSCRIPTION_COMPLETED events back
+to the client.
 
 Authentication protocol (Phase 2):
     After connection is accepted, the client must send within 5 seconds:
@@ -12,12 +13,26 @@ Authentication protocol (Phase 2):
     connection is closed with code 4001.  All subsequent messages use the
     normal chat protocol.
 
+Concurrency model (Phase 7):
+    The handler spawns two concurrent asyncio tasks:
+      - _reader_task: reads incoming WebSocket frames (typed messages).
+      - _writer_task: drains response_queue and sends frames to the client.
+    Both tasks share a single asyncio.Queue[...].  Either task cancels the
+    other when it exits (disconnect, error, or shutdown).
+
+    This fixes a deadlock that occurred in the original single-loop design:
+    when TranscriptionAgent published TranscriptionCompletedEvent, the
+    on_transcription_completed handler enqueued a MessageReceivedEvent and
+    the TherapistAgent's response arrived in response_queue -- but
+    receive_text() was blocking the single coroutine, so response_queue.get()
+    was never reached.  Concurrent tasks eliminate that race.
+
 @decision DEC-API-001
 @title WebSocket auth via first-message token exchange
 @status accepted
 @rationale HTTP headers are not reliably settable from browser WebSocket
-    APIs.  The standard pattern for browser WebSockets is to send the
-    token as the first message after connection is accepted.  A 5-second
+    APIs. The standard pattern for browser WebSockets is to send the
+    token as the first message after connection is accepted. A 5-second
     timeout ensures unauthenticated connections are closed quickly.
 
 @decision DEC-API-004
@@ -28,6 +43,16 @@ Authentication protocol (Phase 2):
     keeps the client transport unified (one connection for all real-time
     data) and avoids a second authenticated WebSocket from the browser.
     Unsubscribe is guaranteed in the finally block to prevent handler leaks.
+
+@decision DEC-STT-002
+@title Chat WS refactored into concurrent writer + reader asyncio tasks
+@status accepted
+@rationale Synchronous queue.get() after receive_text() deadlocks when voice
+    messages arrive asynchronously via TranscriptionCompletedEvent. Writer
+    task drains response_queue continuously; reader task handles typed input.
+    Both paths produce responses immediately without waiting for the other.
+    asyncio.gather() with return_exceptions=True ensures clean teardown when
+    either task exits.
 """
 
 from __future__ import annotations
@@ -48,11 +73,15 @@ from ada.core.events import (
     MessageSentEvent,
     SensorReadingEvent,
     SessionStartedEvent,
+    TranscriptionCompletedEvent,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
+
+# Sentinel placed in response_queue to signal the writer task to exit.
+_SHUTDOWN = object()
 
 
 @router.websocket("/ws/chat/{session_id}")
@@ -60,14 +89,21 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
     """
     WebSocket endpoint for real-time therapeutic conversation.
 
-    Protocol:
+    Protocol (typed messages):
         Client sends:  {"content": "user message text", "patient_id": "..."}
-        Server sends:  {"type": "message", "content": "...", "agent": "therapist"}
-                       {"type": "error", "detail": "..."}
+        Server sends:  {"type": "message", "content": "...", "agent": "therapist",
+                        "message_id": "...", "timestamp": "...", "source": "text"}
 
-    The server publishes a MESSAGE_RECEIVED event and waits for the
-    TherapistAgent to publish a MESSAGE_SENT event, which is forwarded
-    to the client.
+    Protocol (voice messages, Phase 7):
+        Server sends:  {"type": "transcription", "text": "...", "language": "...",
+                        "confidence": 0.9}
+        Server sends:  {"type": "message", "content": "...", "agent": "therapist",
+                        "message_id": "...", "timestamp": "...", "source": "voice"}
+
+    Server also sends:
+        {"type": "emotion_update", ...}
+        {"type": "vitals_update", ...}
+        {"type": "error", "detail": "..."}
     """
     await websocket.accept()
     logger.info("WebSocket: session %s connected", session_id)
@@ -88,13 +124,16 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
             if payload.get("type") != "access":
                 raise ValueError("Wrong token type")
         except (asyncio.TimeoutError, Exception) as exc:
-            logger.warning("WebSocket: auth failed for session %s — %s", session_id, exc)
+            logger.warning("WebSocket: auth failed for session %s -- %s", session_id, exc)
             await websocket.close(code=4001)
             return
 
-        logger.info("WebSocket: session %s authenticated (user=%s)", session_id, payload.get("sub"))
+        logger.info(
+            "WebSocket: session %s authenticated (user=%s)",
+            session_id, payload.get("sub"),
+        )
     else:
-        # Auth disabled (test/dev mode) — consume the auth frame if present
+        # Auth disabled (test/dev mode) -- consume the auth frame if present
         try:
             await asyncio.wait_for(websocket.receive_text(), timeout=2.0)
         except (asyncio.TimeoutError, Exception):
@@ -102,17 +141,24 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         logger.info("WebSocket: session %s connected (auth disabled)", session_id)
 
     bus = websocket.app.state.bus
-    state_manager = websocket.app.state.state_manager
 
-    # Collect responses for this session via a local subscription
+    # Shared queue: TherapistAgent responses + shutdown sentinel.
+    # Items: MessageSentEvent | object (sentinel)
     response_queue: asyncio.Queue = asyncio.Queue()
+
+    # Track the source of the pending request so the response frame carries it.
+    # Keyed by message_id -> "text" | "voice"
+    pending_source: dict[str, str] = {}
+
+    # -----------------------------------------------------------------------
+    # EventBus subscribers
+    # -----------------------------------------------------------------------
 
     async def on_message_sent(event: MessageSentEvent) -> None:
         if event.session_id == session_id:
             await response_queue.put(event)
 
     async def on_emotion_fused(event: FusedEmotionEvent) -> None:
-        """Forward fused emotion events to the chat client."""
         if event.session_id != session_id:
             return
         try:
@@ -126,10 +172,9 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                     "modalities": event.modalities_available,
                 })
         except Exception:
-            pass  # Client disconnected mid-send — suppress, let finally clean up
+            pass
 
     async def on_sensor_reading(event: SensorReadingEvent) -> None:
-        """Forward sensor readings to the chat client as vitals updates."""
         if event.session_id != session_id:
             return
         try:
@@ -141,26 +186,67 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                     "unit": event.unit,
                 })
         except Exception:
-            pass  # Client disconnected mid-send — suppress
+            pass
+
+    async def on_transcription_completed(event: TranscriptionCompletedEvent) -> None:
+        """Bridge: voice transcript -> frontend display + TherapistAgent input.
+
+        1. Send {"type": "transcription"} frame so the frontend can show the
+           live transcript before the therapist responds.
+        2. Publish MessageReceivedEvent so TherapistAgent treats the spoken
+           text exactly like a typed message.
+        """
+        if event.session_id != session_id:
+            return
+        if not event.text:
+            return
+
+        # 1. Forward transcript to frontend for display.
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json({
+                    "type": "transcription",
+                    "text": event.text,
+                    "language": event.language,
+                    "confidence": round(event.confidence, 3),
+                })
+        except Exception:
+            pass
+
+        # 2. Inject as a chat message so TherapistAgent responds.
+        message_id = str(uuid.uuid4())
+        pending_source[message_id] = "voice"
+        await bus.publish(
+            MessageReceivedEvent(
+                source="transcription",
+                session_id=session_id,
+                patient_id=event.patient_id,
+                content=event.text,
+                message_id=message_id,
+            )
+        )
 
     bus.subscribe(EventTypes.MESSAGE_SENT, on_message_sent, f"ws:{session_id}")
     bus.subscribe(EventTypes.EMOTION_FUSED, on_emotion_fused, f"ws-emotion:{session_id}")
     bus.subscribe(EventTypes.SENSOR_READING, on_sensor_reading, f"ws-sensor:{session_id}")
+    bus.subscribe(
+        EventTypes.TRANSCRIPTION_COMPLETED,
+        on_transcription_completed,
+        f"ws-transcription:{session_id}",
+    )
 
-    try:
-        # Notify session start
-        await bus.publish(
-            SessionStartedEvent(
-                source="api",
-                session_id=session_id,
-                patient_id="",   # Will be set from first message
-            )
-        )
+    # -----------------------------------------------------------------------
+    # Concurrent tasks
+    # -----------------------------------------------------------------------
 
+    async def _reader_task() -> None:
+        """Read typed messages from the WebSocket and publish to EventBus."""
         while True:
             try:
                 raw = await websocket.receive_text()
             except WebSocketDisconnect:
+                break
+            except Exception:
                 break
 
             try:
@@ -177,8 +263,8 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                 continue
 
             message_id = str(uuid.uuid4())
+            pending_source[message_id] = "text"
 
-            # Publish user message to the bus
             await bus.publish(
                 MessageReceivedEvent(
                     source="api",
@@ -189,19 +275,59 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                 )
             )
 
-            # Wait for the agent's response (timeout 120s for reasoning models)
+        # Signal writer to shut down.
+        await response_queue.put(_SHUTDOWN)
+
+    async def _writer_task() -> None:
+        """Drain response_queue and forward responses to the WebSocket."""
+        while True:
             try:
-                response_event = await asyncio.wait_for(response_queue.get(), timeout=120.0)
+                item = await asyncio.wait_for(response_queue.get(), timeout=120.0)
+            except asyncio.TimeoutError:
+                await _send_error(websocket, "Response timeout -- please try again")
+                continue
+
+            if item is _SHUTDOWN:
+                break
+
+            event: MessageSentEvent = item
+            source = pending_source.pop(event.message_id, "text")
+
+            try:
                 if websocket.client_state == WebSocketState.CONNECTED:
                     await websocket.send_json({
                         "type": "message",
-                        "content": response_event.content,
-                        "agent": response_event.agent_name,
-                        "message_id": response_event.message_id,
+                        "content": event.content,
+                        "agent": event.agent_name,
+                        "message_id": event.message_id,
                         "timestamp": datetime.utcnow().isoformat(),
+                        "source": source,
                     })
-            except asyncio.TimeoutError:
-                await _send_error(websocket, "Response timeout — please try again")
+            except Exception:
+                break
+
+    try:
+        await bus.publish(
+            SessionStartedEvent(
+                source="api",
+                session_id=session_id,
+                patient_id="",
+            )
+        )
+
+        reader = asyncio.create_task(_reader_task(), name=f"ws-reader:{session_id}")
+        writer = asyncio.create_task(_writer_task(), name=f"ws-writer:{session_id}")
+
+        done, pending = await asyncio.wait(
+            {reader, writer},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     except Exception:
         logger.exception("WebSocket: unhandled error in session %s", session_id)
@@ -209,6 +335,10 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         bus.unsubscribe(EventTypes.MESSAGE_SENT, f"ws:{session_id}")
         bus.unsubscribe(EventTypes.EMOTION_FUSED, f"ws-emotion:{session_id}")
         bus.unsubscribe(EventTypes.SENSOR_READING, f"ws-sensor:{session_id}")
+        bus.unsubscribe(
+            EventTypes.TRANSCRIPTION_COMPLETED,
+            f"ws-transcription:{session_id}",
+        )
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.close()
         logger.info("WebSocket: session %s disconnected", session_id)

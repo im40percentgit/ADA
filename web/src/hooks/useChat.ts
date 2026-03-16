@@ -33,6 +33,7 @@ import type {
   WsAssessmentPrompt,
   WsEmotionUpdate,
   WsVitalsUpdate,
+  WsTranscription,
 } from '../types'
 
 let messageCounter = 0
@@ -121,15 +122,17 @@ export function useChat(sessionId: string, patientId: string): UseChatReturn {
       }
 
       case 'message': {
-        // Complete message — replace streaming entry or append fresh
+        // Complete message — replace streaming entry or append fresh.
+        // Carry source ('text' | 'voice') from the server frame if present.
         const finalContent = msg.content
         const agent = msg.agent
+        const source = (msg as { source?: 'text' | 'voice' }).source ?? 'text'
         if (streamingIdRef.current) {
           const id = streamingIdRef.current
           setMessages((prev) =>
             prev.map((m) =>
               m.id === id
-                ? { ...m, content: finalContent, agent, streaming: false }
+                ? { ...m, content: finalContent, agent, streaming: false, source }
                 : m,
             ),
           )
@@ -145,6 +148,7 @@ export function useChat(sessionId: string, patientId: string): UseChatReturn {
               agent,
               streaming: false,
               timestamp: new Date(),
+              source,
             },
           ])
         }
@@ -187,6 +191,26 @@ export function useChat(sessionId: string, patientId: string): UseChatReturn {
           ...prev,
           [vitals.sensor_type]: vitals.value,
         }))
+        break
+      }
+
+      case 'transcription': {
+        // Phase 7: show the spoken text as a pending user message bubble
+        // while TherapistAgent generates its response.
+        const t = msg as WsTranscription
+        if (t.text) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: nextId(),
+              role: 'user',
+              content: t.text,
+              streaming: false,
+              timestamp: new Date(),
+              source: 'voice',
+            },
+          ])
+        }
         break
       }
     }

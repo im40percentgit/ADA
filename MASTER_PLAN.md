@@ -470,6 +470,56 @@ ada/
 
 ---
 
+### Phase 7 — Server-Side STT (Whisper Integration)
+**Status:** `in_progress`
+**Branch:** `feature/browser-stt`
+
+#### Architecture Decision: Event-Driven over REST
+
+Earlier prototype (`useSpeechRecognition.ts` + `/api/transcribe`) used a REST path where browser WAV was POSTed directly to Whisper and transcribed text populated the chat input. This was replaced with the full event-driven TranscriptionAgent architecture so voice messages route through TherapistAgent exactly like typed messages — users do not need to click Send after speaking.
+
+```
+Browser Mic → MediaRecorder (webm/opus) → Media WS → 3s buffer
+  → AudioChunkReceivedEvent
+    ├─ VoiceEmotionAgent (unchanged)
+    └─ TranscriptionAgent (NEW)
+         → faster-whisper → TranscriptionCompletedEvent
+           → Chat WS subscriber:
+               1. Send {"type":"transcription"} to frontend (display)
+               2. Publish MessageReceivedEvent (TherapistAgent input)
+```
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/core/events.py` — `TRANSCRIPTION_COMPLETED` + `TranscriptionCompletedEvent` | Done | Phase 7 Step 1 |
+| `ada/ml/audio_features.py` — `_ffmpeg_decode` → `ffmpeg_decode` (public) | Done | Phase 7 Step 2 |
+| `ada/ml/stt.py` — `TranscriptionResult`, `is_silent_wav`, `transcribe_audio` | In Progress | Phase 7 Step 3 |
+| `ada/core/state.py` — `transcriptions` table + `create_transcription()` + `get_transcriptions()` | Pending | Phase 7 Step 4 |
+| `ada/core/config.py` — `STTConfig` + `stt_enabled` in `MultimodalConfig` | Pending | Phase 7 Step 5 |
+| `config/development.toml` — `stt_enabled = true` + `[stt]` section | Pending | Phase 7 Step 5 |
+| `ada/agents/transcription.py` — `TranscriptionAgent` | Pending | Phase 7 Step 6 |
+| `ada/main.py` — register `TranscriptionAgent` when `stt_enabled` | Pending | Phase 7 Step 7 |
+| `ada/api/routes/chat.py` — async writer/reader refactor + transcription bridge | Pending | Phase 7 Step 8 |
+| `web/src/types/index.ts` — `WsTranscription`, `source` on `ChatMessage` | Pending | Phase 7 Step 9 |
+| `web/src/hooks/useChat.ts` — handle `type: 'transcription'` | Pending | Phase 7 Step 9 |
+| `web/src/components/ChatMessage.tsx` — mic icon for voice messages | Pending | Phase 7 Step 9 |
+| Remove `useSpeechRecognition.ts` + `/api/transcribe` REST endpoint | Pending | Replaced by event path |
+| `tests/unit/test_stt.py` | Pending | |
+| `tests/unit/test_transcription_agent.py` | Pending | |
+| `tests/integration/test_stt_pipeline.py` | Pending | |
+
+### Phase 7 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-ML-016 | faster-whisper for server-side STT with amplitude-based silence guard | Web Speech API requires Google's servers (network errors when offline or blocked). faster-whisper runs fully locally, providing offline-capable, privacy-preserving transcription. CTranslate2 backend is 4x faster than OpenAI whisper with lower memory usage. Silence guard (`is_silent_wav`) prevents Whisper hallucinations on zero-filled buffers by checking max amplitude of first ~1000 WAV samples against a threshold (100/32768 ≈ 0.3% full scale). | accepted |
+| DEC-ML-017 | `stt.py` returns `TranscriptionResult` dataclass, not plain str | TranscriptionAgent needs language, confidence, and duration_s in addition to text for `TranscriptionCompletedEvent`. Structured result carries all fields; silence guard from the prior `transcribe.py` prototype is preserved. | accepted |
+| DEC-STT-001 | Event-driven TranscriptionAgent over REST `/api/transcribe` endpoint | REST path required user to click Send after transcription populated the input. Event-driven path routes voice directly through TherapistAgent — identical UX to typing. The existing MediaRecorder → Media WS → `AudioChunkReceivedEvent` pipeline is reused, and TranscriptionAgent subscribes alongside VoiceEmotionAgent with zero changes to media ingestion. | accepted |
+| DEC-STT-002 | Chat WS refactored into concurrent writer + reader asyncio tasks | Synchronous `queue.get()` after `receive_text()` deadlocks when voice messages arrive asynchronously. Writer task drains `response_queue` continuously; reader task handles typed input. Both paths produce responses immediately without waiting for the other. | accepted |
+| DEC-STT-003 | `TranscriptionAgent` follows `VoiceEmotionAgent` pattern exactly | Same `handle_event` → process → publish event → persist to DB pipeline. No LLM needed (Whisper handles recognition directly). `asyncio.to_thread()` keeps the blocking Whisper call off the event loop. | accepted |
+
+---
+
 ## Security Posture
 
 - API keys in env vars only (`api_key_env` pattern — config stores var name, not value)

@@ -447,6 +447,48 @@ html, body, #root {
   cursor: not-allowed;
 }
 
+.chat__voice-btn {
+  padding: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background var(--transition);
+  align-self: flex-end;
+}
+
+.chat__voice-btn:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: white;
+}
+
+.chat__voice-btn--active {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+  animation: pulse-voice 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-voice {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.chat__voice-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat__interim {
+  padding: 4px 16px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
 .chat__assessment-overlay {
   position: absolute;
   inset: 0;

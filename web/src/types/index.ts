@@ -107,6 +107,14 @@ export interface WsVitalsUpdate {
   unit: string
 }
 
+/** Phase 7: live speech transcript from TranscriptionAgent */
+export interface WsTranscription {
+  type: 'transcription'
+  text: string
+  language: string
+  confidence: number
+}
+
 export type WsInboundMessage =
   | WsTokenMessage
   | WsCompleteMessage
@@ -115,6 +123,7 @@ export type WsInboundMessage =
   | WsErrorMessage
   | WsEmotionUpdate
   | WsVitalsUpdate
+  | WsTranscription
 
 // ---------------------------------------------------------------------------
 // UI-only chat message (combines streaming + complete states)
@@ -128,6 +137,8 @@ export interface ChatMessage {
   /** True while tokens are still streaming in */
   streaming?: boolean
   timestamp: Date
+  /** Phase 7: 'voice' for messages that originated from speech transcription */
+  source?: 'text' | 'voice'
 }
 
 // ---------------------------------------------------------------------------

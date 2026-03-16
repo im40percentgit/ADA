@@ -42,6 +42,7 @@ from ada.agents.physiological import PhysiologicalAgent
 from ada.agents.registry import AgentRegistry
 from ada.agents.session_summarizer import SessionSummarizer
 from ada.agents.therapist import TherapistAgent
+from ada.agents.transcription import TranscriptionAgent
 from ada.agents.voice_emotion import VoiceEmotionAgent
 from ada.knowledge.clinical_kb import ClinicalKnowledgeBase
 from ada.api.app import create_app
@@ -159,6 +160,11 @@ async def run(config: AdaConfig) -> None:
         if config.multimodal.fusion_enabled:
             registry.register(MultimodalFusionAgent())
             log.info("MultimodalFusionAgent registered")
+
+        # Phase 7: STT
+        if config.multimodal.stt_enabled:
+            registry.register(TranscriptionAgent())
+            log.info("TranscriptionAgent registered")
 
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))

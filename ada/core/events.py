@@ -95,6 +95,9 @@ class EventTypes:
     AUDIO_CHUNK_RECEIVED = "audio.chunk_received"
     VIDEO_FRAME_RECEIVED = "video.frame_received"
 
+    # Speech-to-text (Phase 4c STT)
+    TRANSCRIPTION_COMPLETED = "transcription.completed"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -457,3 +460,22 @@ class VideoFrameReceivedEvent(AdaEvent):
     format: str = "jpeg"
     resolution: str = ""
     frame_id: str = ""
+
+
+@dataclass
+class TranscriptionCompletedEvent(AdaEvent):
+    """Published by TranscriptionAgent when a speech chunk is transcribed.
+
+    Downstream the chat WebSocket bridge subscribes to this event,
+    sends a ``{"type": "transcription"}`` frame to the frontend for display,
+    and publishes a ``MessageReceivedEvent`` so TherapistAgent responds.
+    """
+
+    event_type: str = EventTypes.TRANSCRIPTION_COMPLETED
+    session_id: str = ""
+    patient_id: str = ""
+    audio_chunk_id: str = ""
+    text: str = ""
+    language: str = ""
+    confidence: float = 0.0
+    duration_s: float = 0.0

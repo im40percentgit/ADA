@@ -104,6 +104,20 @@ class AuthConfig(BaseModel):
         return key
 
 
+class STTConfig(BaseModel):
+    """Phase 7 speech-to-text configuration (faster-whisper).
+
+    model_size: faster-whisper model variant — smaller is faster but less
+        accurate. "base" (~150 MB) is a good default for CPU inference.
+    language: ISO 639-1 language code, or None for auto-detect.
+    compute_type: CTranslate2 quantisation for CPU inference.
+    """
+
+    model_size: str = "base"        # tiny | base | small | medium | large-v3
+    language: str | None = None     # ISO 639-1 code or None for auto-detect
+    compute_type: str = "int8"      # CPU quantisation: int8 | float32
+
+
 class MultimodalConfig(BaseModel):
     """Phase 4 multimodal pipeline configuration."""
 
@@ -120,6 +134,8 @@ class MultimodalConfig(BaseModel):
     fusion_enabled: bool = True
     fusion_staleness_half_life: float = 10.0
     fusion_min_weight: float = 0.01
+    # Phase 7: STT
+    stt_enabled: bool = False
 
 
 class RateLimitConfig(BaseModel):
@@ -240,6 +256,7 @@ class AdaConfig(BaseSettings):
     database: DatabaseConfig = DatabaseConfig()
     logging: LoggingConfig = LoggingConfig()
     multimodal: MultimodalConfig = MultimodalConfig()
+    stt: STTConfig = STTConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
     security: SecurityConfig = SecurityConfig()
     model_routing: ModelRoutingConfig | None = None

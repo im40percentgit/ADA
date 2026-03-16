@@ -46,6 +46,10 @@ voice_analysis_enabled = true
 face_analysis_enabled = true
 sensor_enabled = true
 fusion_enabled = true
+stt_enabled = true
+
+[stt]
+model_size = "base"
 
 [model_routing.agent_mapping]
 therapist = "local"

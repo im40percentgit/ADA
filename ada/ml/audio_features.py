@@ -48,8 +48,14 @@ class AudioFeatures:
 _HAS_FFMPEG = shutil.which("ffmpeg") is not None
 
 
-def _ffmpeg_decode(audio_bytes: bytes, sr: int) -> tuple[np.ndarray | None, int]:
-    """Convert audio bytes (webm/opus/etc.) to PCM via ffmpeg."""
+def ffmpeg_decode(audio_bytes: bytes, sr: int) -> tuple[np.ndarray | None, int]:
+    """Convert audio bytes (webm/opus/etc.) to PCM float32 array via ffmpeg.
+
+    Public interface — used by both audio_features.extract_features and
+    ada.ml.stt.transcribe_audio for format-agnostic audio ingestion.
+
+    Returns (waveform, actual_sample_rate) on success, (None, sr) on failure.
+    """
     if not _HAS_FFMPEG:
         logger.warning("ffmpeg not found — cannot decode webm/opus audio")
         return None, sr
@@ -112,7 +118,7 @@ def extract_features(
         try:
             y, actual_sr = librosa.load(audio_buf, sr=sr, mono=True)
         except Exception:
-            y, actual_sr = _ffmpeg_decode(audio_bytes, sr)
+            y, actual_sr = ffmpeg_decode(audio_bytes, sr)
             if y is None:
                 return AudioFeatures(valid=False, error="ffmpeg decode failed")
 
