@@ -40,6 +40,10 @@ base_url = "http://localhost:8080/v1"
 max_tokens = 2048
 temperature = 0.7
 
+[tts]
+enabled = true
+provider = "piper"
+
 [multimodal]
 enabled = true
 voice_analysis_enabled = true

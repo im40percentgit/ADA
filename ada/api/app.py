@@ -52,6 +52,8 @@ def create_app(
     bus: EventBus,
     state: StateManager,
     registry: AgentRegistry,
+    *,
+    tts_agent: object | None = None,
 ) -> FastAPI:
     """
     Create and configure the FastAPI application.
@@ -73,6 +75,7 @@ def create_app(
         app.state.state_manager = state
         app.state.registry = registry
         app.state.config = config
+        app.state.tts_agent = tts_agent
         yield
         # Shutdown — caller (main.py) is responsible for stopping bus/state/agents
 

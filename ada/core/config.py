@@ -122,6 +122,24 @@ class MultimodalConfig(BaseModel):
     fusion_min_weight: float = 0.01
 
 
+class TTSConfig(BaseModel):
+    """Phase 7 text-to-speech configuration."""
+
+    enabled: bool = False  # Off by default
+    provider: str = "piper"
+    voice_model: str = ""  # Empty = use provider default
+    sample_rate: int = 22050
+    sentence_streaming: bool = True
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, v: str) -> str:
+        allowed = {"piper"}
+        if v not in allowed:
+            raise ValueError(f"TTS provider must be one of {allowed}, got {v!r}")
+        return v
+
+
 class RateLimitConfig(BaseModel):
     """
     In-process sliding window rate limiting configuration.
@@ -240,6 +258,7 @@ class AdaConfig(BaseSettings):
     database: DatabaseConfig = DatabaseConfig()
     logging: LoggingConfig = LoggingConfig()
     multimodal: MultimodalConfig = MultimodalConfig()
+    tts: TTSConfig = TTSConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
     security: SecurityConfig = SecurityConfig()
     model_routing: ModelRoutingConfig | None = None

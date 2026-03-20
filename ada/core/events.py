@@ -95,6 +95,9 @@ class EventTypes:
     AUDIO_CHUNK_RECEIVED = "audio.chunk_received"
     VIDEO_FRAME_RECEIVED = "video.frame_received"
 
+    # Voice I/O (Phase 7)
+    AUDIO_RESPONSE = "audio.response"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -457,3 +460,19 @@ class VideoFrameReceivedEvent(AdaEvent):
     format: str = "jpeg"
     resolution: str = ""
     frame_id: str = ""
+
+
+@dataclass
+class AudioResponseEvent(AdaEvent):
+    """Published by TTSAgent for each synthesized sentence audio chunk."""
+
+    event_type: str = EventTypes.AUDIO_RESPONSE
+    session_id: str = ""
+    patient_id: str = ""
+    message_id: str = ""
+    audio_bytes: bytes = b""
+    sample_rate: int = 22050
+    format: str = "wav"
+    sentence_index: int = 0
+    total_sentences: int = 1
+    is_final: bool = True

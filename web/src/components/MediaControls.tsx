@@ -28,6 +28,9 @@ interface MediaControlsProps {
   onStopSimulator: () => void
   mediaError: string | null
   simulatorError: string | null
+  voiceEnabled?: boolean
+  isSpeaking?: boolean
+  onToggleVoice?: () => void
 }
 
 const PRESETS: { value: SimulatorPreset; label: string }[] = [
@@ -46,6 +49,9 @@ export function MediaControls({
   onStopSimulator,
   mediaError,
   simulatorError,
+  voiceEnabled,
+  isSpeaking,
+  onToggleVoice,
 }: MediaControlsProps) {
   function handlePresetChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const preset = e.target.value as SimulatorPreset
@@ -101,6 +107,19 @@ export function MediaControls({
             <option key={p.value} value={p.value}>{p.label}</option>
           ))}
         </select>
+      )}
+
+      {/* Voice mode toggle */}
+      {onToggleVoice && (
+        <button
+          className={`media-controls__btn ${voiceEnabled ? 'media-controls__btn--active' : ''}`}
+          onClick={onToggleVoice}
+          title={voiceEnabled ? 'Disable voice mode' : 'Enable voice mode'}
+          aria-pressed={voiceEnabled}
+          type="button"
+        >
+          {voiceEnabled ? (isSpeaking ? 'Speaking\u2026' : 'Voice ON') : 'Voice'}
+        </button>
       )}
 
       {/* Error display */}

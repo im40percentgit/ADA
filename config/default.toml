@@ -57,6 +57,13 @@ fusion_enabled = true
 fusion_staleness_half_life = 10.0
 fusion_min_weight = 0.01
 
+[tts]
+enabled = false
+provider = "piper"
+voice_model = ""
+sample_rate = 22050
+sentence_streaming = true
+
 [rate_limit]
 enabled = true
 auth_requests_per_minute = 10

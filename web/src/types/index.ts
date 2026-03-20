@@ -107,6 +107,16 @@ export interface WsVitalsUpdate {
   unit: string
 }
 
+export interface WsAudioResponse {
+  type: 'audio_response'
+  message_id: string
+  sentence_index: number
+  total_sentences: number
+  is_final: boolean
+  sample_rate: number
+  format: string
+}
+
 export type WsInboundMessage =
   | WsTokenMessage
   | WsCompleteMessage
@@ -115,6 +125,7 @@ export type WsInboundMessage =
   | WsErrorMessage
   | WsEmotionUpdate
   | WsVitalsUpdate
+  | WsAudioResponse
 
 // ---------------------------------------------------------------------------
 // UI-only chat message (combines streaming + complete states)
