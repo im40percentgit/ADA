@@ -43,8 +43,11 @@ from ada.agents.registry import AgentRegistry
 from ada.agents.session_summarizer import SessionSummarizer
 from ada.agents.therapist import TherapistAgent
 from ada.agents.transcription import TranscriptionAgent
+
+from ada.agents.tts_agent import TTSAgent
 from ada.agents.voice_emotion import VoiceEmotionAgent
 from ada.knowledge.clinical_kb import ClinicalKnowledgeBase
+from ada.tts.factory import create_tts_provider
 from ada.api.app import create_app
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
@@ -166,6 +169,17 @@ async def run(config: AdaConfig) -> None:
             registry.register(TranscriptionAgent())
             log.info("TranscriptionAgent registered")
 
+    # Phase 7: TTS agent
+    tts_agent: TTSAgent | None = None
+    if config.tts.enabled:
+        tts_provider = create_tts_provider(
+            provider=config.tts.provider,
+            model_path=config.tts.voice_model or None,
+        )
+        tts_agent = TTSAgent(tts_provider=tts_provider)
+        registry.register(tts_agent)
+        log.info("TTSAgent registered", provider=config.tts.provider)
+
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))
 
@@ -190,7 +204,7 @@ async def run(config: AdaConfig) -> None:
     log.info("SessionSummarizer instantiated")
 
     # FastAPI
-    app = create_app(config, bus, state, registry)
+    app = create_app(config, bus, state, registry, tts_agent=tts_agent)
 
     # Uvicorn server
     server_config = uvicorn.Config(

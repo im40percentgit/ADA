@@ -34,6 +34,8 @@ import type {
   WsEmotionUpdate,
   WsVitalsUpdate,
   WsTranscription,
+
+  WsAudioResponse,
 } from '../types'
 
 let messageCounter = 0
@@ -56,9 +58,14 @@ export interface UseChatReturn {
   clearAssessmentPrompt: () => void
   currentEmotion: WsEmotionUpdate | null
   currentVitals: CurrentVitals
+  sendVoiceMode: (enabled: boolean) => void
 }
 
-export function useChat(sessionId: string, patientId: string): UseChatReturn {
+export function useChat(
+  sessionId: string,
+  patientId: string,
+  options?: { onAudioData?: (data: ArrayBuffer, meta: WsAudioResponse) => void },
+): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [crisisAlert, setCrisisAlert] = useState<WsCrisisAlert | null>(null)
   const [assessmentPrompt, setAssessmentPrompt] = useState<WsAssessmentPrompt | null>(null)
@@ -69,6 +76,9 @@ export function useChat(sessionId: string, patientId: string): UseChatReturn {
     gsr: null,
     spo2: null,
   })
+
+  const onAudioData = options?.onAudioData
+  const pendingAudioRef = useRef<WsAudioResponse | null>(null)
 
   // Load persisted message history on mount
   useEffect(() => {
@@ -213,12 +223,31 @@ export function useChat(sessionId: string, patientId: string): UseChatReturn {
         }
         break
       }
+
+
+      case 'audio_response': {
+        // Buffer metadata — the next binary frame is the WAV data
+        pendingAudioRef.current = msg as WsAudioResponse
+        break
+      }
     }
   }, [])
 
-  const { send } = useWebSocket({
+  const handleBinaryMessage = useCallback(
+    (data: ArrayBuffer) => {
+      const meta = pendingAudioRef.current
+      if (meta && onAudioData) {
+        onAudioData(data, meta)
+        pendingAudioRef.current = null
+      }
+    },
+    [onAudioData],
+  )
+
+  const { send, sendJson } = useWebSocket({
     url: wsUrl(sessionId),
     onMessage: handleMessage,
+    onBinaryMessage: handleBinaryMessage,
     onStatusChange: setWsStatus,
   })
 
@@ -241,6 +270,13 @@ export function useChat(sessionId: string, patientId: string): UseChatReturn {
     [send, patientId],
   )
 
+  const sendVoiceMode = useCallback(
+    (enabled: boolean) => {
+      sendJson({ type: 'voice_mode', enabled })
+    },
+    [sendJson],
+  )
+
   const clearAssessmentPrompt = useCallback(() => setAssessmentPrompt(null), [])
 
   return {
@@ -252,5 +288,6 @@ export function useChat(sessionId: string, patientId: string): UseChatReturn {
     clearAssessmentPrompt,
     currentEmotion,
     currentVitals,
+    sendVoiceMode,
   }
 }

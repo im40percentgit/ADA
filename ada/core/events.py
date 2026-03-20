@@ -98,6 +98,9 @@ class EventTypes:
     # Speech-to-text (Phase 4c STT)
     TRANSCRIPTION_COMPLETED = "transcription.completed"
 
+    # Voice I/O (Phase 7)
+    AUDIO_RESPONSE = "audio.response"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -479,3 +482,18 @@ class TranscriptionCompletedEvent(AdaEvent):
     language: str = ""
     confidence: float = 0.0
     duration_s: float = 0.0
+
+@dataclass
+class AudioResponseEvent(AdaEvent):
+    """Published by TTSAgent for each synthesized sentence audio chunk."""
+
+    event_type: str = EventTypes.AUDIO_RESPONSE
+    session_id: str = ""
+    patient_id: str = ""
+    message_id: str = ""
+    audio_bytes: bytes = b""
+    sample_rate: int = 22050
+    format: str = "wav"
+    sentence_index: int = 0
+    total_sentences: int = 1
+    is_final: bool = True

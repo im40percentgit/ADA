@@ -23,6 +23,7 @@ export type WsStatus = 'connecting' | 'open' | 'closed' | 'error'
 export interface UseWebSocketOptions {
   url: string
   onMessage: (msg: WsInboundMessage) => void
+  onBinaryMessage?: (data: ArrayBuffer) => void
   onStatusChange?: (status: WsStatus) => void
   /** Auto-reconnect after close. Default: true */
   reconnect?: boolean
@@ -32,6 +33,7 @@ export interface UseWebSocketOptions {
 
 export interface UseWebSocketReturn {
   send: (payload: Record<string, string>) => void
+  sendJson: (payload: object) => void
   close: () => void
   status: WsStatus
 }
@@ -39,6 +41,7 @@ export interface UseWebSocketReturn {
 export function useWebSocket({
   url,
   onMessage,
+  onBinaryMessage,
   onStatusChange,
   reconnect = true,
   reconnectDelay = 2000,
@@ -61,6 +64,7 @@ export function useWebSocket({
 
     setStatus('connecting')
     const ws = new WebSocket(url)
+    ws.binaryType = 'arraybuffer'
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -73,6 +77,10 @@ export function useWebSocket({
     }
 
     ws.onmessage = (event: MessageEvent) => {
+      if (event.data instanceof ArrayBuffer) {
+        onBinaryMessage?.(event.data)
+        return
+      }
       try {
         const data = JSON.parse(event.data as string) as WsInboundMessage
         onMessage(data)
@@ -91,7 +99,7 @@ export function useWebSocket({
         reconnectTimerRef.current = setTimeout(connect, reconnectDelay)
       }
     }
-  }, [url, onMessage, setStatus, reconnect, reconnectDelay])
+  }, [url, onMessage, onBinaryMessage, setStatus, reconnect, reconnectDelay])
 
   useEffect(() => {
     intentionalCloseRef.current = false
@@ -110,11 +118,17 @@ export function useWebSocket({
     }
   }, [])
 
+  const sendJson = useCallback((payload: object) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(payload))
+    }
+  }, [])
+
   const close = useCallback(() => {
     intentionalCloseRef.current = true
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
     wsRef.current?.close()
   }, [])
 
-  return { send, close, status: statusRef.current }
+  return { send, sendJson, close, status: statusRef.current }
 }

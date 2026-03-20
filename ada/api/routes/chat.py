@@ -67,6 +67,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from ada.core.events import (
+    AudioResponseEvent,
     EventTypes,
     FusedEmotionEvent,
     MessageReceivedEvent,
@@ -226,6 +227,27 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
             )
         )
 
+    async def on_audio_response(event: AudioResponseEvent) -> None:
+        """Forward TTS audio to the chat client as metadata + binary frames."""
+        if event.session_id != session_id:
+            return
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                # Send JSON metadata frame first
+                await websocket.send_json({
+                    "type": "audio_response",
+                    "message_id": event.message_id,
+                    "sentence_index": event.sentence_index,
+                    "total_sentences": event.total_sentences,
+                    "is_final": event.is_final,
+                    "sample_rate": event.sample_rate,
+                    "format": event.format,
+                })
+                # Send binary WAV frame immediately after
+                await websocket.send_bytes(event.audio_bytes)
+        except Exception:
+            pass  # Client disconnected — suppress, let finally clean up
+
     bus.subscribe(EventTypes.MESSAGE_SENT, on_message_sent, f"ws:{session_id}")
     bus.subscribe(EventTypes.EMOTION_FUSED, on_emotion_fused, f"ws-emotion:{session_id}")
     bus.subscribe(EventTypes.SENSOR_READING, on_sensor_reading, f"ws-sensor:{session_id}")
@@ -234,6 +256,8 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         on_transcription_completed,
         f"ws-transcription:{session_id}",
     )
+
+    bus.subscribe(EventTypes.AUDIO_RESPONSE, on_audio_response, f"ws-audio:{session_id}")
 
     # -----------------------------------------------------------------------
     # Concurrent tasks
@@ -253,6 +277,18 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                 data = json.loads(raw)
             except json.JSONDecodeError:
                 await _send_error(websocket, "Invalid JSON")
+                continue
+
+            # Handle special message types
+            msg_type = data.get("type")
+
+            if msg_type == "voice_mode":
+                tts_agent = websocket.app.state.tts_agent
+                if tts_agent:
+                    if data.get("enabled"):
+                        tts_agent.enable_voice(session_id)
+                    else:
+                        tts_agent.disable_voice(session_id)
                 continue
 
             content = data.get("content", "").strip()
@@ -339,6 +375,11 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
             EventTypes.TRANSCRIPTION_COMPLETED,
             f"ws-transcription:{session_id}",
         )
+
+        bus.unsubscribe(EventTypes.AUDIO_RESPONSE, f"ws-audio:{session_id}")
+        tts_agent = getattr(websocket.app.state, 'tts_agent', None)
+        if tts_agent:
+            tts_agent.disable_voice(session_id)
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.close()
         logger.info("WebSocket: session %s disconnected", session_id)

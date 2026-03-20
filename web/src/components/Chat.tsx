@@ -34,6 +34,8 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useAudioPlayback } from '../hooks/useAudioPlayback'
+import type { WsAudioResponse } from '../types'
 import { useChat } from '../hooks/useChat'
 import { useMediaCapture } from '../hooks/useMediaCapture'
 import { useMediaWebSocket } from '../hooks/useMediaWebSocket'
@@ -63,6 +65,16 @@ const WS_STATUS_LABELS: Record<string, string> = {
 }
 
 export function Chat({ sessionId, patientId }: ChatProps) {
+  const { queueAudio, interrupt, isSpeaking } = useAudioPlayback()
+  const [voiceEnabled, setVoiceEnabled] = useState(false)
+
+  const handleAudioData = useCallback(
+    (data: ArrayBuffer, meta: WsAudioResponse) => {
+      queueAudio(data, meta.sample_rate)
+    },
+    [queueAudio],
+  )
+
   const {
     messages,
     crisisAlert,
@@ -72,7 +84,8 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     clearAssessmentPrompt,
     currentEmotion,
     currentVitals,
-  } = useChat(sessionId, patientId)
+    sendVoiceMode,
+  } = useChat(sessionId, patientId, { onAudioData: handleAudioData })
 
   // Media WebSocket — handles binary audio/video uploads
   const { sendAudioChunk, sendVideoFrame } = useMediaWebSocket({ sessionId })
@@ -111,6 +124,13 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     },
     [startSimulator, patientId],
   )
+
+  const handleToggleVoice = useCallback(() => {
+    const newState = !voiceEnabled
+    setVoiceEnabled(newState)
+    sendVoiceMode(newState)
+    if (!newState) interrupt()
+  }, [voiceEnabled, sendVoiceMode, interrupt])
 
   const [inputValue, setInputValue] = useState('')
   const [sessionEnded, setSessionEnded] = useState(false)
@@ -200,12 +220,19 @@ export function Chat({ sessionId, patientId }: ChatProps) {
             audioEnabled={audioEnabled}
             videoEnabled={videoEnabled}
             simulatorRunning={simulatorRunning}
-            onToggleAudio={toggleAudio}
+            onToggleAudio={() => {
+              // Interrupt TTS when user starts recording
+              if (!audioEnabled) interrupt()
+              toggleAudio()
+            }}
             onToggleVideo={toggleVideo}
             onStartSimulator={handleStartSimulator}
             onStopSimulator={stopSimulator}
             mediaError={mediaError}
             simulatorError={simulatorError}
+            voiceEnabled={voiceEnabled}
+            isSpeaking={isSpeaking}
+            onToggleVoice={handleToggleVoice}
           />
         </div>
       </div>
