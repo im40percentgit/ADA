@@ -21,6 +21,12 @@ is suspended.  Only inspects WAV files; webm/opus passes through unchanged.
     zero-filled buffers — checks max amplitude of first ~1000 WAV samples
     against a threshold of 100/32768 (~0.3% full scale).
     GPU is attempted first; CPU int8 is the fallback.
+    ffmpeg conversion uses a simple command (-ar 16000 -ac 1 -c:a pcm_s16le)
+    without -probesize/-analyzeduration/-af aresample flags. The complex
+    resampling filter produced all-zeros PCM when MediaRecorder's webm
+    timestamps had gaps (common in browser recording). The simpler command
+    lets ffmpeg handle timestamp discontinuities with its defaults, which
+    works correctly.
 
 @decision DEC-ML-017
 @title stt.py returns TranscriptionResult dataclass, not plain str
@@ -182,6 +188,12 @@ def transcribe_audio(
         logger.debug("Silent WAV input -- returning empty transcript")
         return TranscriptionResult()
 
+    is_wav_pre = audio_bytes[:4] == b"RIFF"
+    logger.info(
+        "STT: audio passed silence guard (%d bytes, format=%s)",
+        len(audio_bytes), "wav" if is_wav_pre else "webm",
+    )
+
     tmp_in: str | None = None
     tmp_wav: str | None = None
     try:
@@ -200,9 +212,7 @@ def transcribe_audio(
             result = subprocess.run(
                 [
                     "ffmpeg", "-y",
-                    "-probesize", "50M", "-analyzeduration", "50M",
                     "-i", tmp_in,
-                    "-af", "aresample=async=1:first_pts=0",
                     "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
                     tmp_wav,
                 ],
@@ -219,9 +229,24 @@ def transcribe_audio(
 
             # Post-conversion silence check on the decoded WAV
             converted_bytes = Path(tmp_wav).read_bytes()
+
+            # Log max amplitude of first chunk for debugging silence issues
+            if len(converted_bytes) > 44:
+                pcm_chunk = converted_bytes[44 : 44 + 2000]  # first 1000 samples
+                n = len(pcm_chunk) // 2
+                if n > 0:
+                    samples = struct.unpack_from(f"<{n}h", pcm_chunk)
+                    max_amp = max(abs(s) for s in samples)
+                    logger.info(
+                        "STT: post-convert WAV max_amplitude=%d (threshold=%d, %d samples checked)",
+                        max_amp, _SILENCE_THRESHOLD, n,
+                    )
+
             if is_silent_wav(converted_bytes):
                 logger.debug("Converted WAV is silent -- skipping Whisper")
                 return TranscriptionResult()
+
+            logger.info("STT: ffmpeg conversion succeeded — WAV %d bytes", len(converted_bytes))
 
         model = _get_model(model_size, compute_type)
         transcribe_kwargs: dict = {"beam_size": 5}
