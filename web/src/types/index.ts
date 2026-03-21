@@ -113,6 +113,7 @@ export interface WsTranscription {
   text: string
   language: string
   confidence: number
+}
 
 export interface WsAudioResponse {
   type: 'audio_response'
@@ -133,7 +134,6 @@ export type WsInboundMessage =
   | WsEmotionUpdate
   | WsVitalsUpdate
   | WsTranscription
-
   | WsAudioResponse
 
 // ---------------------------------------------------------------------------
