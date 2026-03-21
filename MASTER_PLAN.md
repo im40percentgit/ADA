@@ -51,7 +51,7 @@ ada/
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
 | Sensor simulator | `ada/sensors/` | SensorSimulator presets |
-| Tests | `tests/` | 678+ unit + integration tests |
+| Tests | `tests/` | 819 unit + integration tests |
 
 ---
 
@@ -471,8 +471,8 @@ ada/
 ---
 
 ### Phase 7 — Server-Side STT (Whisper Integration)
-**Status:** `in_progress`
-**Branch:** `feature/browser-stt`
+**Status:** `completed`
+**Commits:** `0b1acff` (event-driven STT), `a4bd270` (ffmpeg fix), `75ec48f` (WsTranscription fix), `1a1945f` (TTS voice output)
 
 #### Architecture Decision: Event-Driven over REST
 
@@ -493,20 +493,22 @@ Browser Mic → MediaRecorder (webm/opus) → Media WS → 3s buffer
 |-------------|--------|-------|
 | `ada/core/events.py` — `TRANSCRIPTION_COMPLETED` + `TranscriptionCompletedEvent` | Done | Phase 7 Step 1 |
 | `ada/ml/audio_features.py` — `_ffmpeg_decode` → `ffmpeg_decode` (public) | Done | Phase 7 Step 2 |
-| `ada/ml/stt.py` — `TranscriptionResult`, `is_silent_wav`, `transcribe_audio` | In Progress | Phase 7 Step 3 |
-| `ada/core/state.py` — `transcriptions` table + `create_transcription()` + `get_transcriptions()` | Pending | Phase 7 Step 4 |
-| `ada/core/config.py` — `STTConfig` + `stt_enabled` in `MultimodalConfig` | Pending | Phase 7 Step 5 |
-| `config/development.toml` — `stt_enabled = true` + `[stt]` section | Pending | Phase 7 Step 5 |
-| `ada/agents/transcription.py` — `TranscriptionAgent` | Pending | Phase 7 Step 6 |
-| `ada/main.py` — register `TranscriptionAgent` when `stt_enabled` | Pending | Phase 7 Step 7 |
-| `ada/api/routes/chat.py` — async writer/reader refactor + transcription bridge | Pending | Phase 7 Step 8 |
-| `web/src/types/index.ts` — `WsTranscription`, `source` on `ChatMessage` | Pending | Phase 7 Step 9 |
-| `web/src/hooks/useChat.ts` — handle `type: 'transcription'` | Pending | Phase 7 Step 9 |
-| `web/src/components/ChatMessage.tsx` — mic icon for voice messages | Pending | Phase 7 Step 9 |
-| Remove `useSpeechRecognition.ts` + `/api/transcribe` REST endpoint | Pending | Replaced by event path |
-| `tests/unit/test_stt.py` | Pending | |
-| `tests/unit/test_transcription_agent.py` | Pending | |
-| `tests/integration/test_stt_pipeline.py` | Pending | |
+| `ada/ml/stt.py` — `TranscriptionResult`, `is_silent_wav`, `transcribe_audio` | Done | Phase 7 Step 3 — silence guard + GPU/CPU fallback |
+| `ada/core/state.py` — `transcriptions` table + `create_transcription()` + `get_transcriptions()` | Done | Phase 7 Step 4 |
+| `ada/core/config.py` — `STTConfig` + `stt_enabled` in `MultimodalConfig` | Done | Phase 7 Step 5 |
+| `config/development.toml` — `stt_enabled = true` + `[stt]` section | Done | Phase 7 Step 5 |
+| `ada/agents/transcription.py` — `TranscriptionAgent` | Done | Phase 7 Step 6 — follows VoiceEmotionAgent pattern |
+| `ada/main.py` — register `TranscriptionAgent` when `stt_enabled` | Done | Phase 7 Step 7 |
+| `ada/api/routes/chat.py` — async writer/reader refactor + transcription bridge | Done | Phase 7 Step 8 — concurrent tasks (DEC-STT-002) |
+| `web/src/types/index.ts` — `WsTranscription`, `source` on `ChatMessage` | Done | Phase 7 Step 9 |
+| `web/src/hooks/useChat.ts` — handle `type: 'transcription'` | Done | Phase 7 Step 9 |
+| `web/src/components/ChatMessage.tsx` — mic icon for voice messages | Done | Phase 7 Step 9 |
+| Old REST `/api/transcribe` + `useSpeechRecognition.ts` removed | Done | Replaced by event path |
+| `tests/unit/test_stt.py` | Done | |
+| `tests/unit/test_transcription_agent.py` | Done | |
+| `tests/integration/test_stt_pipeline.py` | Done | |
+| TTS voice output — TTSAgent, PiperProvider, sentence streaming | Done | `1a1945f` |
+| Tests: 819 passing (was 683) | Done | 0 regressions |
 
 ### Phase 7 Decisions
 
