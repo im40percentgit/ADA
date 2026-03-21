@@ -45,6 +45,8 @@ htmlcov/
 # Tool configs
 .claude/
 .serena/
+.cognetivy/
+.superpowers/
 
 # Logs
 firebase-debug.log
