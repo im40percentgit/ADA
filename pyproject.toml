@@ -26,6 +26,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+stt = [
+    "faster-whisper>=1.0.0",
+]
 tts = [
     "piper-tts>=1.2.0",
 ]

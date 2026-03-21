@@ -1,7 +1,7 @@
 [llm]
 provider = "openai_compat"
-model = "jwest33/qwen3.5-9b-null-space-abliterated-GGUF:Q8_0"
-max_tokens = 2048
+model = "crownelius/Crow-9B-Opus-4.6-Distill-Heretic_Qwen3.5:Q4_K_M"
+max_tokens = 256
 temperature = 0.7
 
 [llm.claude]
@@ -10,7 +10,7 @@ api_key_env = "ANTHROPIC_API_KEY"
 [llm.openai_compat]
 base_url = "http://localhost:8080/v1"
 api_key_env = "OPENAI_API_KEY"
-model = "jwest33/qwen3.5-9b-null-space-abliterated-GGUF:Q8_0"
+model = "crownelius/Crow-9B-Opus-4.6-Distill-Heretic_Qwen3.5:Q4_K_M"
 
 [agents.therapist]
 enabled = true
@@ -35,9 +35,9 @@ default_profile = "local"
 
 [model_routing.profiles.local]
 provider = "openai_compat"
-model = "jwest33/qwen3.5-9b-null-space-abliterated-GGUF:Q8_0"
+model = "crownelius/Crow-9B-Opus-4.6-Distill-Heretic_Qwen3.5:Q4_K_M"
 base_url = "http://localhost:8080/v1"
-max_tokens = 2048
+max_tokens = 256
 temperature = 0.7
 
 [tts]
