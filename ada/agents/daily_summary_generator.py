@@ -59,7 +59,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ada.core.bus import EventBus
@@ -230,9 +230,10 @@ class DailySummaryGenerator:
 
     async def _generate_daily_summary(self, patient_id: str) -> None:
         """Aggregate context, call LLM, parse response, persist, and publish."""
-        today = datetime.utcnow().date().isoformat()
-        since_24h = (datetime.utcnow() - timedelta(hours=24)).isoformat()
-        since_7d = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        now = datetime.now(timezone.utc)
+        today = now.date().isoformat()
+        since_24h = (now - timedelta(hours=24)).isoformat()
+        since_7d = (now - timedelta(days=7)).isoformat()
 
         logger.info(
             "DailySummaryGenerator: generating daily summary for patient %s (date=%s)",

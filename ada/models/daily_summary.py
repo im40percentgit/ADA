@@ -14,7 +14,7 @@ _daily_summary_row() helper.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
@@ -44,4 +44,4 @@ class DailySummary(BaseModel):
     appointment_prep: list[str] = Field(default_factory=list)
     key_topics: list[str] = Field(default_factory=list)
     overall_mood: str = "stable"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
