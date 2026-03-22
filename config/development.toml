@@ -53,7 +53,12 @@ fusion_enabled = true
 stt_enabled = true
 
 [stt]
-model_size = "base"
+model_size = "large-v3"
+language = "en"
+compute_type = "float16"
+min_confidence = 0.4
+vad_filter = true
+vad_threshold = 0.5
 
 [model_routing.agent_mapping]
 therapist = "local"
