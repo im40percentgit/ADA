@@ -203,3 +203,125 @@ class TestTranscribeAudio:
         call_kwargs = mock_model_instance.transcribe.call_args[1]
         assert call_kwargs.get("language") == "es"
         assert result.language == "es"
+
+
+# ---------------------------------------------------------------------------
+# Confidence filter
+# ---------------------------------------------------------------------------
+
+class TestConfidenceFilter:
+    def test_low_confidence_returns_empty(self):
+        """Transcription below min_confidence is dropped."""
+        wav = generate_sine_wav(frequency=440.0, duration_s=1.0)
+
+        mock_segment = MagicMock()
+        mock_segment.text = "Thanks for watching"
+        mock_segment.avg_logprob = -2.0  # exp(-2.0) ≈ 0.135 — well below 0.4
+
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.5
+        mock_info.duration = 1.0
+
+        mock_model_instance = MagicMock()
+        mock_model_instance.transcribe.return_value = ([mock_segment], mock_info)
+
+        with patch("ada.ml.stt._get_model", return_value=mock_model_instance):
+            result = transcribe_audio(wav, min_confidence=0.4)
+
+        assert result.text == ""
+
+    def test_high_confidence_passes(self):
+        """Transcription above min_confidence is kept."""
+        wav = generate_sine_wav(frequency=440.0, duration_s=1.0)
+
+        mock_segment = MagicMock()
+        mock_segment.text = "I feel anxious"
+        mock_segment.avg_logprob = -0.2  # exp(-0.2) ≈ 0.82 — above 0.4
+
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.99
+        mock_info.duration = 1.0
+
+        mock_model_instance = MagicMock()
+        mock_model_instance.transcribe.return_value = ([mock_segment], mock_info)
+
+        with patch("ada.ml.stt._get_model", return_value=mock_model_instance):
+            result = transcribe_audio(wav, min_confidence=0.4)
+
+        assert result.text == "I feel anxious"
+
+    def test_zero_min_confidence_disables_filter(self):
+        """min_confidence=0.0 disables the filter — all results pass."""
+        wav = generate_sine_wav(frequency=440.0, duration_s=1.0)
+
+        mock_segment = MagicMock()
+        mock_segment.text = "anything"
+        mock_segment.avg_logprob = -5.0
+
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.1
+        mock_info.duration = 1.0
+
+        mock_model_instance = MagicMock()
+        mock_model_instance.transcribe.return_value = ([mock_segment], mock_info)
+
+        with patch("ada.ml.stt._get_model", return_value=mock_model_instance):
+            result = transcribe_audio(wav, min_confidence=0.0)
+
+        assert result.text == "anything"
+
+
+# ---------------------------------------------------------------------------
+# VAD parameter forwarding
+# ---------------------------------------------------------------------------
+
+class TestVadParamsForwarding:
+    def test_vad_filter_and_params_forwarded(self):
+        """vad_filter, vad_parameters, and no_speech_threshold are passed to model.transcribe()."""
+        wav = generate_sine_wav(frequency=440.0, duration_s=0.5)
+
+        mock_segment = MagicMock()
+        mock_segment.text = "hello"
+        mock_segment.avg_logprob = -0.2
+
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.99
+        mock_info.duration = 0.5
+
+        mock_model_instance = MagicMock()
+        mock_model_instance.transcribe.return_value = ([mock_segment], mock_info)
+
+        with patch("ada.ml.stt._get_model", return_value=mock_model_instance):
+            transcribe_audio(wav, vad_filter=True, vad_threshold=0.6)
+
+        call_kwargs = mock_model_instance.transcribe.call_args[1]
+        assert call_kwargs["vad_filter"] is True
+        assert call_kwargs["vad_parameters"] == {"threshold": 0.6}
+        assert call_kwargs["no_speech_threshold"] == 0.6
+
+    def test_vad_disabled_by_default(self):
+        """When vad_filter=False, vad_filter/vad_parameters not in kwargs."""
+        wav = generate_sine_wav(frequency=440.0, duration_s=0.5)
+
+        mock_segment = MagicMock()
+        mock_segment.text = "hello"
+        mock_segment.avg_logprob = -0.2
+
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.99
+        mock_info.duration = 0.5
+
+        mock_model_instance = MagicMock()
+        mock_model_instance.transcribe.return_value = ([mock_segment], mock_info)
+
+        with patch("ada.ml.stt._get_model", return_value=mock_model_instance):
+            transcribe_audio(wav, vad_filter=False, vad_threshold=0.5)
+
+        call_kwargs = mock_model_instance.transcribe.call_args[1]
+        assert "vad_filter" not in call_kwargs
+        assert "vad_parameters" not in call_kwargs

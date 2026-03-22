@@ -159,6 +159,9 @@ def transcribe_audio(
     model_size: str = "base",
     language: str | None = None,
     compute_type: str = "int8",
+    min_confidence: float = 0.0,
+    vad_filter: bool = False,
+    vad_threshold: float = 0.5,
 ) -> TranscriptionResult:
     """Transcribe raw audio bytes to text using faster-whisper.
 
@@ -227,31 +230,15 @@ def transcribe_audio(
                 )
                 return TranscriptionResult()
 
-            # Post-conversion silence check on the decoded WAV
-            converted_bytes = Path(tmp_wav).read_bytes()
-
-            # Log max amplitude of first chunk for debugging silence issues
-            if len(converted_bytes) > 44:
-                pcm_chunk = converted_bytes[44 : 44 + 2000]  # first 1000 samples
-                n = len(pcm_chunk) // 2
-                if n > 0:
-                    samples = struct.unpack_from(f"<{n}h", pcm_chunk)
-                    max_amp = max(abs(s) for s in samples)
-                    logger.info(
-                        "STT: post-convert WAV max_amplitude=%d (threshold=%d, %d samples checked)",
-                        max_amp, _SILENCE_THRESHOLD, n,
-                    )
-
-            if is_silent_wav(converted_bytes):
-                logger.debug("Converted WAV is silent -- skipping Whisper")
-                return TranscriptionResult()
-
-            logger.info("STT: ffmpeg conversion succeeded — WAV %d bytes", len(converted_bytes))
+            logger.info("STT: ffmpeg conversion succeeded — WAV %d bytes", Path(tmp_wav).stat().st_size)
 
         model = _get_model(model_size, compute_type)
-        transcribe_kwargs: dict = {"beam_size": 5}
+        transcribe_kwargs: dict = {"beam_size": 5, "no_speech_threshold": 0.6}
         if language:
             transcribe_kwargs["language"] = language
+        if vad_filter:
+            transcribe_kwargs["vad_filter"] = True
+            transcribe_kwargs["vad_parameters"] = {"threshold": vad_threshold}
 
         segments, info = model.transcribe(tmp_wav, **transcribe_kwargs)
         segment_list = list(segments)  # consume generator before cleanup
@@ -264,6 +251,13 @@ def transcribe_audio(
             confidence = float(min(1.0, max(0.0, math.exp(avg_logprob))))
         else:
             confidence = 0.0
+
+        if min_confidence > 0 and confidence < min_confidence:
+            logger.info(
+                "STT: confidence %.2f below threshold %.2f — dropping: %s",
+                confidence, min_confidence, text[:60],
+            )
+            return TranscriptionResult()
 
         duration_s = float(info.duration) if info.duration else 0.0
 
