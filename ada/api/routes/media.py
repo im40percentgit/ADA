@@ -89,6 +89,7 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
     audio_buffer_meta: dict = {}  # Metadata from first audio chunk
     audio_buffer_start: float = 0.0
     MAX_UTTERANCE_DURATION = 30.0  # Safety fallback — flush if no end_of_utterance signal
+    INTERIM_FLUSH_INTERVAL = 3.0  # seconds — periodic interim transcription while speaking
 
     try:
         while True:
@@ -136,6 +137,13 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
                         audio_buffer_start = time.monotonic()
                     else:
                         audio_buffer.append(raw)
+                    # Periodic interim flush — transcribe what we have so far
+                    if audio_buffer and time.monotonic() - audio_buffer_start >= INTERIM_FLUSH_INTERVAL:
+                        combined = audio_header + b"".join(audio_buffer)
+                        interim_id = str(uuid.uuid4())
+                        await _handle_audio(bus, session_id, audio_buffer_meta, combined, interim_id, interim=True)
+                        # Don't clear buffer — keep accumulating for final flush
+                        audio_buffer_start = time.monotonic()
                     # Safety fallback: flush if utterance exceeds max duration
                     if audio_buffer and time.monotonic() - audio_buffer_start >= MAX_UTTERANCE_DURATION:
                         combined = audio_header + b"".join(audio_buffer)
@@ -176,7 +184,7 @@ async def _handle_sensor(bus, session_id: str, data: dict) -> None:
     )
 
 
-async def _handle_audio(bus, session_id: str, metadata: dict, audio_bytes: bytes, chunk_id: str) -> None:
+async def _handle_audio(bus, session_id: str, metadata: dict, audio_bytes: bytes, chunk_id: str, interim: bool = False) -> None:
     """Publish AudioChunkReceivedEvent for ML processing."""
     meta = metadata.get("metadata", {})
     await bus.publish(
@@ -188,6 +196,7 @@ async def _handle_audio(bus, session_id: str, metadata: dict, audio_bytes: bytes
             codec=meta.get("codec", "webm/opus"),
             sample_rate=int(meta.get("sample_rate", 48000)),
             chunk_id=chunk_id,
+            interim=interim,
         )
     )
     logger.debug(

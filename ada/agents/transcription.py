@@ -136,27 +136,29 @@ class TranscriptionAgent(BaseAgent):
                 language=result.language,
                 confidence=result.confidence,
                 duration_s=result.duration_s,
+                interim=event.interim,
             )
         )
 
-        # Persist to DB.
-        transcription_id = str(uuid.uuid4())
-        try:
-            await self.state.create_transcription(
-                id=transcription_id,
-                session_id=event.session_id,
-                patient_id=event.patient_id,
-                audio_chunk_id=event.chunk_id,
-                text=result.text,
-                language=result.language,
-                confidence=result.confidence,
-                duration_s=result.duration_s,
-            )
-        except Exception:
-            logger.exception(
-                "TranscriptionAgent: failed to persist transcription for chunk_id=%s",
-                event.chunk_id,
-            )
+        # Only persist final transcriptions to DB (skip interim partial results).
+        if not event.interim:
+            transcription_id = str(uuid.uuid4())
+            try:
+                await self.state.create_transcription(
+                    id=transcription_id,
+                    session_id=event.session_id,
+                    patient_id=event.patient_id,
+                    audio_chunk_id=event.chunk_id,
+                    text=result.text,
+                    language=result.language,
+                    confidence=result.confidence,
+                    duration_s=result.duration_s,
+                )
+            except Exception:
+                logger.exception(
+                    "TranscriptionAgent: failed to persist transcription for chunk_id=%s",
+                    event.chunk_id,
+                )
 
         logger.info(
             "TranscriptionAgent: chunk_id=%s lang=%s confidence=%.2f "

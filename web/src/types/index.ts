@@ -113,6 +113,7 @@ export interface WsTranscription {
   text: string
   language: string
   confidence: number
+  interim?: boolean
 }
 
 export interface WsAudioResponse {
