@@ -85,6 +85,7 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     currentEmotion,
     currentVitals,
     sendVoiceMode,
+    pendingTranscription,
   } = useChat(sessionId, patientId, { onAudioData: handleAudioData })
 
   // Media WebSocket — handles binary audio/video uploads
@@ -161,6 +162,17 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     })
     prevMessageCountRef.current = messages.length
   }, [messages])
+
+  // Append voice transcription to the input field (dictation mode)
+  useEffect(() => {
+    if (pendingTranscription) {
+      setInputValue((prev) => {
+        const separator = prev.trim() ? ' ' : ''
+        return prev + separator + pendingTranscription
+      })
+      inputRef.current?.focus()
+    }
+  }, [pendingTranscription])
 
   const handleSend = useCallback(() => {
     const trimmed = inputValue.trim()

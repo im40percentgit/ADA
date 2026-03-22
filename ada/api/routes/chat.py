@@ -190,19 +190,16 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
             pass
 
     async def on_transcription_completed(event: TranscriptionCompletedEvent) -> None:
-        """Bridge: voice transcript -> frontend display + TherapistAgent input.
+        """Bridge: voice transcript -> frontend input field.
 
-        1. Send {"type": "transcription"} frame so the frontend can show the
-           live transcript before the therapist responds.
-        2. Publish MessageReceivedEvent so TherapistAgent treats the spoken
-           text exactly like a typed message.
+        Sends {"type": "transcription"} frame so the frontend can populate
+        the input field. The user sends the message manually via Enter/Send.
         """
         if event.session_id != session_id:
             return
         if not event.text:
             return
 
-        # 1. Forward transcript to frontend for display.
         try:
             if websocket.client_state == WebSocketState.CONNECTED:
                 await websocket.send_json({
@@ -213,19 +210,6 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                 })
         except Exception:
             pass
-
-        # 2. Inject as a chat message so TherapistAgent responds.
-        message_id = str(uuid.uuid4())
-        pending_source[message_id] = "voice"
-        await bus.publish(
-            MessageReceivedEvent(
-                source="transcription",
-                session_id=session_id,
-                patient_id=event.patient_id,
-                content=event.text,
-                message_id=message_id,
-            )
-        )
 
     async def on_audio_response(event: AudioResponseEvent) -> None:
         """Forward TTS audio to the chat client as metadata + binary frames."""
