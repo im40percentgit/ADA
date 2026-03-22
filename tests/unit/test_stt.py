@@ -325,3 +325,4 @@ class TestVadParamsForwarding:
         call_kwargs = mock_model_instance.transcribe.call_args[1]
         assert "vad_filter" not in call_kwargs
         assert "vad_parameters" not in call_kwargs
+        assert call_kwargs["no_speech_threshold"] == 0.6  # always set, independent of VAD
