@@ -207,6 +207,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                     "text": event.text,
                     "language": event.language,
                     "confidence": round(event.confidence, 3),
+                    "interim": event.interim,
                 })
         except Exception:
             pass

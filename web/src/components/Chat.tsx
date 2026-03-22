@@ -163,15 +163,26 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     prevMessageCountRef.current = messages.length
   }, [messages])
 
-  // Append voice transcription to the input field (dictation mode)
+  // Track finalized text from completed transcriptions (separate from interim)
+  const finalTextRef = useRef('')
+
+  // Voice transcription → input field (dictation mode)
+  // Interim: replace input with finalized text + latest partial result
+  // Final: append to finalized text accumulator
   useEffect(() => {
-    if (pendingTranscription) {
-      setInputValue((prev) => {
-        const separator = prev.trim() ? ' ' : ''
-        return prev + separator + pendingTranscription
-      })
-      inputRef.current?.focus()
+    if (!pendingTranscription) return
+
+    if (pendingTranscription.interim) {
+      // Interim: show finalized text so far + current partial
+      const separator = finalTextRef.current ? ' ' : ''
+      setInputValue(finalTextRef.current + separator + pendingTranscription.text)
+    } else {
+      // Final: append to the finalized accumulator
+      const separator = finalTextRef.current ? ' ' : ''
+      finalTextRef.current = finalTextRef.current + separator + pendingTranscription.text
+      setInputValue(finalTextRef.current)
     }
+    inputRef.current?.focus()
   }, [pendingTranscription])
 
   const handleSend = useCallback(() => {
@@ -179,6 +190,7 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     if (!trimmed || wsStatus !== 'open') return
     sendMessage(trimmed)
     setInputValue('')
+    finalTextRef.current = ''
     inputRef.current?.focus()
   }, [inputValue, wsStatus, sendMessage])
 

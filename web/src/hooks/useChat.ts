@@ -59,7 +59,7 @@ export interface UseChatReturn {
   currentEmotion: WsEmotionUpdate | null
   currentVitals: CurrentVitals
   sendVoiceMode: (enabled: boolean) => void
-  pendingTranscription: string | null
+  pendingTranscription: { text: string; interim: boolean } | null
 }
 
 export function useChat(
@@ -78,7 +78,7 @@ export function useChat(
     spo2: null,
   })
 
-  const [pendingTranscription, setPendingTranscription] = useState<string | null>(null)
+  const [pendingTranscription, setPendingTranscription] = useState<{ text: string; interim: boolean } | null>(null)
 
   const onAudioData = options?.onAudioData
   const pendingAudioRef = useRef<WsAudioResponse | null>(null)
@@ -208,10 +208,10 @@ export function useChat(
       }
 
       case 'transcription': {
-        // Phase 7: populate input field instead of auto-sending
+        // Phase 7: interim transcriptions replace input; final transcriptions append
         const t = msg as WsTranscription
         if (t.text) {
-          setPendingTranscription(t.text)
+          setPendingTranscription({ text: t.text, interim: !!t.interim })
         }
         break
       }

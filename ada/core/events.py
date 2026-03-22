@@ -450,6 +450,7 @@ class AudioChunkReceivedEvent(AdaEvent):
     codec: str = "webm/opus"
     sample_rate: int = 48000
     chunk_id: str = ""
+    interim: bool = False
 
 
 @dataclass
@@ -482,6 +483,7 @@ class TranscriptionCompletedEvent(AdaEvent):
     language: str = ""
     confidence: float = 0.0
     duration_s: float = 0.0
+    interim: bool = False
 
 @dataclass
 class AudioResponseEvent(AdaEvent):
