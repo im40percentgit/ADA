@@ -180,7 +180,7 @@ class TestPHQ9Assessment:
         bus.subscribe(EventTypes.MESSAGE_SENT, capture, "test-q1")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="phq9",
@@ -210,7 +210,7 @@ class TestPHQ9Assessment:
 
         # Trigger assessment
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="phq9",
@@ -258,7 +258,7 @@ class TestPHQ9Assessment:
 
         # Start assessment
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="phq9",
@@ -315,7 +315,7 @@ class TestPHQ9Assessment:
             llm.queue("0")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="phq9",
@@ -362,7 +362,7 @@ class TestGAD7Assessment:
         bus.subscribe(EventTypes.MESSAGE_SENT, capture, "test-gad7-q1")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="gad7",
@@ -393,7 +393,7 @@ class TestGAD7Assessment:
             llm.queue("3")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="gad7",
@@ -440,7 +440,7 @@ class TestWHO5Assessment:
         bus.subscribe(EventTypes.MESSAGE_SENT, capture, "test-who5-q1")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="who5",
@@ -471,7 +471,7 @@ class TestWHO5Assessment:
             llm.queue("5")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="who5",
@@ -518,7 +518,7 @@ class TestEdgeCases:
         bus.subscribe(EventTypes.MESSAGE_SENT, capture, "test-unknown")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="unknown_instrument",
@@ -579,7 +579,7 @@ class TestEdgeCases:
             llm.queue("not-a-number")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="gad7",
@@ -623,7 +623,7 @@ class TestEdgeCases:
             llm.queue("99")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="phq9",
@@ -699,7 +699,7 @@ class TestCognitiveScreening:
         bus.subscribe(EventTypes.COGNITIVE_SCREENING_STARTED, cap, "test-cs-started")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="cognitive",
@@ -741,7 +741,7 @@ class TestCognitiveScreening:
         bus.subscribe(EventTypes.COGNITIVE_SCREENING_COMPLETED, cap, "test-cs-complete")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="cognitive",
@@ -793,7 +793,7 @@ class TestCognitiveScreening:
         bus.subscribe(EventTypes.COGNITIVE_SCREENING_COMPLETED, cap, "test-cs-concerns")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="cognitive",
@@ -843,7 +843,7 @@ class TestCognitiveScreening:
         bus.subscribe(EventTypes.COGNITIVE_SCREENING_COMPLETED, cap, "test-cs-fail")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
             instrument="cognitive",

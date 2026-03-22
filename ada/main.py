@@ -41,7 +41,7 @@ from ada.agents.fusion import MultimodalFusionAgent
 from ada.agents.physiological import PhysiologicalAgent
 from ada.agents.registry import AgentRegistry
 from ada.agents.session_summarizer import SessionSummarizer
-from ada.agents.therapist import TherapistAgent
+from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.agents.transcription import TranscriptionAgent
 
 from ada.agents.tts_agent import TTSAgent
@@ -136,9 +136,9 @@ async def run(config: AdaConfig) -> None:
     # Agents
     registry = AgentRegistry(bus, config, state, router)
 
-    if config.agents.therapist.enabled:
-        registry.register(TherapistAgent())
-        log.info("TherapistAgent registered")
+    if config.agents.wellness_companion.enabled:
+        registry.register(WellnessCompanionAgent())
+        log.info("WellnessCompanionAgent registered")
 
     if config.agents.crisis_monitor.enabled:
         registry.register(CrisisMonitorAgent())

@@ -1,8 +1,8 @@
 """
-Integration test: assessment flow from TherapistAgent trigger to completion.
+Integration test: assessment flow from WellnessCompanionAgent trigger to completion.
 
 Verifies the full pipeline:
-  1. User message containing assessment keyword → TherapistAgent publishes ASSESSMENT_TRIGGERED
+  1. User message containing assessment keyword → WellnessCompanionAgent publishes ASSESSMENT_TRIGGERED
   2. CognitiveAssessorAgent receives ASSESSMENT_TRIGGERED → publishes first question
   3. User answers all questions → CognitiveAssessorAgent scores and saves → publishes ASSESSMENT_COMPLETED
   4. PHQ-9 result persisted to assessment_results table
@@ -27,7 +27,7 @@ import json
 import pytest
 
 from ada.agents.cognitive_assessor import CognitiveAssessorAgent
-from ada.agents.therapist import TherapistAgent
+from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.core.events import (
     AssessmentCompletedEvent,
     AssessmentTriggeredEvent,
@@ -50,8 +50,8 @@ class TestAssessmentFlow:
         Full PHQ-9 flow: ASSESSMENT_TRIGGERED → assessor drives questionnaire → completes.
 
         CognitiveAssessorAgent is wired directly. The trigger is published
-        synthetically (as TherapistAgent would publish it) to isolate the
-        assessor's behaviour from TherapistAgent's LLM calls.
+        synthetically (as WellnessCompanionAgent would publish it) to isolate the
+        assessor's behaviour from WellnessCompanionAgent's LLM calls.
         """
         assessor = CognitiveAssessorAgent()
         assessor.initialize(bus, config, state, llm)
@@ -77,9 +77,9 @@ class TestAssessmentFlow:
         for _ in range(9):
             llm.queue_response("1")
 
-        # Publish trigger directly (as TherapistAgent would)
+        # Publish trigger directly (as WellnessCompanionAgent would)
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id=session_id,
             patient_id=patient_id,
             instrument="phq9",
@@ -124,15 +124,15 @@ class TestAssessmentFlow:
         self, state, bus, llm, config, patient_id, session_id
     ):
         """
-        When TherapistAgent and CognitiveAssessorAgent are both wired,
-        a user message with 'phq9' triggers TherapistAgent to publish
+        When WellnessCompanionAgent and CognitiveAssessorAgent are both wired,
+        a user message with 'phq9' triggers WellnessCompanionAgent to publish
         ASSESSMENT_TRIGGERED, which the assessor receives.
 
         This test verifies the inter-agent trigger path only — it doesn't
-        drive the full questionnaire since TherapistAgent's 9 answer messages
+        drive the full questionnaire since WellnessCompanionAgent's 9 answer messages
         would each also generate LLM calls. We just verify the trigger fires.
         """
-        therapist = TherapistAgent()
+        therapist = WellnessCompanionAgent()
         therapist.initialize(bus, config, state, llm)
 
         assessor = CognitiveAssessorAgent()
@@ -156,7 +156,7 @@ class TestAssessmentFlow:
         bus.subscribe(EventTypes.ASSESSMENT_TRIGGERED, on_triggered, "int-therapist-trigger")
         bus.subscribe(EventTypes.MESSAGE_SENT, on_sent, "int-therapist-q1")
 
-        # TherapistAgent needs one LLM response; assessor needs one score for the first question
+        # WellnessCompanionAgent needs one LLM response; assessor needs one score for the first question
         llm.queue_response("I can help you with a PHQ-9 assessment.")
         llm.queue_response("1")  # score for first question answer (if any)
 
@@ -170,7 +170,7 @@ class TestAssessmentFlow:
         await bus.publish(msg)
         await asyncio.sleep(0.15)
 
-        # TherapistAgent should have triggered an assessment
+        # WellnessCompanionAgent should have triggered an assessment
         assert len(triggered) == 1
         assert triggered[0].instrument == "phq9"
 
@@ -205,7 +205,7 @@ class TestAssessmentFlow:
             llm.queue_response("2")
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id=session_id,
             patient_id=patient_id,
             instrument="gad7",
@@ -279,7 +279,7 @@ class TestCognitiveScreeningFlow:
         llm.queue_response(json.dumps([]))  # No concerns
 
         trigger = AssessmentTriggeredEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id=session_id,
             patient_id=patient_id,
             instrument="cognitive",
@@ -309,9 +309,9 @@ class TestCognitiveScreeningFlow:
         self, state, bus, llm, config, patient_id, session_id
     ):
         """
-        'memory test' in user message → TherapistAgent publishes ASSESSMENT_TRIGGERED(cognitive).
+        'memory test' in user message → WellnessCompanionAgent publishes ASSESSMENT_TRIGGERED(cognitive).
         """
-        therapist = TherapistAgent()
+        therapist = WellnessCompanionAgent()
         therapist.initialize(bus, config, state, llm)
 
         await bus.start()
@@ -325,7 +325,7 @@ class TestCognitiveScreeningFlow:
 
         bus.subscribe(EventTypes.ASSESSMENT_TRIGGERED, on_triggered, "int-trig-cognitive")
 
-        # TherapistAgent LLM response
+        # WellnessCompanionAgent LLM response
         llm.queue_response("Sure, let's do a memory test.")
 
         msg = MessageReceivedEvent(

@@ -1,7 +1,7 @@
 """
 WebSocket chat endpoint -- /ws/chat/{session_id}.
 
-Streams therapist responses in real time. The WebSocket receives user
+Streams wellness companion responses in real time. The WebSocket receives user
 messages, publishes them to the EventBus, and forwards MESSAGE_SENT,
 EMOTION_FUSED, SENSOR_READING, and TRANSCRIPTION_COMPLETED events back
 to the client.
@@ -23,7 +23,7 @@ Concurrency model (Phase 7):
     This fixes a deadlock that occurred in the original single-loop design:
     when TranscriptionAgent published TranscriptionCompletedEvent, the
     on_transcription_completed handler enqueued a MessageReceivedEvent and
-    the TherapistAgent's response arrived in response_queue -- but
+    the WellnessCompanionAgent's response arrived in response_queue -- but
     receive_text() was blocking the single coroutine, so response_queue.get()
     was never reached.  Concurrent tasks eliminate that race.
 
@@ -92,13 +92,13 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
 
     Protocol (typed messages):
         Client sends:  {"content": "user message text", "patient_id": "..."}
-        Server sends:  {"type": "message", "content": "...", "agent": "therapist",
+        Server sends:  {"type": "message", "content": "...", "agent": "wellness_companion",
                         "message_id": "...", "timestamp": "...", "source": "text"}
 
     Protocol (voice messages, Phase 7):
         Server sends:  {"type": "transcription", "text": "...", "language": "...",
                         "confidence": 0.9}
-        Server sends:  {"type": "message", "content": "...", "agent": "therapist",
+        Server sends:  {"type": "message", "content": "...", "agent": "wellness_companion",
                         "message_id": "...", "timestamp": "...", "source": "voice"}
 
     Server also sends:
@@ -143,7 +143,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
 
     bus = websocket.app.state.bus
 
-    # Shared queue: TherapistAgent responses + shutdown sentinel.
+    # Shared queue: WellnessCompanionAgent responses + shutdown sentinel.
     # Items: MessageSentEvent | object (sentinel)
     response_queue: asyncio.Queue = asyncio.Queue()
 

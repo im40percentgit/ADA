@@ -82,14 +82,14 @@ class TestVoiceIOFlow:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, capture_audio, "test-audio")
 
         # Simulate what happens after therapist processes a transcription:
-        # TherapistAgent publishes MESSAGE_SENT
+        # WellnessCompanionAgent publishes MESSAGE_SENT
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="I hear you. That sounds challenging.",
             message_id="msg-voice-1",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
 
         await asyncio.sleep(0.5)
@@ -111,12 +111,12 @@ class TestVoiceIOFlow:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, capture_audio, "test-audio")
 
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-text",
             patient_id="pat-1",
             content="Regular text response.",
             message_id="msg-text-1",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
 
         await asyncio.sleep(0.3)
@@ -137,14 +137,14 @@ class TestVoiceIOFlow:
 
         # Send messages for both sessions
         await bus.publish(MessageSentEvent(
-            source="therapist", session_id="sess-voice",
+            source="wellness_companion", session_id="sess-voice",
             patient_id="pat-1", content="Voice response.",
-            message_id="msg-v1", agent_name="therapist",
+            message_id="msg-v1", agent_name="wellness_companion",
         ))
         await bus.publish(MessageSentEvent(
-            source="therapist", session_id="sess-text",
+            source="wellness_companion", session_id="sess-text",
             patient_id="pat-2", content="Text response.",
-            message_id="msg-t1", agent_name="therapist",
+            message_id="msg-t1", agent_name="wellness_companion",
         ))
 
         await asyncio.sleep(0.5)

@@ -2,7 +2,7 @@
 MedicationManagerAgent — handles medication-related handoffs and interaction checks.
 
 Receives AGENT_HANDOFF_REQUEST events targeting "medication_manager" (published
-by TherapistAgent when medication keywords are detected). Loads the patient's
+by WellnessCompanionAgent when medication keywords are detected). Loads the patient's
 current medications, sends them alongside the trigger content to the LLM, and
 returns context-aware medication notes in the handoff response.
 
@@ -101,7 +101,7 @@ class MedicationManagerAgent(BaseAgent, HandoffMixin):
 
     async def _process_handoff(self, context: HandoffContext) -> str:
         """
-        Process a medication-related handoff from TherapistAgent.
+        Process a medication-related handoff from WellnessCompanionAgent.
 
         Loads the patient's active medications, builds an LLM prompt with
         the trigger content and medication list, and returns a brief clinical

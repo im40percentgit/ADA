@@ -10,7 +10,7 @@ Downstream, the Chat WS handler subscribes to TRANSCRIPTION_COMPLETED
 per-session and:
   1. Sends a {"type": "transcription", "text": ...} frame to the frontend
      for live display.
-  2. Publishes a MessageReceivedEvent so TherapistAgent responds as if the
+  2. Publishes a MessageReceivedEvent so WellnessCompanionAgent responds as if the
      user had typed the text.
 
 This agent deliberately has no LLM dependency -- Whisper does the

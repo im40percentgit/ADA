@@ -68,7 +68,7 @@ class AgentConfig(BaseModel):
 
 
 class AgentsConfig(BaseModel):
-    therapist: AgentConfig = AgentConfig()
+    wellness_companion: AgentConfig = AgentConfig()
     crisis_monitor: AgentConfig = AgentConfig()
     medication_manager: AgentConfig = AgentConfig()
     cognitive_assessor: AgentConfig = AgentConfig()

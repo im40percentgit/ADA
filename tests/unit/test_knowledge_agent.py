@@ -185,7 +185,7 @@ def _make_request(
     target_agent: str = "knowledge_agent",
     question: str = "What CBT techniques help with anxiety?",
     request_id: str = "req-001",
-    from_agent: str = "therapist",
+    from_agent: str = "wellness_companion",
     session_id: str = "session-001",
     patient_id: str = "patient-001",
 ) -> AgentConsultationRequestEvent:

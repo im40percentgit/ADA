@@ -250,7 +250,7 @@ class TestHandoffLog:
             "id": "log-001",
             "session_id": "sess-hp",
             "patient_id": "pat-hp",
-            "from_agent": "therapist",
+            "from_agent": "wellness_companion",
             "to_agent": "medication_manager",
             "reason": "medication keyword detected",
             "payload": None,
@@ -263,7 +263,7 @@ class TestHandoffLog:
         assert log["id"] == "log-001"
         assert log["session_id"] == "sess-hp"
         assert log["patient_id"] == "pat-hp"
-        assert log["from_agent"] == "therapist"
+        assert log["from_agent"] == "wellness_companion"
         assert log["to_agent"] == "medication_manager"
         assert log["reason"] == "medication keyword detected"
         assert log["accepted"] is False
@@ -277,7 +277,7 @@ class TestHandoffLog:
             "id": "log-002",
             "session_id": "sess-hp",
             "patient_id": "pat-hp",
-            "from_agent": "therapist",
+            "from_agent": "wellness_companion",
             "to_agent": "medication_manager",
             "reason": "test",
             "payload": payload_json,
@@ -294,7 +294,7 @@ class TestHandoffLog:
             "id": "log-003",
             "session_id": "sess-hp",
             "patient_id": "pat-hp",
-            "from_agent": "therapist",
+            "from_agent": "wellness_companion",
             "to_agent": "medication_manager",
             "reason": "accepted test",
             "payload": None,
@@ -317,7 +317,7 @@ class TestHandoffLog:
             "id": "log-004",
             "session_id": "sess-hp",
             "patient_id": "pat-hp",
-            "from_agent": "therapist",
+            "from_agent": "wellness_companion",
             "to_agent": "medication_manager",
             "reason": "first session log",
             "payload": None,
@@ -328,7 +328,7 @@ class TestHandoffLog:
             "id": "log-005",
             "session_id": "sess-other",
             "patient_id": "pat-other",
-            "from_agent": "therapist",
+            "from_agent": "wellness_companion",
             "to_agent": "crisis_monitor",
             "reason": "other session log",
             "payload": None,
@@ -356,7 +356,7 @@ class TestHandoffLog:
             "id": "log-006",
             "session_id": "sess-hp",
             "patient_id": "pat-hp",
-            "from_agent": "therapist",
+            "from_agent": "wellness_companion",
             "to_agent": "medication_manager",
             "reason": "first",
             "payload": None,
@@ -369,7 +369,7 @@ class TestHandoffLog:
             "session_id": "sess-hp",
             "patient_id": "pat-hp",
             "from_agent": "medication_manager",
-            "to_agent": "therapist",
+            "to_agent": "wellness_companion",
             "reason": "second",
             "payload": None,
             "accepted": True,
@@ -386,7 +386,7 @@ class TestHandoffLog:
             "id": "log-008",
             "session_id": "sess-hp",
             "patient_id": "pat-hp",
-            "from_agent": "therapist",
+            "from_agent": "wellness_companion",
             "to_agent": "medication_manager",
             "reason": "auto timestamp test",
             "payload": None,
