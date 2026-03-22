@@ -24,6 +24,10 @@ enabled = true
 [agents.cognitive_assessor]
 enabled = true
 
+[agents.daily_summary]
+enabled = true
+debounce_seconds = 1800.0
+
 [auth]
 jwt_secret_env = "ADA_JWT_SECRET"
 access_token_ttl_minutes = 30

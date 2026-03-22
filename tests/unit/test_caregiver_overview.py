@@ -290,3 +290,78 @@ class TestCaregiverOverviewWithData:
         assert len(appts) == 1
         assert appts[0]["title"] == "Follow-up"
         assert appts[0]["status"] == "scheduled"
+
+
+# ---------------------------------------------------------------------------
+# Tests 16–17: daily_summary field in overview
+# ---------------------------------------------------------------------------
+
+class TestCaregiverOverviewDailySummary:
+    """Tests verifying the daily_summary field in /api/caregiver/overview."""
+
+    @pytest_asyncio.fixture
+    async def state_with_summary(self) -> StateManager:
+        """State with patient + one daily summary."""
+        import uuid
+        sm = StateManager(":memory:")
+        await sm.initialize()
+        await sm.create_patient({
+            "id": "pat-cg-001",
+            "name": "Summary Patient",
+            "dob": None,
+            "preferences": {},
+            "emergency_contact": None,
+            "caregiver_id": "cg-test-001",
+        })
+        await sm.create_or_update_daily_summary({
+            "id": str(uuid.uuid4()),
+            "patient_id": "pat-cg-001",
+            "summary_date": "2026-03-22",
+            "narrative": "Today was a calm and productive day.",
+            "trend_alerts": ["Mood declining for 3 days"],
+            "appointment_prep": ["Discuss sleep quality"],
+            "key_topics": ["mood", "sleep"],
+            "overall_mood": "stable",
+        })
+        yield sm
+        await sm.close()
+
+    @pytest_asyncio.fixture
+    async def state_no_summary(self) -> StateManager:
+        """State with patient but no daily summary."""
+        sm = StateManager(":memory:")
+        await sm.initialize()
+        await sm.create_patient({
+            "id": "pat-cg-001",
+            "name": "No-Summary Patient",
+            "dob": None,
+            "preferences": {},
+            "emergency_contact": None,
+            "caregiver_id": "cg-test-001",
+        })
+        yield sm
+        await sm.close()
+
+    def test_daily_summary_present_in_response(self, state_with_summary):
+        """daily_summary field is present and populated when a summary exists."""
+        with _make_client(state_with_summary) as client:
+            resp = client.get("/api/caregiver/overview")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "daily_summary" in data
+        ds = data["daily_summary"]
+        assert ds is not None
+        assert ds["narrative"] == "Today was a calm and productive day."
+        assert ds["overall_mood"] == "stable"
+        assert ds["summary_date"] == "2026-03-22"
+        assert "Mood declining for 3 days" in ds["trend_alerts"]
+        assert "Discuss sleep quality" in ds["appointment_prep"]
+
+    def test_daily_summary_null_when_no_summary(self, state_no_summary):
+        """daily_summary field is null when no summary has been generated."""
+        with _make_client(state_no_summary) as client:
+            resp = client.get("/api/caregiver/overview")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "daily_summary" in data
+        assert data["daily_summary"] is None
