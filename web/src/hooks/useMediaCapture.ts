@@ -28,6 +28,7 @@ import { useState, useRef, useCallback, useEffect, RefObject } from 'react'
 export interface UseMediaCaptureOptions {
   onAudioChunk: (blob: Blob) => void
   onVideoFrame: (blob: Blob) => void
+  onEndOfUtterance?: () => void
 }
 
 export interface UseMediaCaptureReturn {
@@ -44,6 +45,7 @@ export interface UseMediaCaptureReturn {
 export function useMediaCapture({
   onAudioChunk,
   onVideoFrame,
+  onEndOfUtterance,
 }: UseMediaCaptureOptions): UseMediaCaptureReturn {
   const [audioEnabled, setAudioEnabled] = useState(false)
   const [videoEnabled, setVideoEnabled] = useState(false)
@@ -56,6 +58,17 @@ export function useMediaCapture({
   const frameTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const vadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const speechStartRef = useRef<number>(0)
+  const silenceStartRef = useRef<number>(0)
+  const isSpeakingRef = useRef(false)
+
+  const SPEECH_THRESHOLD = 10
+  const SILENCE_WINDOW = 1500
+  const VAD_POLL_INTERVAL = 100
+
   // Lazily create the offscreen canvas for video snapshots
   const getCanvas = useCallback((): HTMLCanvasElement => {
     if (!canvasRef.current) {
@@ -66,13 +79,69 @@ export function useMediaCapture({
     return canvasRef.current
   }, [])
 
+  const stopVad = useCallback(() => {
+    if (vadTimerRef.current) {
+      clearInterval(vadTimerRef.current)
+      vadTimerRef.current = null
+    }
+    analyserRef.current?.disconnect()
+    analyserRef.current = null
+    audioCtxRef.current?.close()
+    audioCtxRef.current = null
+    isSpeakingRef.current = false
+    speechStartRef.current = 0
+    silenceStartRef.current = 0
+  }, [])
+
+  const startVad = useCallback((stream: MediaStream) => {
+    const audioCtx = new AudioContext()
+    const analyser = audioCtx.createAnalyser()
+    analyser.fftSize = 256
+    const source = audioCtx.createMediaStreamSource(stream)
+    source.connect(analyser)
+    audioCtxRef.current = audioCtx
+    analyserRef.current = analyser
+
+    const freqData = new Uint8Array(analyser.frequencyBinCount)
+
+    vadTimerRef.current = setInterval(() => {
+      if (!analyserRef.current) return
+      analyserRef.current.getByteFrequencyData(freqData)
+
+      let sum = 0
+      for (let i = 0; i < freqData.length; i++) {
+        sum += freqData[i] * freqData[i]
+      }
+      const rms = Math.sqrt(sum / freqData.length)
+      const now = Date.now()
+
+      if (rms > SPEECH_THRESHOLD) {
+        if (!isSpeakingRef.current) {
+          isSpeakingRef.current = true
+          speechStartRef.current = now
+        }
+        silenceStartRef.current = 0
+      } else if (isSpeakingRef.current) {
+        if (silenceStartRef.current === 0) {
+          silenceStartRef.current = now
+        } else if (now - silenceStartRef.current >= SILENCE_WINDOW) {
+          isSpeakingRef.current = false
+          speechStartRef.current = 0
+          silenceStartRef.current = 0
+          onEndOfUtterance?.()
+        }
+      }
+    }, VAD_POLL_INTERVAL)
+  }, [onEndOfUtterance])
+
   const stopAudio = useCallback(() => {
     recorderRef.current?.stop()
     recorderRef.current = null
     audioStreamRef.current?.getTracks().forEach((t) => t.stop())
     audioStreamRef.current = null
+    stopVad()
     setAudioEnabled(false)
-  }, [])
+  }, [stopVad])
 
   const stopVideo = useCallback(() => {
     if (frameTimerRef.current) {
@@ -111,12 +180,13 @@ export function useMediaCapture({
       }
 
       recorder.start(500) // Emit chunk every 500ms
+      startVad(stream)
       setAudioEnabled(true)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`Microphone access denied: ${msg}`)
     }
-  }, [audioEnabled, onAudioChunk, stopAudio])
+  }, [audioEnabled, onAudioChunk, stopAudio, startVad])
 
   const toggleVideo = useCallback(async () => {
     if (videoEnabled) {

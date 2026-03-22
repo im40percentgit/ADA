@@ -32,6 +32,7 @@ export interface UseMediaWebSocketReturn {
   connected: boolean
   sendAudioChunk: (blob: Blob, patientId?: string) => void
   sendVideoFrame: (blob: Blob, patientId?: string) => void
+  sendEndOfUtterance: () => void
   close: () => void
 }
 
@@ -148,6 +149,12 @@ export function useMediaWebSocket({
     [],
   )
 
+  const sendEndOfUtterance = useCallback(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({ type: 'end_of_utterance' }))
+  }, [])
+
   const close = useCallback(() => {
     intentionalRef.current = true
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
@@ -159,6 +166,7 @@ export function useMediaWebSocket({
     get connected() { return connectedRef.current },
     sendAudioChunk,
     sendVideoFrame,
+    sendEndOfUtterance,
     close,
   }
 }
