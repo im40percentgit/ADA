@@ -88,7 +88,7 @@ export function Chat({ sessionId, patientId }: ChatProps) {
   } = useChat(sessionId, patientId, { onAudioData: handleAudioData })
 
   // Media WebSocket — handles binary audio/video uploads
-  const { sendAudioChunk, sendVideoFrame } = useMediaWebSocket({ sessionId })
+  const { sendAudioChunk, sendVideoFrame, sendEndOfUtterance } = useMediaWebSocket({ sessionId })
 
   // Media capture — mic + camera with callbacks into the media WS
   const {
@@ -107,6 +107,10 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     onVideoFrame: useCallback(
       (blob: Blob) => sendVideoFrame(blob, patientId),
       [sendVideoFrame, patientId],
+    ),
+    onEndOfUtterance: useCallback(
+      () => sendEndOfUtterance(),
+      [sendEndOfUtterance],
     ),
   })
 
