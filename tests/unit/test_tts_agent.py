@@ -432,7 +432,7 @@ class TestTTSAgentEventHandling:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, collector, "test-source")
 
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="session-001",
             patient_id="patient-001",
             message_id="msg-007",

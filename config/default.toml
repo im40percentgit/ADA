@@ -12,7 +12,7 @@ base_url = "http://localhost:8080/v1"
 api_key_env = "OPENAI_API_KEY"
 model = "local-model"
 
-[agents.therapist]
+[agents.wellness_companion]
 enabled = true
 
 [agents.crisis_monitor]
@@ -101,7 +101,7 @@ max_tokens = 512
 temperature = 0.2
 
 [model_routing.agent_mapping]
-therapist = "conversational"
+wellness_companion = "conversational"
 crisis_monitor = "reasoning"
 emotion_analyzer = "conversational"
 cognitive_assessor = "reasoning"

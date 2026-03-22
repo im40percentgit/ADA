@@ -2,7 +2,7 @@
 Integration tests for the full chat message flow.
 
 Verifies that a user message published to the EventBus travels through
-the TherapistAgent and produces a MessageSentEvent with the correct
+the WellnessCompanionAgent and produces a MessageSentEvent with the correct
 content — using a real EventBus, real in-memory SQLite StateManager,
 and a MockLLMProvider.
 
@@ -21,7 +21,7 @@ import asyncio
 
 import pytest
 
-from ada.agents.therapist import TherapistAgent
+from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.events import (
@@ -43,8 +43,8 @@ from .conftest import MockLLMProvider
 
 @pytest.fixture
 async def therapist(bus, config, state, llm, patient_id, session_id):
-    """Fully wired, started TherapistAgent."""
-    agent = TherapistAgent()
+    """Fully wired, started WellnessCompanionAgent."""
+    agent = WellnessCompanionAgent()
     agent.initialize(bus, config, state, llm)
     await bus.start()
     await agent.start()
@@ -64,7 +64,7 @@ class TestChatFlow:
     ):
         """
         Publishing a MessageReceivedEvent to the bus should result in
-        a MessageSentEvent being published by the TherapistAgent.
+        a MessageSentEvent being published by the WellnessCompanionAgent.
         """
         sent_events: list[MessageSentEvent] = []
 
@@ -87,7 +87,7 @@ class TestChatFlow:
         assert len(sent_events) == 1
         assert sent_events[0].session_id == session_id
         assert sent_events[0].patient_id == patient_id
-        assert sent_events[0].agent_name == "therapist"
+        assert sent_events[0].agent_name == "wellness_companion"
 
     async def test_response_content_matches_mock_llm(
         self, therapist, bus, llm, session_id, patient_id
@@ -255,7 +255,7 @@ class TestChatFlow:
         self, bus, config, state, patient_id, session_id
     ):
         """
-        When the LLM raises an exception, the TherapistAgent should publish
+        When the LLM raises an exception, the WellnessCompanionAgent should publish
         a fallback response rather than silently failing.
         """
         class FailingLLMProvider(MockLLMProvider):
@@ -263,7 +263,7 @@ class TestChatFlow:
                 raise RuntimeError("LLM service unavailable")
 
         failing_llm = FailingLLMProvider()
-        agent = TherapistAgent()
+        agent = WellnessCompanionAgent()
         agent.initialize(bus, config, state, failing_llm)
         await bus.start()
         await agent.start()

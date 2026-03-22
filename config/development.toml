@@ -12,7 +12,7 @@ base_url = "http://localhost:8080/v1"
 api_key_env = "OPENAI_API_KEY"
 model = "crownelius/Crow-9B-Opus-4.6-Distill-Heretic_Qwen3.5:Q4_K_M"
 
-[agents.therapist]
+[agents.wellness_companion]
 enabled = true
 
 [agents.crisis_monitor]
@@ -61,7 +61,7 @@ vad_filter = true
 vad_threshold = 0.5
 
 [model_routing.agent_mapping]
-therapist = "local"
+wellness_companion = "local"
 crisis_monitor = "local"
 voice_emotion = "local"
 facial_emotion = "local"

@@ -85,12 +85,12 @@ class TestTTSPipeline:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, capture, "test-capture")
 
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="Hello, how are you feeling today?",
             message_id="msg-1",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
 
         # Give the event loop time to process through two hops:
@@ -116,12 +116,12 @@ class TestTTSPipeline:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, capture, "test-capture")
 
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="I understand that must be difficult. Let me help you think through this. What happened first?",
             message_id="msg-2",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
 
         await asyncio.sleep(0.8)
@@ -148,12 +148,12 @@ class TestTTSPipeline:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, capture, "test-capture")
 
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="Hello there.",
             message_id="msg-3",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
 
         await asyncio.sleep(0.3)
@@ -172,12 +172,12 @@ class TestTTSPipeline:
         # Enable voice
         agent.enable_voice("sess-1")
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="First message.",
             message_id="msg-4",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
         await asyncio.sleep(0.3)
         assert len(received) == 1
@@ -185,12 +185,12 @@ class TestTTSPipeline:
         # Disable voice
         agent.disable_voice("sess-1")
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="Second message.",
             message_id="msg-5",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
         await asyncio.sleep(0.3)
         assert len(received) == 1  # No new event
@@ -207,12 +207,12 @@ class TestTTSPipeline:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, capture, "test-capture")
 
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="Testing WAV output.",
             message_id="msg-6",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
 
         await asyncio.sleep(0.3)
@@ -236,12 +236,12 @@ class TestTTSPipeline:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, capture, "test-capture")
 
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="",
             message_id="msg-7",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
 
         await asyncio.sleep(0.3)
@@ -259,12 +259,12 @@ class TestTTSPipeline:
         bus.subscribe(EventTypes.AUDIO_RESPONSE, capture, "test-capture")
 
         await bus.publish(MessageSentEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
             content="   \n  ",
             message_id="msg-8",
-            agent_name="therapist",
+            agent_name="wellness_companion",
         ))
 
         await asyncio.sleep(0.3)

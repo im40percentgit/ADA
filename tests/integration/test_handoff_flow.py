@@ -1,18 +1,18 @@
 """
-Integration test — TherapistAgent medication keyword → handoff → response.
+Integration test — WellnessCompanionAgent medication keyword → handoff → response.
 
 Exercises the full handoff flow:
-  1. TherapistAgent receives a MESSAGE_RECEIVED event containing medication
+  1. WellnessCompanionAgent receives a MESSAGE_RECEIVED event containing medication
      keywords ("forgot my medication").
   2. It publishes AGENT_HANDOFF_REQUEST targeting "medication_manager".
   3. MockMedicationAgent (mixing in HandoffMixin) receives the request and
      publishes AGENT_HANDOFF_RESPONSE.
-  4. TherapistAgent receives the response (subscribed to AGENT_HANDOFF_RESPONSE).
+  4. WellnessCompanionAgent receives the response (subscribed to AGENT_HANDOFF_RESPONSE).
 
 All state is in-memory SQLite. No LLM network calls are made.
 
 @decision DEC-AGENT-003
-@title Integration test wires TherapistAgent + MockMedicationAgent on shared bus
+@title Integration test wires WellnessCompanionAgent + MockMedicationAgent on shared bus
 @status accepted
 @rationale Proves the full keyword-detection → request_handoff → response
     pipeline works end-to-end with real event routing. Both agents are real
@@ -29,7 +29,7 @@ import pytest
 
 from ada.agents.base import BaseAgent
 from ada.agents.handoff import HandoffContext, HandoffMixin
-from ada.agents.therapist import TherapistAgent
+from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.events import (
@@ -147,8 +147,8 @@ def llm() -> MockLLMProvider:
 
 
 @pytest.fixture
-def therapist(bus, config, state, llm) -> TherapistAgent:
-    agent = TherapistAgent()
+def therapist(bus, config, state, llm) -> WellnessCompanionAgent:
+    agent = WellnessCompanionAgent()
     agent.initialize(bus, config, state, llm)
     return agent
 
@@ -169,7 +169,7 @@ class TestMedicationHandoffFlow:
     async def test_medication_keyword_triggers_handoff_request(
         self, therapist, med_agent, bus, state
     ):
-        """'forgot my medication' in a message causes TherapistAgent to publish
+        """'forgot my medication' in a message causes WellnessCompanionAgent to publish
         AGENT_HANDOFF_REQUEST targeting medication_manager."""
         await bus.start()
         await therapist.start()
@@ -195,7 +195,7 @@ class TestMedicationHandoffFlow:
         assert len(handoff_requests) >= 1
         req = handoff_requests[0]
         assert req.target_agent == "medication_manager"
-        assert req.from_agent == "therapist"
+        assert req.from_agent == "wellness_companion"
 
         await therapist.stop()
         await med_agent.stop()
@@ -205,7 +205,7 @@ class TestMedicationHandoffFlow:
         self, therapist, med_agent, bus, state
     ):
         """MockMedicationAgent receives the handoff request published by
-        TherapistAgent and emits a response event."""
+        WellnessCompanionAgent and emits a response event."""
         await bus.start()
         await therapist.start()
         await med_agent.start()
@@ -258,7 +258,7 @@ class TestMedicationHandoffFlow:
         hc = med_agent.handled[0]
         assert hc.patient_id == "pat-med"
         assert hc.session_id == "sess-med"
-        assert hc.from_agent == "therapist"
+        assert hc.from_agent == "wellness_companion"
         # Trigger content should be captured
         assert "trigger_content" in hc.context
 

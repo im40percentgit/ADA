@@ -77,11 +77,11 @@ class TestModelRoutingConfig:
                 "warm": ModelProfile(provider="claude", model="claude-sonnet-4-5-20250514"),
                 "fast": ModelProfile(provider="openai_compat", model="local", base_url="http://localhost:8080/v1"),
             },
-            agent_mapping={"therapist": "warm", "crisis_monitor": "fast"},
+            agent_mapping={"wellness_companion": "warm", "crisis_monitor": "fast"},
             default_profile="warm",
         )
         assert len(c.profiles) == 2
-        assert c.agent_mapping["therapist"] == "warm"
+        assert c.agent_mapping["wellness_companion"] == "warm"
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ class TestModelRouter:
         mock_fast = MagicMock(spec=LLMProvider)
         config = ModelRoutingConfig(
             profiles={},  # profiles not used by router directly
-            agent_mapping={"therapist": "warm", "crisis_monitor": "fast"},
+            agent_mapping={"wellness_companion": "warm", "crisis_monitor": "fast"},
             default_profile="warm",
         )
         providers = {"warm": mock_warm, "fast": mock_fast}
@@ -109,7 +109,7 @@ class TestModelRouter:
 
     def test_mapped_agent_gets_correct_provider(self):
         router, mock_warm, mock_fast = self._make_router()
-        assert router.get_provider("therapist") is mock_warm
+        assert router.get_provider("wellness_companion") is mock_warm
         assert router.get_provider("crisis_monitor") is mock_fast
 
     def test_unknown_agent_gets_default(self):
@@ -119,7 +119,7 @@ class TestModelRouter:
     def test_list_profiles(self):
         router, _, _ = self._make_router()
         mapping = router.list_profiles()
-        assert mapping == {"therapist": "warm", "crisis_monitor": "fast"}
+        assert mapping == {"wellness_companion": "warm", "crisis_monitor": "fast"}
 
     def test_provider_names(self):
         router, _, _ = self._make_router()
@@ -192,7 +192,7 @@ class TestCreateModelRouter:
         router = create_model_router(config)
         assert "default" in router.provider_names
         # All agents should get the same provider
-        p1 = router.get_provider("therapist")
+        p1 = router.get_provider("wellness_companion")
         p2 = router.get_provider("crisis_monitor")
         assert p1 is p2
 
@@ -217,14 +217,14 @@ class TestCreateModelRouter:
                         base_url="http://localhost:8080/v1",
                     ),
                 },
-                agent_mapping={"therapist": "warm", "crisis_monitor": "fast"},
+                agent_mapping={"wellness_companion": "warm", "crisis_monitor": "fast"},
                 default_profile="warm",
             ),
         )
         router = create_model_router(config)
         assert sorted(router.provider_names) == ["fast", "warm"]
         # Different agents should get different providers
-        p1 = router.get_provider("therapist")
+        p1 = router.get_provider("wellness_companion")
         p2 = router.get_provider("crisis_monitor")
         assert p1 is not p2
 

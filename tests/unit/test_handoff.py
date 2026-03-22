@@ -125,12 +125,12 @@ class TestHandoffContext:
         hc = HandoffContext(
             session_id="sess-1",
             patient_id="pat-1",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             reason="test reason",
         )
         assert hc.session_id == "sess-1"
         assert hc.patient_id == "pat-1"
-        assert hc.from_agent == "therapist"
+        assert hc.from_agent == "wellness_companion"
         assert hc.reason == "test reason"
         assert hc.context == {}
         assert hc.request_id == ""
@@ -139,7 +139,7 @@ class TestHandoffContext:
         hc = HandoffContext(
             session_id="sess-2",
             patient_id="pat-2",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             reason="medication query",
             context={"trigger": "forgot my medication"},
             request_id="uuid-abc",
@@ -181,10 +181,10 @@ class TestHandoffMixin:
         await target_agent.start()
 
         event = AgentHandoffRequestEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             target_agent="someone_else",   # not "mock_target"
             handoff_reason="irrelevant",
             context={},
@@ -202,10 +202,10 @@ class TestHandoffMixin:
         await target_agent.start()
 
         event = AgentHandoffRequestEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             target_agent="mock_target",
             handoff_reason="medication question",
             context={"trigger": "my pills"},
@@ -216,7 +216,7 @@ class TestHandoffMixin:
 
         assert len(target_agent.received_contexts) == 1
         hc = target_agent.received_contexts[0]
-        assert hc.from_agent == "therapist"
+        assert hc.from_agent == "wellness_companion"
         assert hc.reason == "medication question"
         assert hc.context == {"trigger": "my pills"}
         assert hc.request_id == "req-42"
@@ -237,10 +237,10 @@ class TestHandoffMixin:
         bus.subscribe(EventTypes.AGENT_HANDOFF_RESPONSE, capture, "test-capture")
 
         event = AgentHandoffRequestEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-1",
             patient_id="pat-1",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             target_agent="mock_target",
             handoff_reason="test",
             context={},
@@ -281,10 +281,10 @@ class TestHandoffRoundTrip:
 
         # Publish through bus (not direct call)
         request_event = AgentHandoffRequestEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-rt",
             patient_id="pat-rt",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             target_agent="mock_target",
             handoff_reason="round trip test",
             context={"data": "value"},

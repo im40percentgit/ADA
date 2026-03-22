@@ -158,10 +158,10 @@ class TestHandoffHandling:
         await agent.start()
 
         event = AgentHandoffRequestEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-x",
             patient_id="pat-unit-001",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             target_agent="someone_else",
             handoff_reason="not for us",
             context={},
@@ -188,10 +188,10 @@ class TestHandoffHandling:
         bus.subscribe(EventTypes.AGENT_HANDOFF_RESPONSE, capture, "test-resp")
 
         event = AgentHandoffRequestEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-001",
             patient_id="pat-unit-001",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             target_agent="medication_manager",
             handoff_reason="medication question",
             context={"trigger_content": "I forgot my pills"},
@@ -224,10 +224,10 @@ class TestHandoffHandling:
         llm.queue("No active medications on record. I'll note this for context.")
 
         event = AgentHandoffRequestEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-002",
             patient_id="pat-unit-001",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             target_agent="medication_manager",
             handoff_reason="medication discussion",
             context={"trigger_content": "I want to discuss my medication"},
@@ -268,10 +268,10 @@ class TestHandoffHandling:
         llm.queue("Patient is on Sertraline 50mg daily. Noted in context.")
 
         event = AgentHandoffRequestEvent(
-            source="therapist",
+            source="wellness_companion",
             session_id="sess-003",
             patient_id="pat-unit-001",
-            from_agent="therapist",
+            from_agent="wellness_companion",
             target_agent="medication_manager",
             handoff_reason="medication question",
             context={"trigger_content": "my sertraline makes me tired"},

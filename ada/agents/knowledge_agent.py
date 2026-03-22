@@ -9,7 +9,7 @@ and publishes an AGENT_CONSULTATION_RESPONSE with a concise, cited answer.
 @decision DEC-KNOWLEDGE-005
 @title KnowledgeAgent uses consultation events
 @status accepted
-@rationale Consultation events keep agents decoupled. TherapistAgent (or
+@rationale Consultation events keep agents decoupled. WellnessCompanionAgent (or
     any future agent) publishes AGENT_CONSULTATION_REQUEST with
     target_agent="knowledge_agent". KnowledgeAgent filters by target_agent
     name so the EventBus fan-out is harmless — only the right agent responds.

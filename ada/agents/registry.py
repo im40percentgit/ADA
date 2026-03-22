@@ -9,9 +9,9 @@ removed from the active set.
 @title Two-stage crisis detection (keyword then LLM)
 @status accepted
 @rationale The registry is responsible for wiring agents to the shared bus,
-    config, state, and LLM provider. Both the TherapistAgent and the
+    config, state, and LLM provider. Both the WellnessCompanionAgent and the
     CrisisMonitorAgent are registered here; the registry ensures the
-    CrisisMonitor is always started even if the TherapistAgent fails.
+    CrisisMonitor is always started even if the WellnessCompanionAgent fails.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ class AgentRegistry:
     Usage::
 
         registry = AgentRegistry(bus, config, state, llm)
-        registry.register(TherapistAgent())
+        registry.register(WellnessCompanionAgent())
         registry.register(CrisisMonitorAgent())
         await registry.start_all()
         # ... run ...

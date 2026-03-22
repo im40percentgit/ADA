@@ -1,8 +1,8 @@
 """
-Integration tests for the TherapistAgent ↔ KnowledgeAgent consultation flow.
+Integration tests for the WellnessCompanionAgent ↔ KnowledgeAgent consultation flow.
 
-Verifies end-to-end: clinical keyword in user message → TherapistAgent fires
-AGENT_CONSULTATION_REQUEST → KnowledgeAgent responds → TherapistAgent enriches
+Verifies end-to-end: clinical keyword in user message → WellnessCompanionAgent fires
+AGENT_CONSULTATION_REQUEST → KnowledgeAgent responds → WellnessCompanionAgent enriches
 system prompt with evidence before generating its LLM response.
 
 Uses a real EventBus, in-memory SQLite StateManager, MockLLMProvider from
@@ -13,7 +13,7 @@ conftest.py, and a seeded ClinicalKnowledgeBase — no external mocks.
 @status accepted
 @rationale Integration tests must exercise the complete consultation chain:
     EventBus routing, KnowledgeAgent FTS5 search, LLM synthesis, and
-    TherapistAgent system-prompt enrichment. A seeded in-memory KB provides
+    WellnessCompanionAgent system-prompt enrichment. A seeded in-memory KB provides
     deterministic search results without touching production data.
 """
 
@@ -24,7 +24,7 @@ import asyncio
 import pytest
 
 from ada.agents.knowledge_agent import KnowledgeAgent
-from ada.agents.therapist import TherapistAgent
+from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.core.events import (
     AgentConsultationRequestEvent,
     AgentConsultationResponseEvent,
@@ -101,11 +101,11 @@ async def knowledge_agent(bus, config, state, llm, kb):
 
 @pytest.fixture
 async def therapist_only(bus, config, state, llm, patient_id, session_id):
-    """TherapistAgent wired to a running bus — no KnowledgeAgent registered."""
+    """WellnessCompanionAgent wired to a running bus — no KnowledgeAgent registered."""
     # Bus may already be running from another fixture; start idempotently
     if not bus.is_running:
         await bus.start()
-    agent = TherapistAgent()
+    agent = WellnessCompanionAgent()
     agent.initialize(bus, config, state, llm)
     await agent.start()
     yield agent
@@ -116,8 +116,8 @@ async def therapist_only(bus, config, state, llm, patient_id, session_id):
 
 @pytest.fixture
 async def both_agents(bus, config, state, llm, kb, patient_id, session_id):
-    """Both TherapistAgent and KnowledgeAgent running on the same bus."""
-    therapist = TherapistAgent()
+    """Both WellnessCompanionAgent and KnowledgeAgent running on the same bus."""
+    therapist = WellnessCompanionAgent()
     therapist.initialize(bus, config, state, llm)
 
     knowledge = KnowledgeAgent()
@@ -205,14 +205,14 @@ class TestConsultationRoundTrip:
 # ---------------------------------------------------------------------------
 
 class TestTherapistKeywordTrigger:
-    """Messages with clinical keywords cause TherapistAgent to publish a request."""
+    """Messages with clinical keywords cause WellnessCompanionAgent to publish a request."""
 
     async def test_keyword_triggers_consultation_request(
         self, therapist_only, bus, session_id, patient_id
     ):
         """
         A message containing a consultation keyword ('breathing technique')
-        should cause TherapistAgent to publish an AGENT_CONSULTATION_REQUEST
+        should cause WellnessCompanionAgent to publish an AGENT_CONSULTATION_REQUEST
         targeting knowledge_agent.
         """
         requests: list[AgentConsultationRequestEvent] = []
@@ -238,7 +238,7 @@ class TestTherapistKeywordTrigger:
 
         assert len(requests) >= 1
         assert requests[0].target_agent == "knowledge_agent"
-        assert requests[0].from_agent == "therapist"
+        assert requests[0].from_agent == "wellness_companion"
 
     async def test_cbt_keyword_triggers_consultation(
         self, therapist_only, bus, session_id, patient_id
@@ -361,19 +361,19 @@ class TestNoKeywordNoConsultation:
 # ---------------------------------------------------------------------------
 
 class TestTimeoutGraceful:
-    """TherapistAgent must not hang when KnowledgeAgent is absent."""
+    """WellnessCompanionAgent must not hang when KnowledgeAgent is absent."""
 
     async def test_no_knowledge_agent_still_responds(
         self, bus, config, state, llm, patient_id, session_id
     ):
         """
-        If no KnowledgeAgent is registered, TherapistAgent should time out
+        If no KnowledgeAgent is registered, WellnessCompanionAgent should time out
         cleanly (~2s) and still publish a MessageSentEvent.
         """
         if not bus.is_running:
             await bus.start()
 
-        therapist = TherapistAgent()
+        therapist = WellnessCompanionAgent()
         therapist.initialize(bus, config, state, llm)
         await therapist.start()
 
@@ -400,7 +400,7 @@ class TestTimeoutGraceful:
         await bus.stop()
 
         assert len(sent_events) == 1, (
-            "TherapistAgent should respond even without KnowledgeAgent"
+            "WellnessCompanionAgent should respond even without KnowledgeAgent"
         )
 
     async def test_timeout_uses_base_system_prompt(
@@ -413,7 +413,7 @@ class TestTimeoutGraceful:
         if not bus.is_running:
             await bus.start()
 
-        therapist = TherapistAgent()
+        therapist = WellnessCompanionAgent()
         therapist.initialize(bus, config, state, llm)
         await therapist.start()
 
@@ -433,7 +433,7 @@ class TestTimeoutGraceful:
 
         assert len(llm.calls) == 1
         system_used = llm.calls[0]["system"]
-        assert "Relevant clinical evidence" not in system_used
+        assert "Relevant context for this conversation:" not in system_used
 
 
 # ---------------------------------------------------------------------------
@@ -448,10 +448,10 @@ class TestFullPipeline:
     ):
         """
         A message with a clinical keyword should cause:
-          1. TherapistAgent to fire a consultation request.
+          1. WellnessCompanionAgent to fire a consultation request.
           2. KnowledgeAgent to search the KB and respond with evidence.
-          3. TherapistAgent to call the LLM with an enriched system prompt
-             containing "Relevant clinical evidence".
+          3. WellnessCompanionAgent to call the LLM with an enriched system prompt
+             containing "Relevant context for this conversation:".
           4. A MessageSentEvent to be published with the LLM response.
 
         Uses separate LLM providers per agent to avoid shared-queue ordering
@@ -465,7 +465,7 @@ class TestFullPipeline:
             canned_response="Here is how you can use breathing to manage anxiety."
         )
 
-        therapist = TherapistAgent()
+        therapist = WellnessCompanionAgent()
         therapist.initialize(bus, config, state, therapist_llm)
 
         knowledge = KnowledgeAgent()
@@ -501,12 +501,12 @@ class TestFullPipeline:
         await bus.stop()
 
         assert len(sent_events) == 1
-        assert sent_events[0].agent_name == "therapist"
+        assert sent_events[0].agent_name == "wellness_companion"
 
         # The therapist's LLM call must have received enriched system prompt
         assert len(therapist_llm.calls) == 1
         system_used = therapist_llm.calls[0]["system"]
-        assert "Relevant clinical evidence" in system_used, (
+        assert "Relevant context for this conversation:" in system_used, (
             f"Expected enriched system prompt, got: {system_used[:200]}"
         )
 
@@ -517,13 +517,13 @@ class TestFullPipeline:
         The MessageSentEvent content should match the therapist's LLM response.
 
         Uses separate MockLLMProvider instances for KnowledgeAgent and
-        TherapistAgent so the LLM call ordering is unambiguous — no shared
+        WellnessCompanionAgent so the LLM call ordering is unambiguous — no shared
         queue to race on.
         """
         kb_llm = MockLLMProvider(canned_response="KB synthesis: breathing reduces cortisol.")
         therapist_llm = MockLLMProvider(canned_response="Let me walk you through a breathing exercise.")
 
-        therapist = TherapistAgent()
+        therapist = WellnessCompanionAgent()
         therapist.initialize(bus, config, state, therapist_llm)
 
         knowledge = KnowledgeAgent()
@@ -581,4 +581,4 @@ class TestFullPipeline:
 
         assert len(llm.calls) == 1
         system_used = llm.calls[0]["system"]
-        assert "Relevant clinical evidence" not in system_used
+        assert "Relevant context for this conversation:" not in system_used

@@ -472,7 +472,7 @@ class TranscriptionCompletedEvent(AdaEvent):
 
     Downstream the chat WebSocket bridge subscribes to this event,
     sends a ``{"type": "transcription"}`` frame to the frontend for display,
-    and publishes a ``MessageReceivedEvent`` so TherapistAgent responds.
+    and publishes a ``MessageReceivedEvent`` so WellnessCompanionAgent responds.
     """
 
     event_type: str = EventTypes.TRANSCRIPTION_COMPLETED

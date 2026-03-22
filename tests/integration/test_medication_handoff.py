@@ -2,13 +2,13 @@
 Integration test — full medication handoff flow with real MedicationManagerAgent.
 
 Unlike test_handoff_flow.py (which uses a MockMedicationAgent stub), this test
-wires the real MedicationManagerAgent into the EventBus alongside TherapistAgent
+wires the real MedicationManagerAgent into the EventBus alongside WellnessCompanionAgent
 to verify the complete end-to-end pipeline:
 
-  1. User message with medication keyword → TherapistAgent publishes AGENT_HANDOFF_REQUEST
+  1. User message with medication keyword → WellnessCompanionAgent publishes AGENT_HANDOFF_REQUEST
   2. MedicationManagerAgent receives it (target_agent="medication_manager")
   3. MedicationManagerAgent loads patient medications, queries LLM, publishes response
-  4. TherapistAgent receives AGENT_HANDOFF_RESPONSE
+  4. WellnessCompanionAgent receives AGENT_HANDOFF_RESPONSE
 
 All state is in-memory SQLite. MockLLMProvider stands in for external LLM API.
 
@@ -30,7 +30,7 @@ from typing import AsyncIterator
 import pytest
 
 from ada.agents.medication_manager import MedicationManagerAgent
-from ada.agents.therapist import TherapistAgent
+from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.events import (
@@ -122,8 +122,8 @@ def llm() -> MockLLMProvider:
 
 
 @pytest.fixture
-def therapist(bus, config, state, llm) -> TherapistAgent:
-    agent = TherapistAgent()
+def therapist(bus, config, state, llm) -> WellnessCompanionAgent:
+    agent = WellnessCompanionAgent()
     agent.initialize(bus, config, state, llm)
     return agent
 
@@ -144,7 +144,7 @@ class TestRealMedicationHandoffFlow:
     async def test_medication_keyword_triggers_real_agent_handoff(
         self, therapist, med_agent, bus, state, llm
     ):
-        """Full flow: medication keyword → TherapistAgent → real MedicationManagerAgent → response."""
+        """Full flow: medication keyword → WellnessCompanionAgent → real MedicationManagerAgent → response."""
         await bus.start()
         await therapist.start()
         await med_agent.start()

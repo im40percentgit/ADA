@@ -20,7 +20,7 @@ Ada lives within the **CerebrumCraft** ecosystem alongside CerebrumCoin, inherit
 ### Architecture
 
 ```
-User → Chat WS → FastAPI → EventBus → [TherapistAgent + CrisisMonitor] → LLMProvider → Response
+User → Chat WS → FastAPI → EventBus → [WellnessCompanionAgent + CrisisMonitor] → LLMProvider → Response
 Browser Media → Media WS → EventBus → [Voice/Face/Physio Agents] → FusionAgent → Chat WS → UI
 SensorSimulator → EventBus → PhysiologicalAgent → FusionAgent → Chat WS → VitalsStrip/EmotionChip
 ```
@@ -29,7 +29,7 @@ SensorSimulator → EventBus → PhysiologicalAgent → FusionAgent → Chat WS 
 ada/
   ada/
     core/          EventBus, Config (Pydantic Settings), StateManager (SQLite), Events
-    agents/        BaseAgent ABC, AgentRegistry, TherapistAgent, CrisisMonitorAgent
+    agents/        BaseAgent ABC, AgentRegistry, WellnessCompanionAgent, CrisisMonitorAgent
     llm/           LLMProvider ABC, ClaudeProvider, OpenAICompatProvider, factory
     assessment/    PHQ-9, GAD-7, WHO-5 scoring + assessment history tracker
     models/        Pydantic domain models (Patient, Session, Message, Assessment)
@@ -87,7 +87,7 @@ ada/
 | SQLite state manager (5 tables) | Done |
 | LLM provider abstraction (Claude + OpenAI-compat) | Done |
 | BaseAgent ABC + AgentRegistry | Done |
-| TherapistAgent (CBT/DBT/MI) | Done |
+| TherapistAgent (CBT/DBT/MI) — renamed to WellnessCompanionAgent in Phase 8 | Done |
 | CrisisMonitorAgent (two-stage) | Done |
 | Assessment instruments (PHQ-9, GAD-7, WHO-5) | Done |
 | FastAPI + WebSocket chat + REST CRUD | Done |
@@ -145,7 +145,7 @@ ada/
 |-------------|--------|-------|
 | ClinicalKnowledgeBase (FTS5 + BM25) | Done | #15 |
 | KnowledgeAgent (LLM re-ranking) | Done | #15 |
-| TherapistAgent keyword-triggered consultation | Done | #15 |
+| WellnessCompanionAgent keyword-triggered consultation (was TherapistAgent) | Done | #15 |
 
 ---
 
@@ -519,6 +519,43 @@ Browser Mic → MediaRecorder (webm/opus) → Media WS → 3s buffer
 | DEC-STT-001 | Event-driven TranscriptionAgent over REST `/api/transcribe` endpoint | REST path required user to click Send after transcription populated the input. Event-driven path routes voice directly through TherapistAgent — identical UX to typing. The existing MediaRecorder → Media WS → `AudioChunkReceivedEvent` pipeline is reused, and TranscriptionAgent subscribes alongside VoiceEmotionAgent with zero changes to media ingestion. | accepted |
 | DEC-STT-002 | Chat WS refactored into concurrent writer + reader asyncio tasks | Synchronous `queue.get()` after `receive_text()` deadlocks when voice messages arrive asynchronously. Writer task drains `response_queue` continuously; reader task handles typed input. Both paths produce responses immediately without waiting for the other. | accepted |
 | DEC-STT-003 | `TranscriptionAgent` follows `VoiceEmotionAgent` pattern exactly | Same `handle_event` → process → publish event → persist to DB pipeline. No LLM needed (Whisper handles recognition directly). `asyncio.to_thread()` keeps the blocking Whisper call off the event loop. | accepted |
+| DEC-TTS-001 | Abstract TTSProvider with Piper implementation | Mirrors LLMProvider ABC pattern. TTSProvider.synthesize() returns TTSAudioChunk (PCM bytes + metadata). PiperProvider is the first implementation; ElevenLabs or other providers can be added without changing agent code. | accepted |
+| DEC-TTS-002 | Piper TTS for local voice synthesis | Piper runs fully offline via ONNX runtime. The en_US-lessac-medium voice (~60MB) provides natural speech. Lazy loading ensures no startup cost when TTS is disabled. | accepted |
+| DEC-TTS-003 | Regex sentence splitter (no NLP dependency) | NLTK punkt adds ~35MB download and startup latency. For TTS streaming, simple punctuation-based splitting is sufficient. Short fragments are buffered and merged to avoid choppy output. | accepted |
+| DEC-TTS-004 | PCM-to-WAV encoding with standard 44-byte header | Browsers and audio players expect WAV framing. Building the header manually (struct.pack) avoids importing the wave module for a trivial operation. | accepted |
+| DEC-TTS-005 | TTSAgent as EventBus subscriber following VoiceEmotionAgent pattern | Consistent with the agent pattern used throughout Ada. The agent subscribes to MESSAGE_SENT and only synthesizes for voice-enabled sessions. | accepted |
+
+---
+
+### Phase 8 — Product Repositioning: Wellness Companion
+**Status:** `in_progress`
+
+#### Phase 8a — Agent Rename + Prompt Rewrite
+**Branch:** `feature/wellness-companion-rename`
+
+Ada is repositioned from "AI therapist" to a caregiver-visibility platform.
+TherapistAgent renamed to WellnessCompanionAgent with a rewritten system prompt
+focused on daily wellness check-ins (sleep, mood, energy, medication, activities,
+social connection) rather than CBT/DBT/MI therapeutic techniques.
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/agents/wellness_companion.py` (renamed from therapist.py) | In Progress | Class, name property, system prompt |
+| `ada/core/config.py` wellness_companion field in AgentsConfig | Pending | |
+| `config/default.toml` + `config/development.toml` | Pending | agent section + model routing |
+| `ada/main.py` import + registration | Pending | |
+| `ada/agents/__init__.py` docstring | Pending | |
+| `ada/agents/registry.py` docstring | Pending | |
+| `ada/core/events.py` docstring | Pending | |
+| `ada/api/routes/chat.py` docstring | Pending | |
+| `tests/unit/test_wellness_companion.py` (renamed + new contract tests) | Pending | |
+| All test files: `"therapist"` → `"wellness_companion"` string updates | Pending | ~16 files |
+
+### Phase 8 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-AGENT-002 | WellnessCompanionAgent: product repositioning from therapy to wellness | Calling the primary agent "therapist" and using CBT/DBT/MI therapeutic language creates regulatory and safety risk — the product is not a licensed therapist and cannot diagnose or treat. Renaming to WellnessCompanionAgent and rewriting the system prompt to daily wellness check-ins accurately represents the product's role. Crisis detection routing through CrisisMonitorAgent via EventBus is unchanged. | accepted |
 
 ---
 

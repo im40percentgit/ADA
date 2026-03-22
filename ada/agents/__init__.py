@@ -1,1 +1,1 @@
-"""Ada agent layer: BaseAgent, AgentRegistry, TherapistAgent, CrisisMonitorAgent."""
+"""Ada agent layer: BaseAgent, AgentRegistry, WellnessCompanionAgent, CrisisMonitorAgent."""

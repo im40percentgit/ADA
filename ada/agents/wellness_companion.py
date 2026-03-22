@@ -1,28 +1,40 @@
 """
-TherapistAgent — primary therapeutic conversation agent.
+WellnessCompanionAgent — primary daily wellness check-in agent.
 
-Uses CBT/DBT/MI techniques via system prompts. Maintains session continuity
-by loading prior session context. Detects mood from conversation and can
-trigger structured assessments (PHQ-9, GAD-7, WHO-5).
+Asks about sleep, mood, energy, medication adherence, activities, and social
+connection. Reflects and summarises what it hears; does NOT diagnose, prescribe,
+or use therapeutic clinical language. Warm, friendly, non-clinical tone.
 
-When a user message contains clinical keywords (coping techniques, CBT/DBT
+When a user message contains clinical keywords (coping techniques, specific
 terms, breathing exercises, etc.), the agent fires a consultation request to
 KnowledgeAgent before generating its response. The resulting evidence is
-appended to the system prompt so Ada's answer is grounded in clinical data.
+appended to the system prompt so Ada's answer is grounded in relevant context.
+
+@decision DEC-AGENT-002
+@title WellnessCompanionAgent: product repositioning from therapy to wellness
+@status accepted
+@rationale Ada is repositioned from "AI therapist" to a caregiver-visibility
+    platform. Calling the primary agent "therapist" and using CBT/DBT/MI
+    therapeutic language creates regulatory and safety risk — the product is
+    not a licensed therapist and cannot diagnose or treat. Renaming to
+    WellnessCompanionAgent and rewriting the system prompt to daily wellness
+    check-ins (sleep, mood, energy, medication, activities, social connection)
+    accurately represents the product's role and keeps the scope safe. Crisis
+    detection routing through CrisisMonitorAgent via EventBus is unchanged.
 
 @decision DEC-AGENT-001
 @title Two-stage crisis detection (keyword then LLM)
 @status accepted
-@rationale TherapistAgent focuses on therapeutic dialogue and delegates
+@rationale WellnessCompanionAgent focuses on wellness dialogue and delegates
     crisis detection to CrisisMonitorAgent via the EventBus. This keeps
     each agent's responsibility bounded and testable in isolation.
 
 @decision DEC-KNOWLEDGE-008
-@title TherapistAgent keyword-triggered consultation
+@title WellnessCompanionAgent keyword-triggered consultation
 @status accepted
 @rationale Only messages containing clinical keywords trigger consultation,
     keeping latency low for casual conversation. Fire-and-forget with 2s
-    timeout ensures the therapist never hangs waiting for evidence.
+    timeout ensures the agent never hangs waiting for evidence.
 """
 
 from __future__ import annotations
@@ -49,21 +61,27 @@ from ada.core.events import (
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = """You are Ada, a compassionate and skilled mental health support assistant.
-You draw on Cognitive Behavioural Therapy (CBT), Dialectical Behaviour Therapy (DBT),
-and Motivational Interviewing (MI) techniques to support the person you are speaking with.
+_SYSTEM_PROMPT = """You are Ada, a daily wellness companion supporting people and their caregivers.
+Your role is to check in warmly on how someone is doing each day — not to provide therapy or clinical advice.
+
+During each check-in, you may gently ask about:
+- Sleep: how they slept, any difficulties
+- Mood: how they're feeling emotionally today
+- Energy: their energy levels and fatigue
+- Medication adherence: whether they took their medications as prescribed
+- Activities: what they did today, engagement with hobbies or routines
+- Social connection: interactions with family, friends, or carers
 
 Guidelines:
-- Listen actively and reflect back what you hear
-- Validate emotions without judgment
-- Use open-ended questions to explore thoughts and feelings
-- Offer psychoeducation when helpful and appropriate
-- Never diagnose — you are a support tool, not a clinician
-- If someone appears to be in crisis, express care and provide crisis resources
-- Keep responses warm, grounded, and appropriately concise
+- Listen actively and reflect back what you hear in plain, friendly language
+- Validate how they're feeling without judgment
+- Use open-ended, conversational questions — one at a time
+- Summarise and reflect; do NOT diagnose, prescribe, or make treatment recommendations
+- Keep language warm, simple, and non-clinical — avoid therapy jargon
+- If someone appears to be in distress or crisis, express genuine care and provide crisis resources
+- You are a wellness companion, not a replacement for professional medical or mental health care
 
-You are NOT a replacement for professional mental health care. Always encourage
-professional support when appropriate."""
+You are NOT a clinician. If someone needs medical advice, always encourage them to speak with their doctor."""
 
 _MOOD_KEYWORDS_NEGATIVE = {
     "sad", "depressed", "hopeless", "worthless", "empty", "numb", "crying",
@@ -103,22 +121,22 @@ _CONSULTATION_PHRASES = {
 }
 
 
-class TherapistAgent(BaseAgent, HandoffMixin):
+class WellnessCompanionAgent(BaseAgent, HandoffMixin):
     """
-    Primary therapeutic conversation agent.
+    Primary daily wellness check-in agent.
 
     Subscribes to MESSAGE_RECEIVED events, generates LLM responses using
-    a CBT/DBT/MI system prompt, detects mood from user messages, and
+    a wellness-focused system prompt, detects mood from user messages, and
     publishes MESSAGE_SENT + MOOD_DETECTED events.
     """
 
     @property
     def name(self) -> str:
-        return "therapist"
+        return "wellness_companion"
 
     @property
     def description(self) -> str:
-        return "Primary therapeutic conversation agent using CBT/DBT/MI techniques"
+        return "Daily wellness check-in companion — mood, sleep, energy, medication, activities"
 
     @property
     def supported_events(self) -> list[str]:
@@ -144,7 +162,7 @@ class TherapistAgent(BaseAgent, HandoffMixin):
             elif event.event_type == EventTypes.AGENT_CONSULTATION_RESPONSE:
                 pass  # Handled via Future in _consult_knowledge_agent
         except Exception:
-            logger.exception("TherapistAgent: unhandled error in handle_event")
+            logger.exception("WellnessCompanionAgent: unhandled error in handle_event")
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -153,13 +171,13 @@ class TherapistAgent(BaseAgent, HandoffMixin):
     async def _on_session_started(self, event: SessionStartedEvent) -> None:
         """Load prior session context when a new session begins."""
         logger.info(
-            "TherapistAgent: session %s started for patient %s",
+            "WellnessCompanionAgent: session %s started for patient %s",
             event.session_id,
             event.patient_id,
         )
 
     async def _on_message(self, event: MessageReceivedEvent) -> None:
-        """Generate a therapeutic response to a user message."""
+        """Generate a wellness companion response to a user message."""
         session_id = event.session_id
         patient_id = event.patient_id
         user_content = event.content
@@ -221,13 +239,13 @@ class TherapistAgent(BaseAgent, HandoffMixin):
             if m["role"] in ("user", "assistant")
         ]
 
-        # Build system prompt, enriched with clinical evidence if available
+        # Build system prompt, enriched with relevant evidence if available
         system = _SYSTEM_PROMPT
         if consultation_evidence:
             system += (
-                "\n\nRelevant clinical evidence for this conversation:\n"
+                "\n\nRelevant context for this conversation:\n"
                 + consultation_evidence
-                + "\n\nIncorporate this evidence naturally into your response when relevant."
+                + "\n\nIncorporate this context naturally into your response when relevant."
             )
 
         # Generate response
@@ -240,7 +258,7 @@ class TherapistAgent(BaseAgent, HandoffMixin):
             )
             assistant_content = response.content
         except Exception:
-            logger.exception("TherapistAgent: LLM call failed")
+            logger.exception("WellnessCompanionAgent: LLM call failed")
             assistant_content = (
                 "I'm sorry, I'm having trouble responding right now. "
                 "If you're in crisis, please contact a crisis line immediately."
@@ -275,9 +293,9 @@ class TherapistAgent(BaseAgent, HandoffMixin):
         )
 
     async def _on_handoff_response(self, event: AgentHandoffResponseEvent) -> None:
-        """Log handoff responses directed back at the therapist."""
+        """Log handoff responses directed back at the wellness companion."""
         logger.info(
-            "TherapistAgent: handoff response from %s (request_id=%s, accepted=%s, notes=%r)",
+            "WellnessCompanionAgent: handoff response from %s (request_id=%s, accepted=%s, notes=%r)",
             event.from_agent,
             event.request_id,
             event.accepted,
@@ -292,13 +310,13 @@ class TherapistAgent(BaseAgent, HandoffMixin):
 
         Subscribes a one-shot Future-backed handler to AGENT_CONSULTATION_RESPONSE,
         publishes the request, then awaits the future with a 2-second timeout.
-        If KnowledgeAgent is absent or slow, returns "" so the therapist proceeds
+        If KnowledgeAgent is absent or slow, returns "" so the agent proceeds
         normally with no evidence enrichment.
 
         Args:
             session_id: Current session identifier.
             patient_id: Current patient identifier.
-            question: The user's message (used as the clinical question).
+            question: The user's message (used as the question).
 
         Returns:
             Evidence string from KnowledgeAgent, or "" on timeout/error.
@@ -317,7 +335,7 @@ class TherapistAgent(BaseAgent, HandoffMixin):
         self.bus.subscribe(
             EventTypes.AGENT_CONSULTATION_RESPONSE,
             _capture_response,
-            f"therapist:consultation:{req_id}",
+            f"wellness_companion:consultation:{req_id}",
         )
 
         await self.bus.publish(
@@ -335,12 +353,12 @@ class TherapistAgent(BaseAgent, HandoffMixin):
         try:
             evidence = await asyncio.wait_for(response_future, timeout=2.0)
         except asyncio.TimeoutError:
-            logger.debug("TherapistAgent: consultation timed out for %s", req_id)
+            logger.debug("WellnessCompanionAgent: consultation timed out for %s", req_id)
             evidence = ""
         finally:
             self.bus.unsubscribe(
                 EventTypes.AGENT_CONSULTATION_RESPONSE,
-                f"therapist:consultation:{req_id}",
+                f"wellness_companion:consultation:{req_id}",
             )
 
         return evidence

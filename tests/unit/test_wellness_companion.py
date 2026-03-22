@@ -1,15 +1,16 @@
 """
-Unit tests for ada.agents.therapist.TherapistAgent.
+Unit tests for ada.agents.wellness_companion.WellnessCompanionAgent.
 
-Tests agent lifecycle (initialize/start/stop), system prompt content,
-and the pure _detect_mood helper. Integration-level message flow is
-tested in tests/integration/test_chat_flow.py.
+Tests agent lifecycle (initialize/start/stop), system prompt content
+(wellness check-in contract — no CBT/DBT/MI terms), prompt contract
+assertions, and the pure _detect_mood helper. Integration-level message
+flow is tested in tests/integration/test_chat_flow.py.
 
 Uses a MockLLMProvider (real LLMProvider implementation, no mocks) and
 an in-memory SQLite StateManager to avoid any external dependencies.
 
 @decision DEC-TEST-004
-@title Therapist unit tests use real MockLLMProvider and in-memory SQLite
+@title WellnessCompanionAgent unit tests use real MockLLMProvider and in-memory SQLite
 @status accepted
 @rationale Sacred Practice #5: test against real implementations. The
     MockLLMProvider is a genuine LLMProvider subclass that returns canned
@@ -25,7 +26,7 @@ from typing import AsyncIterator
 
 import pytest
 
-from ada.agents.therapist import TherapistAgent, _detect_mood
+from ada.agents.wellness_companion import WellnessCompanionAgent, _detect_mood
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.events import (
@@ -111,9 +112,9 @@ def config() -> AdaConfig:
 
 
 @pytest.fixture
-def agent(bus, config, state, llm) -> TherapistAgent:
-    """Fully initialized (but not started) TherapistAgent."""
-    a = TherapistAgent()
+def agent(bus, config, state, llm) -> WellnessCompanionAgent:
+    """Fully initialized (but not started) WellnessCompanionAgent."""
+    a = WellnessCompanionAgent()
     a.initialize(bus, config, state, llm)
     return a
 
@@ -122,10 +123,10 @@ def agent(bus, config, state, llm) -> TherapistAgent:
 # Lifecycle tests
 # ---------------------------------------------------------------------------
 
-class TestTherapistLifecycle:
+class TestWellnessCompanionLifecycle:
 
     def test_agent_name(self, agent):
-        assert agent.name == "therapist"
+        assert agent.name == "wellness_companion"
 
     def test_agent_description_is_non_empty(self, agent):
         assert len(agent.description) > 0
@@ -171,7 +172,7 @@ class TestTherapistLifecycle:
         await bus.stop()
 
     def test_initialize_required_before_start(self, bus, config, state, llm):
-        fresh_agent = TherapistAgent()
+        fresh_agent = WellnessCompanionAgent()
         # Not yet initialized — start() should raise
         with pytest.raises(RuntimeError, match="initialize"):
             asyncio.get_event_loop().run_until_complete(fresh_agent.start())
@@ -189,15 +190,55 @@ class TestTherapistLifecycle:
 
 
 # ---------------------------------------------------------------------------
-# System prompt content
+# System prompt contract tests (wellness check-in)
 # ---------------------------------------------------------------------------
 
-class TestSystemPromptContent:
-    """The system prompt should reference key therapy techniques."""
+class TestSystemPromptContract:
+    """The system prompt must satisfy the wellness companion contract:
+    - Contains "wellness" and "check-in" language
+    - Does NOT contain CBT/DBT/MI therapeutic terminology
+    """
 
-    async def test_system_prompt_contains_cbt(self, agent, state):
-        """LLM is called with a system prompt mentioning CBT."""
-        # Seed a patient and session so save_message doesn't fail FK constraints
+    def _get_system_prompt(self, agent) -> str:
+        """Return the module-level _SYSTEM_PROMPT from the agent's module."""
+        import ada.agents.wellness_companion as wc_module
+        return wc_module._SYSTEM_PROMPT
+
+    def test_agent_name_is_wellness_companion(self, agent):
+        assert agent.name == "wellness_companion"
+
+    def test_system_prompt_contains_wellness(self, agent):
+        prompt = self._get_system_prompt(agent)
+        assert "wellness" in prompt.lower()
+
+    def test_system_prompt_contains_checkin_language(self, agent):
+        prompt = self._get_system_prompt(agent)
+        # Prompt should describe a check-in role
+        assert "check" in prompt.lower() or "check-in" in prompt.lower()
+
+    def test_system_prompt_does_not_contain_cbt(self, agent):
+        prompt = self._get_system_prompt(agent)
+        assert "CBT" not in prompt
+        assert "Cognitive Behavioural Therapy" not in prompt
+        assert "Cognitive Behavioral Therapy" not in prompt
+
+    def test_system_prompt_does_not_contain_dbt(self, agent):
+        prompt = self._get_system_prompt(agent)
+        assert "DBT" not in prompt
+        assert "Dialectical Behaviour Therapy" not in prompt
+        assert "Dialectical Behavior Therapy" not in prompt
+
+    def test_system_prompt_does_not_contain_thought_record(self, agent):
+        prompt = self._get_system_prompt(agent)
+        assert "thought record" not in prompt.lower()
+
+    def test_system_prompt_does_not_contain_behavioral_activation(self, agent):
+        prompt = self._get_system_prompt(agent)
+        assert "behavioral activation" not in prompt.lower()
+        assert "behavioural activation" not in prompt.lower()
+
+    async def test_llm_called_with_wellness_system_prompt(self, agent, state):
+        """LLM is called with the wellness companion system prompt."""
         await state.create_patient({
             "id": "pat-1", "name": "Test", "dob": None,
             "preferences": {}, "emergency_contact": None, "caregiver_id": None,
@@ -208,53 +249,23 @@ class TestSystemPromptContent:
 
         event = MessageReceivedEvent(
             session_id="sess-1", patient_id="pat-1",
-            content="I feel sad", message_id="msg-1",
+            content="I feel tired today", message_id="msg-1",
         )
         await agent.handle_event(event)
 
         assert len(agent.llm.calls) == 1  # type: ignore[attr-defined]
         system_prompt = agent.llm.calls[0]["system"]  # type: ignore[attr-defined]
         assert system_prompt is not None
-        assert "CBT" in system_prompt or "Cognitive Behavioural" in system_prompt
-
-    async def test_system_prompt_contains_dbt(self, agent, state):
-        await state.create_patient({
-            "id": "pat-1", "name": "Test", "dob": None,
-            "preferences": {}, "emergency_contact": None, "caregiver_id": None,
-        })
-        await state.create_session({"id": "sess-1", "patient_id": "pat-1"})
-
-        event = MessageReceivedEvent(
-            session_id="sess-1", patient_id="pat-1",
-            content="hello", message_id="msg-1",
-        )
-        await agent.handle_event(event)
-
-        system_prompt = agent.llm.calls[0]["system"]  # type: ignore[attr-defined]
-        assert "DBT" in system_prompt or "Dialectical" in system_prompt
-
-    async def test_system_prompt_contains_mi(self, agent, state):
-        await state.create_patient({
-            "id": "pat-1", "name": "Test", "dob": None,
-            "preferences": {}, "emergency_contact": None, "caregiver_id": None,
-        })
-        await state.create_session({"id": "sess-1", "patient_id": "pat-1"})
-
-        event = MessageReceivedEvent(
-            session_id="sess-1", patient_id="pat-1",
-            content="hello", message_id="msg-1",
-        )
-        await agent.handle_event(event)
-
-        system_prompt = agent.llm.calls[0]["system"]  # type: ignore[attr-defined]
-        assert "MI" in system_prompt or "Motivational" in system_prompt
+        assert "wellness" in system_prompt.lower()
+        assert "CBT" not in system_prompt
+        assert "DBT" not in system_prompt
 
 
 # ---------------------------------------------------------------------------
 # Message handling via event bus
 # ---------------------------------------------------------------------------
 
-class TestTherapistMessageHandling:
+class TestWellnessCompanionMessageHandling:
 
     async def test_handle_event_publishes_message_sent(self, agent, bus, state):
         """Processing a message should publish a MessageSentEvent."""
