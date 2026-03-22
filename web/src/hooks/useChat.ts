@@ -59,6 +59,7 @@ export interface UseChatReturn {
   currentEmotion: WsEmotionUpdate | null
   currentVitals: CurrentVitals
   sendVoiceMode: (enabled: boolean) => void
+  pendingTranscription: string | null
 }
 
 export function useChat(
@@ -76,6 +77,8 @@ export function useChat(
     gsr: null,
     spo2: null,
   })
+
+  const [pendingTranscription, setPendingTranscription] = useState<string | null>(null)
 
   const onAudioData = options?.onAudioData
   const pendingAudioRef = useRef<WsAudioResponse | null>(null)
@@ -205,21 +208,10 @@ export function useChat(
       }
 
       case 'transcription': {
-        // Phase 7: show the spoken text as a pending user message bubble
-        // while TherapistAgent generates its response.
+        // Phase 7: populate input field instead of auto-sending
         const t = msg as WsTranscription
         if (t.text) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: nextId(),
-              role: 'user',
-              content: t.text,
-              streaming: false,
-              timestamp: new Date(),
-              source: 'voice',
-            },
-          ])
+          setPendingTranscription(t.text)
         }
         break
       }
@@ -289,5 +281,6 @@ export function useChat(
     currentEmotion,
     currentVitals,
     sendVoiceMode,
+    pendingTranscription,
   }
 }
