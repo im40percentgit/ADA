@@ -88,7 +88,7 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
     audio_buffer: list[bytes] = []  # Accumulate webm cluster chunks
     audio_buffer_meta: dict = {}  # Metadata from first audio chunk
     audio_buffer_start: float = 0.0
-    AUDIO_BUFFER_INTERVAL = 3.0  # Flush every 3 seconds
+    AUDIO_BUFFER_INTERVAL = 2.0  # Flush every 2 seconds (was 3.0; VAD handles segmentation)
 
     try:
         while True:

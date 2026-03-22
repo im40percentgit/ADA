@@ -119,6 +119,20 @@ async def run(config: AdaConfig) -> None:
     router = create_model_router(config)
     log.info("Model router created", profiles=router.provider_names)
 
+    # Health check: warn if local LLM server is unreachable
+    if config.llm.provider == "openai_compat":
+        import httpx
+        base_url = config.llm.openai_compat.base_url
+        try:
+            resp = httpx.get(f"{base_url}/models", timeout=2.0)
+            log.info("LLM server reachable", base_url=base_url, status=resp.status_code)
+        except Exception:
+            log.warning(
+                "Local LLM server not reachable — start your model server or "
+                "set ANTHROPIC_API_KEY to use Claude",
+                base_url=base_url,
+            )
+
     # Agents
     registry = AgentRegistry(bus, config, state, router)
 

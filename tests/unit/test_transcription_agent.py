@@ -89,6 +89,9 @@ def _fake_transcribe_success(
     model_size: str = "base",
     language=None,
     compute_type: str = "int8",
+    min_confidence: float = 0.0,
+    vad_filter: bool = False,
+    vad_threshold: float = 0.5,
 ) -> TranscriptionResult:
     """Deterministic stand-in for transcribe_audio."""
     return TranscriptionResult(
@@ -268,3 +271,29 @@ class TestTranscriptionAgent:
 
         rows = await state.get_transcriptions("session-001")
         assert len(rows) == 2
+
+    @pytest.mark.asyncio
+    async def test_passes_stt_config_to_transcribe_audio(self, agent_setup, sine_wav):
+        """STTConfig fields (min_confidence, vad_filter, vad_threshold) are forwarded."""
+        agent, bus, state = agent_setup
+        # Set config values
+        agent.config.stt.min_confidence = 0.5
+        agent.config.stt.vad_filter = True
+        agent.config.stt.vad_threshold = 0.6
+
+        with patch("ada.agents.transcription.transcribe_audio", side_effect=_fake_transcribe_success) as mock_fn:
+            await bus.publish(AudioChunkReceivedEvent(
+                source="test",
+                session_id="session-001",
+                patient_id="patient-001",
+                audio_bytes=sine_wav,
+                sample_rate=16000,
+                chunk_id="chunk-cfg",
+            ))
+            await asyncio.sleep(0.3)
+
+        mock_fn.assert_called_once()
+        call_kwargs = mock_fn.call_args[1]
+        assert call_kwargs["min_confidence"] == 0.5
+        assert call_kwargs["vad_filter"] is True
+        assert call_kwargs["vad_threshold"] == 0.6

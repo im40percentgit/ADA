@@ -94,6 +94,9 @@ class TranscriptionAgent(BaseAgent):
         model_size = getattr(stt_cfg, "model_size", "base") if stt_cfg else "base"
         language = getattr(stt_cfg, "language", None) if stt_cfg else None
         compute_type = getattr(stt_cfg, "compute_type", "int8") if stt_cfg else "int8"
+        min_confidence = getattr(stt_cfg, "min_confidence", 0.0) if stt_cfg else 0.0
+        vad_filter = getattr(stt_cfg, "vad_filter", False) if stt_cfg else False
+        vad_threshold = getattr(stt_cfg, "vad_threshold", 0.5) if stt_cfg else 0.5
 
         # Run blocking Whisper inference in a thread pool.
         try:
@@ -103,6 +106,9 @@ class TranscriptionAgent(BaseAgent):
                 model_size=model_size,
                 language=language,
                 compute_type=compute_type,
+                min_confidence=min_confidence,
+                vad_filter=vad_filter,
+                vad_threshold=vad_threshold,
             )
         except Exception:
             logger.exception(

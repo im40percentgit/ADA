@@ -111,11 +111,17 @@ class STTConfig(BaseModel):
         accurate. "base" (~150 MB) is a good default for CPU inference.
     language: ISO 639-1 language code, or None for auto-detect.
     compute_type: CTranslate2 quantisation for CPU inference.
+    min_confidence: drop transcriptions below this confidence (0.0-1.0).
+    vad_filter: enable Silero VAD to strip non-speech before Whisper.
+    vad_threshold: Silero VAD speech probability threshold (0.0-1.0).
     """
 
-    model_size: str = "base"        # tiny | base | small | medium | large-v3
-    language: str | None = None     # ISO 639-1 code or None for auto-detect
-    compute_type: str = "int8"      # CPU quantisation: int8 | float32
+    model_size: str = "base"
+    language: str | None = None
+    compute_type: str = "int8"
+    min_confidence: float = 0.4
+    vad_filter: bool = False
+    vad_threshold: float = 0.5
 
 
 class MultimodalConfig(BaseModel):
