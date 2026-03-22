@@ -1,7 +1,7 @@
 [llm]
 provider = "openai_compat"
 model = "crownelius/Crow-9B-Opus-4.6-Distill-Heretic_Qwen3.5:Q4_K_M"
-max_tokens = 256
+max_tokens = 2048
 temperature = 0.7
 
 [llm.claude]
@@ -37,7 +37,7 @@ default_profile = "local"
 provider = "openai_compat"
 model = "crownelius/Crow-9B-Opus-4.6-Distill-Heretic_Qwen3.5:Q4_K_M"
 base_url = "http://localhost:8080/v1"
-max_tokens = 256
+max_tokens = 2048
 temperature = 0.7
 
 [tts]
