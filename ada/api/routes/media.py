@@ -88,7 +88,7 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
     audio_buffer: list[bytes] = []  # Accumulate webm cluster chunks
     audio_buffer_meta: dict = {}  # Metadata from first audio chunk
     audio_buffer_start: float = 0.0
-    AUDIO_BUFFER_INTERVAL = 2.0  # Flush every 2 seconds (was 3.0; VAD handles segmentation)
+    MAX_UTTERANCE_DURATION = 30.0  # Safety fallback — flush if no end_of_utterance signal
 
     try:
         while True:
@@ -110,6 +110,14 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
                     pending_binary = data
                     pending_binary["_session_id"] = session_id
 
+                elif msg_type == "end_of_utterance":
+                    if audio_header:
+                        flush_id = str(uuid.uuid4())
+                        combined = audio_header + b"".join(audio_buffer)
+                        await _handle_audio(bus, session_id, audio_buffer_meta, combined, flush_id)
+                        audio_buffer.clear()
+                        audio_buffer_start = time.monotonic()
+
                 else:
                     await _send_error(websocket, f"Unknown type: {msg_type}")
 
@@ -128,8 +136,8 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
                         audio_buffer_start = time.monotonic()
                     else:
                         audio_buffer.append(raw)
-                    # Flush when enough time has passed
-                    if audio_buffer and time.monotonic() - audio_buffer_start >= AUDIO_BUFFER_INTERVAL:
+                    # Safety fallback: flush if utterance exceeds max duration
+                    if audio_buffer and time.monotonic() - audio_buffer_start >= MAX_UTTERANCE_DURATION:
                         combined = audio_header + b"".join(audio_buffer)
                         await _handle_audio(bus, session_id, audio_buffer_meta, combined, chunk_id)
                         audio_buffer.clear()
@@ -144,7 +152,7 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
         logger.exception("Media WS: unhandled error in session %s", session_id)
     finally:
         # Flush remaining audio buffer
-        if audio_buffer and audio_header:
+        if audio_header:
             combined = audio_header + b"".join(audio_buffer)
             chunk_id = str(uuid.uuid4())
             await _handle_audio(bus, session_id, audio_buffer_meta, combined, chunk_id)
