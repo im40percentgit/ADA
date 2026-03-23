@@ -101,6 +101,9 @@ class EventTypes:
     # Voice I/O (Phase 7)
     AUDIO_RESPONSE = "audio.response"
 
+    # Daily summary (Phase 8)
+    DAILY_SUMMARY_GENERATED = "daily_summary.generated"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -499,3 +502,13 @@ class AudioResponseEvent(AdaEvent):
     sentence_index: int = 0
     total_sentences: int = 1
     is_final: bool = True
+
+
+@dataclass
+class DailySummaryGeneratedEvent(AdaEvent):
+    """Published by DailySummaryGenerator after generating and persisting a daily summary."""
+
+    event_type: str = EventTypes.DAILY_SUMMARY_GENERATED
+    patient_id: str = ""
+    summary_id: str = ""
+    summary_date: str = ""

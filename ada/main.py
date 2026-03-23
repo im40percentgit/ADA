@@ -40,6 +40,7 @@ from ada.agents.medication_manager import MedicationManagerAgent
 from ada.agents.fusion import MultimodalFusionAgent
 from ada.agents.physiological import PhysiologicalAgent
 from ada.agents.registry import AgentRegistry
+from ada.agents.daily_summary_generator import DailySummaryGenerator
 from ada.agents.session_summarizer import SessionSummarizer
 from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.agents.transcription import TranscriptionAgent
@@ -217,6 +218,19 @@ async def run(config: AdaConfig) -> None:
     summarizer = SessionSummarizer(bus, state, router.get_provider("session_summarizer"))
     log.info("SessionSummarizer instantiated")
 
+    daily_summary_generator: DailySummaryGenerator | None = None
+    if config.agents.daily_summary.enabled:
+        daily_summary_generator = DailySummaryGenerator(
+            bus,
+            state,
+            router.get_provider("session_summarizer"),
+            debounce_seconds=config.agents.daily_summary.debounce_seconds,
+        )
+        log.info(
+            "DailySummaryGenerator instantiated",
+            debounce_seconds=config.agents.daily_summary.debounce_seconds,
+        )
+
     # FastAPI
     app = create_app(config, bus, state, registry, tts_agent=tts_agent)
 
@@ -243,6 +257,8 @@ async def run(config: AdaConfig) -> None:
         await server.serve()
     finally:
         log.info("Shutting down agents and state")
+        if daily_summary_generator is not None:
+            await daily_summary_generator.shutdown()
         await registry.stop_all()
         await bus.stop()
         await state.close()

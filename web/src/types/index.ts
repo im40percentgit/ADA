@@ -256,6 +256,17 @@ export interface CaregiverAppointment {
   status: string
 }
 
+export interface DailySummary {
+  id: string
+  summary_date: string
+  narrative: string
+  trend_alerts: string[]
+  appointment_prep: string[]
+  key_topics: string[]
+  overall_mood: string
+  created_at: string
+}
+
 export interface CaregiverOverview {
   patient: { name: string; dob: string | null; emergency_contact: string | null }
   recent_sessions: CaregiverSession[]
@@ -267,4 +278,5 @@ export interface CaregiverOverview {
   }
   medications: CaregiverMedication[]
   appointments: CaregiverAppointment[]
+  daily_summary: DailySummary | null
 }

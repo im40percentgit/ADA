@@ -91,6 +91,21 @@ async def caregiver_overview(
     medications = await state.list_medications(patient_id)
     appointments = await state.list_appointments(patient_id)
 
+    # Latest daily summary (caregiver narrative)
+    raw_daily = await state.get_latest_daily_summary(patient_id)
+    daily_summary = None
+    if raw_daily:
+        daily_summary = {
+            "id": raw_daily.get("id", ""),
+            "summary_date": raw_daily.get("summary_date", ""),
+            "narrative": raw_daily.get("narrative", ""),
+            "trend_alerts": raw_daily.get("trend_alerts", []),
+            "appointment_prep": raw_daily.get("appointment_prep", []),
+            "key_topics": raw_daily.get("key_topics", []),
+            "overall_mood": raw_daily.get("overall_mood", "stable"),
+            "created_at": raw_daily.get("created_at", ""),
+        }
+
     return {
         "patient": {
             "name": patient.get("name", ""),
@@ -117,4 +132,5 @@ async def caregiver_overview(
             }
             for a in appointments
         ],
+        "daily_summary": daily_summary,
     }

@@ -67,6 +67,13 @@ class AgentConfig(BaseModel):
     enabled: bool = True
 
 
+class DailySummaryConfig(BaseModel):
+    """Configuration for the DailySummaryGenerator infrastructure subscriber."""
+
+    enabled: bool = True
+    debounce_seconds: float = 1800.0  # 30 minutes — wait for last session of day
+
+
 class AgentsConfig(BaseModel):
     wellness_companion: AgentConfig = AgentConfig()
     crisis_monitor: AgentConfig = AgentConfig()
@@ -74,6 +81,7 @@ class AgentsConfig(BaseModel):
     cognitive_assessor: AgentConfig = AgentConfig()
     emotion_analyzer: AgentConfig = AgentConfig()
     knowledge_agent: AgentConfig = AgentConfig()
+    daily_summary: DailySummaryConfig = DailySummaryConfig()
 
 
 class AuthConfig(BaseModel):

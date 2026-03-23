@@ -322,6 +322,21 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 CREATE INDEX IF NOT EXISTS idx_transcriptions_session ON transcriptions(session_id);
 CREATE INDEX IF NOT EXISTS idx_transcriptions_patient ON transcriptions(patient_id);
 
+CREATE TABLE IF NOT EXISTS daily_summaries (
+    id              TEXT PRIMARY KEY,
+    patient_id      TEXT NOT NULL REFERENCES patients(id),
+    summary_date    TEXT NOT NULL,
+    narrative       TEXT NOT NULL,
+    trend_alerts    TEXT NOT NULL DEFAULT '[]',
+    appointment_prep TEXT NOT NULL DEFAULT '[]',
+    key_topics      TEXT NOT NULL DEFAULT '[]',
+    overall_mood    TEXT NOT NULL DEFAULT 'stable',
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(patient_id, summary_date)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_patient ON daily_summaries(patient_id);
+CREATE INDEX IF NOT EXISTS idx_daily_date ON daily_summaries(summary_date);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -1321,6 +1336,104 @@ class StateManager:
         return result
 
     # ------------------------------------------------------------------
+    # Daily summaries (Phase 8)
+    # ------------------------------------------------------------------
+
+    async def create_or_update_daily_summary(self, summary: dict[str, Any]) -> None:
+        """INSERT OR REPLACE a daily summary record.
+
+        The UNIQUE(patient_id, summary_date) constraint means this is an
+        idempotent upsert — re-running for the same patient+date overwrites
+        the previous record. JSON list fields are serialized here so callers
+        can pass plain Python lists.
+
+        Args:
+            summary: Dict with keys: id, patient_id, summary_date, narrative,
+                trend_alerts (list), appointment_prep (list), key_topics (list),
+                overall_mood. created_at defaults to now if omitted.
+        """
+        await self._exec(
+            """INSERT OR REPLACE INTO daily_summaries
+               (id, patient_id, summary_date, narrative, trend_alerts,
+                appointment_prep, key_topics, overall_mood, created_at)
+               VALUES
+               (:id, :patient_id, :summary_date, :narrative, :trend_alerts,
+                :appointment_prep, :key_topics, :overall_mood, :created_at)""",
+            {
+                **summary,
+                "trend_alerts": json.dumps(summary.get("trend_alerts", [])),
+                "appointment_prep": json.dumps(summary.get("appointment_prep", [])),
+                "key_topics": json.dumps(summary.get("key_topics", [])),
+                "overall_mood": summary.get("overall_mood", "stable"),
+                "created_at": summary.get("created_at", _now()),
+            },
+        )
+
+    async def get_latest_daily_summary(self, patient_id: str) -> dict[str, Any] | None:
+        """Return the most recent daily summary for a patient, or None."""
+        row = await self._fetchone(
+            """SELECT * FROM daily_summaries WHERE patient_id = ?
+               ORDER BY summary_date DESC LIMIT 1""",
+            (patient_id,),
+        )
+        return _daily_summary_row(row) if row else None
+
+    async def get_daily_summaries(
+        self, patient_id: str, limit: int = 7
+    ) -> list[dict[str, Any]]:
+        """Return the most recent daily summaries for a patient, newest first."""
+        rows = await self._fetchall(
+            """SELECT * FROM daily_summaries WHERE patient_id = ?
+               ORDER BY summary_date DESC LIMIT ?""",
+            (patient_id, limit),
+        )
+        return [_daily_summary_row(r) for r in rows]
+
+    async def get_session_summaries_for_patient(
+        self, patient_id: str, since: str
+    ) -> list[dict[str, Any]]:
+        """Return SOAP session summaries for a patient created at or after a timestamp.
+
+        Used by DailySummaryGenerator to gather today's session notes.
+
+        Args:
+            patient_id: The patient to retrieve summaries for.
+            since: ISO datetime string — only summaries with created_at >= since.
+        """
+        rows = await self._fetchall(
+            """SELECT * FROM session_summaries
+               WHERE patient_id = ? AND created_at >= ?
+               ORDER BY created_at ASC""",
+            (patient_id, since),
+        )
+        return [_session_summary_row(r) for r in rows]
+
+    async def get_fused_emotions_for_patient(
+        self, patient_id: str, since: str
+    ) -> list[dict[str, Any]]:
+        """Return fused emotion records for a patient created at or after a timestamp.
+
+        Used by DailySummaryGenerator to include multimodal signals in the
+        daily summary aggregation.
+
+        Args:
+            patient_id: The patient to retrieve fused emotions for.
+            since: ISO datetime string — only records with created_at >= since.
+        """
+        rows = await self._fetchall(
+            """SELECT * FROM fused_emotions
+               WHERE patient_id = ? AND created_at >= ?
+               ORDER BY created_at ASC""",
+            (patient_id, since),
+        )
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["modalities_available"] = json.loads(d.get("modalities_available") or "[]")
+            result.append(d)
+        return result
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -1402,6 +1515,15 @@ def _session_summary_row(row: aiosqlite.Row) -> dict[str, Any]:
     d = dict(row)
     d["key_topics"] = json.loads(d.get("key_topics") or "[]")
     d["risk_flags"] = json.loads(d.get("risk_flags") or "[]")
+    return d
+
+
+def _daily_summary_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize a daily_summaries row — JSON-decode list fields."""
+    d = dict(row)
+    d["trend_alerts"] = json.loads(d.get("trend_alerts") or "[]")
+    d["appointment_prep"] = json.loads(d.get("appointment_prep") or "[]")
+    d["key_topics"] = json.loads(d.get("key_topics") or "[]")
     return d
 
 

@@ -3,7 +3,7 @@
  *
  * Fetches aggregated patient data from GET /api/caregiver/overview on mount,
  * then polls every 60 seconds. Renders StatusCard, AlertsCard, SessionsCard,
- * WellbeingChart, plus medications and appointments sections.
+ * WellbeingChart, DailySummaryCard, plus medications and appointments sections.
  *
  * @decision DEC-FRONTEND-020
  * @title CaregiverDashboard polls at 60s interval — no WebSocket
@@ -12,15 +12,109 @@
  *   streaming (WebSocket) is reserved for the patient chat experience. A 60s
  *   polling interval provides adequate freshness for status monitoring while
  *   keeping the implementation simple and server load minimal.
+ *
+ * @decision DEC-FRONTEND-021
+ * @title DailySummaryCard inlined in CaregiverDashboard (not a separate file)
+ * @status accepted
+ * @rationale The DailySummaryCard is used only in this dashboard and is small
+ *   enough (~60 lines) that extracting it would add import indirection without
+ *   benefit. Co-location makes the data flow obvious: overview.daily_summary
+ *   flows directly into the card without prop drilling through an extra module.
  */
 
 import { useEffect, useState, useCallback } from 'react'
 import { getCaregiverOverview } from '../api/client'
-import type { CaregiverOverview } from '../types'
+import type { CaregiverOverview, DailySummary } from '../types'
 import { StatusCard } from './StatusCard'
 import { AlertsCard } from './AlertsCard'
 import { SessionsCard } from './SessionsCard'
 import { WellbeingChart } from './WellbeingChart'
+
+// ---------------------------------------------------------------------------
+// DailySummaryCard
+// ---------------------------------------------------------------------------
+
+const MOOD_CLASS: Record<string, string> = {
+  anxious: 'cg-daily__mood--anxious',
+  depressed: 'cg-daily__mood--depressed',
+  stable: 'cg-daily__mood--stable',
+  improving: 'cg-daily__mood--improving',
+  declining: 'cg-daily__mood--declining',
+  mixed: 'cg-daily__mood--mixed',
+}
+
+function DailySummaryCard({ summary }: { summary: DailySummary | null }) {
+  if (!summary) {
+    return (
+      <section className="cg-card cg-daily" aria-label="Daily Summary">
+        <h2 className="cg-card__title">Today's Summary</h2>
+        <p className="cg-card__empty">
+          No daily summary yet — check back after a session
+        </p>
+      </section>
+    )
+  }
+
+  const moodClass = MOOD_CLASS[summary.overall_mood] ?? 'cg-daily__mood--stable'
+  const dateLabel = new Date(summary.summary_date + 'T00:00:00').toLocaleDateString([], {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  return (
+    <section className="cg-card cg-daily" aria-label="Daily Summary">
+      <div className="cg-daily__header">
+        <h2 className="cg-card__title">Today's Summary</h2>
+        <div className="cg-daily__meta">
+          <span className={`cg-daily__mood ${moodClass}`}>{summary.overall_mood}</span>
+          <span className="cg-daily__date">{dateLabel}</span>
+        </div>
+      </div>
+
+      <p className="cg-daily__narrative">{summary.narrative}</p>
+
+      {summary.trend_alerts.length > 0 && (
+        <div className="cg-daily__alerts" role="alert">
+          <h3 className="cg-daily__section-title">Trends to Watch</h3>
+          <ul className="cg-daily__alert-list">
+            {summary.trend_alerts.map((alert, i) => (
+              <li key={i} className="cg-daily__alert-item">
+                <span className="cg-daily__alert-icon" aria-hidden="true">!</span>
+                {alert}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {summary.appointment_prep.length > 0 && (
+        <div className="cg-daily__prep">
+          <h3 className="cg-daily__section-title">Bring Up at Next Appointment</h3>
+          <ul className="cg-daily__prep-list">
+            {summary.appointment_prep.map((item, i) => (
+              <li key={i} className="cg-daily__prep-item">
+                <span className="cg-daily__prep-check" aria-hidden="true">&#9744;</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {summary.key_topics.length > 0 && (
+        <div className="cg-daily__topics">
+          <h3 className="cg-daily__section-title">Topics Today</h3>
+          <div className="cg-daily__topic-chips">
+            {summary.key_topics.map((topic, i) => (
+              <span key={i} className="cg-daily__topic-chip">{topic}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
 
 interface CaregiverDashboardProps {
   onLogout: () => void
@@ -83,6 +177,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
 
       {/* Dashboard grid */}
       <div className="cg-dashboard__grid">
+        <DailySummaryCard summary={data.daily_summary} />
         <StatusCard sessions={data.recent_sessions} who5Scores={data.assessments.who5} />
         <AlertsCard alerts={data.crisis_alerts} />
         <SessionsCard sessions={data.recent_sessions} />
