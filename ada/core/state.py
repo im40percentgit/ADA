@@ -31,6 +31,15 @@ all agents via dependency injection at startup.
     appointments are modelled via status="cancelled" — no need to retain
     deleted rows as a separate concept.
 
+@decision DEC-CIRCLE-003
+@title Caregiver-to-circle migration runs at every initialize() call
+@status accepted
+@rationale Running migration on every startup (idempotent via INSERT OR IGNORE)
+    is simpler than tracking a schema version. The query only touches rows where
+    caregiver_id IS NOT NULL, so cold-start cost is negligible. Alternatives
+    (one-shot migration flag, Alembic) add complexity without meaningful benefit
+    for a single-process SQLite deployment.
+
 @decision DEC-SUMMARY-002
 @title session_summaries table with UNIQUE constraint on session_id
 @status accepted
@@ -407,6 +416,7 @@ class StateManager:
             except Exception:
                 pass  # column already exists — safe to ignore
         await self._conn.commit()
+        await self._migrate_caregiver_to_circles()
         logger.info("StateManager: initialized at %s", self._db_path)
 
     async def close(self) -> None:
@@ -415,6 +425,38 @@ class StateManager:
             await self._conn.close()
             self._conn = None
             logger.info("StateManager: closed")
+
+    async def _migrate_caregiver_to_circles(self) -> None:
+        """Seed care_circles from existing caregiver_id relationships.
+
+        Idempotent: INSERT OR IGNORE prevents duplicates on repeated calls
+        (e.g., if initialize() is called more than once or the process restarts).
+
+        For every patient row where caregiver_id IS NOT NULL, we:
+          1. Create a care_circle keyed as ``circle-{patient_id}``.
+          2. Add the linked user as ``primary_caregiver`` in that circle.
+
+        This bridges the legacy single-caregiver model to the new many-to-many
+        care circles model without data loss or breaking existing rows.
+        """
+        rows = await self._fetchall(
+            "SELECT id, caregiver_id FROM patients WHERE caregiver_id IS NOT NULL"
+        )
+        for row in rows:
+            patient_id = row["id"]
+            caregiver_user_id = row["caregiver_id"]
+            circle_id = f"circle-{patient_id}"
+            member_id = f"ccm-{caregiver_user_id}-{circle_id}"
+            await self._exec(
+                "INSERT OR IGNORE INTO care_circles (id, patient_id, created_at) VALUES (?, ?, ?)",
+                (circle_id, patient_id, _now()),
+            )
+            await self._exec(
+                """INSERT OR IGNORE INTO care_circle_members
+                   (id, circle_id, user_id, role, created_at)
+                   VALUES (?, ?, ?, 'primary_caregiver', ?)""",
+                (member_id, circle_id, caregiver_user_id, _now()),
+            )
 
     # ------------------------------------------------------------------
     # Patients
