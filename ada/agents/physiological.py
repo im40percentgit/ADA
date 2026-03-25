@@ -22,6 +22,7 @@ SensorAlertEvent when anomalies are detected.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -167,13 +168,16 @@ class PhysiologicalAgent(BaseAgent):
         prompt = "Analyse this physiological data window from a therapy session:\n"
         prompt += "\n".join(f"- {p}" for p in prompt_parts)
 
-        # LLM classification
+        # LLM classification — bounded by config timeout
         try:
-            response = await self.llm.complete(
-                [{"role": "user", "content": prompt}],
-                system=_SYSTEM_PROMPT,
-                max_tokens=256,
-                temperature=0.2,
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": prompt}],
+                    system=_SYSTEM_PROMPT,
+                    max_tokens=256,
+                    temperature=0.2,
+                ),
+                timeout=self.config.llm.timeout,
             )
             raw = response.content
         except Exception:

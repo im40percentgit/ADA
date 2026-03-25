@@ -269,13 +269,17 @@ class DailySummaryGenerator:
             emotion_signals=_format_emotions(fused_emotions),
         )
 
-        # --- Call LLM ---
+        # --- Call LLM --- bounded by a 60 s timeout (infrastructure subscriber
+        # has no config reference; matches LLMConfig.timeout default)
         try:
-            response = await self._llm.complete(
-                messages=[{"role": "user", "content": user_prompt}],
-                system=_DAILY_SUMMARY_SYSTEM,
-                max_tokens=1024,
-                temperature=0.3,
+            response = await asyncio.wait_for(
+                self._llm.complete(
+                    messages=[{"role": "user", "content": user_prompt}],
+                    system=_DAILY_SUMMARY_SYSTEM,
+                    max_tokens=1024,
+                    temperature=0.3,
+                ),
+                timeout=60.0,
             )
         except Exception as exc:
             logger.warning(

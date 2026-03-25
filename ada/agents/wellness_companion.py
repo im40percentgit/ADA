@@ -248,13 +248,18 @@ class WellnessCompanionAgent(BaseAgent, HandoffMixin):
                 + "\n\nIncorporate this context naturally into your response when relevant."
             )
 
-        # Generate response
+        # Generate response — bounded by config timeout so a hung LLM API
+        # does not block the agent indefinitely.  asyncio.TimeoutError is a
+        # subclass of Exception and is caught by the fallback handler below.
         try:
-            response = await self.llm.complete(
-                llm_messages,
-                system=system,
-                max_tokens=self.config.llm.max_tokens,
-                temperature=self.config.llm.temperature,
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    llm_messages,
+                    system=system,
+                    max_tokens=self.config.llm.max_tokens,
+                    temperature=self.config.llm.temperature,
+                ),
+                timeout=self.config.llm.timeout,
             )
             assistant_content = response.content
         except Exception:

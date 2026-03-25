@@ -362,3 +362,153 @@ class TestDetectMood:
     def test_score_is_float(self):
         score, _ = _detect_mood("I feel good")
         assert isinstance(score, float)
+
+
+# ---------------------------------------------------------------------------
+# LLM timeout tests (RC2 — asyncio.wait_for wraps llm.complete())
+# ---------------------------------------------------------------------------
+
+class HangingLLMProvider(LLMProvider):
+    """
+    LLM provider that never resolves — simulates a hung API call.
+
+    Used to verify that asyncio.wait_for() causes the agent to fall back
+    to the crisis-safe error message rather than hanging indefinitely.
+    """
+
+    async def complete(
+        self,
+        messages: list[dict],
+        *,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        system: str | None = None,
+    ) -> LLMResponse:
+        # Sleep forever — test harness will time this out via the agent's
+        # internal wait_for() (config.llm.timeout set to 0.1 s in fixture)
+        await asyncio.sleep(3600)
+        raise AssertionError("HangingLLMProvider should never reach this line")
+
+    async def stream(
+        self,
+        messages: list[dict],
+        *,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        system: str | None = None,
+    ) -> AsyncIterator[str]:
+        await asyncio.sleep(3600)
+        return
+        yield  # make this an async generator
+
+
+class TestLLMTimeout:
+    """
+    Verify that RC2 is fixed: a hung LLM call is bounded by config.llm.timeout
+    and the agent produces the fallback response rather than hanging.
+
+    The config fixture sets timeout=0.1 s so tests run fast.
+    """
+
+    @pytest.fixture
+    def short_timeout_config(self) -> AdaConfig:
+        """AdaConfig with a very short LLM timeout to make tests fast."""
+        cfg = AdaConfig()
+        # Pydantic model — create a new LLMConfig with short timeout
+        from ada.core.config import LLMConfig
+        cfg.llm = LLMConfig(timeout=0.1)
+        return cfg
+
+    @pytest.fixture
+    def hanging_llm(self) -> HangingLLMProvider:
+        return HangingLLMProvider()
+
+    @pytest.fixture
+    async def agent_with_hanging_llm(
+        self, bus, short_timeout_config, state, hanging_llm
+    ) -> WellnessCompanionAgent:
+        a = WellnessCompanionAgent()
+        a.initialize(bus, short_timeout_config, state, hanging_llm)
+        return a
+
+    async def test_timeout_produces_fallback_response(
+        self, agent_with_hanging_llm, bus, state
+    ):
+        """
+        When the LLM call times out the agent must publish the crisis-safe
+        fallback message rather than hanging indefinitely.
+        """
+        await state.create_patient({
+            "id": "pat-timeout", "name": "Test", "dob": None,
+            "preferences": {}, "emergency_contact": None, "caregiver_id": None,
+        })
+        await state.create_session({"id": "sess-timeout", "patient_id": "pat-timeout"})
+
+        sent_events: list[MessageSentEvent] = []
+
+        async def capture(event):
+            sent_events.append(event)
+
+        bus.subscribe(EventTypes.MESSAGE_SENT, capture, "test-timeout-capture")
+        await bus.start()
+        await agent_with_hanging_llm.start()
+
+        event = MessageReceivedEvent(
+            session_id="sess-timeout",
+            patient_id="pat-timeout",
+            content="Hello",
+            message_id="msg-timeout-1",
+        )
+
+        # Should complete quickly (timeout=0.1 s) not in 3600 s
+        await asyncio.wait_for(
+            agent_with_hanging_llm.handle_event(event),
+            timeout=5.0,
+        )
+        await asyncio.sleep(0.1)
+
+        await agent_with_hanging_llm.stop()
+        await bus.stop()
+
+        # The fallback message must be published
+        assert len(sent_events) == 1
+        assert "having trouble" in sent_events[0].content.lower()
+
+    async def test_timeout_does_not_hang(
+        self, agent_with_hanging_llm, bus, state
+    ):
+        """
+        handle_event() must return within a reasonable time even when
+        the LLM provider never resolves.  Failure = test hangs > 5 s.
+        """
+        await state.create_patient({
+            "id": "pat-hang", "name": "Test", "dob": None,
+            "preferences": {}, "emergency_contact": None, "caregiver_id": None,
+        })
+        await state.create_session({"id": "sess-hang", "patient_id": "pat-hang"})
+
+        await bus.start()
+        await agent_with_hanging_llm.start()
+
+        event = MessageReceivedEvent(
+            session_id="sess-hang",
+            patient_id="pat-hang",
+            content="Tell me something",
+            message_id="msg-hang-1",
+        )
+
+        # If RC2 is not fixed this will raise asyncio.TimeoutError after 5 s,
+        # failing the test.  With the fix it should complete in ~0.1 s.
+        import time
+        start = time.monotonic()
+        await asyncio.wait_for(
+            agent_with_hanging_llm.handle_event(event),
+            timeout=5.0,
+        )
+        elapsed = time.monotonic() - start
+
+        await agent_with_hanging_llm.stop()
+        await bus.stop()
+
+        # Should finish well under 1 s (timeout is 0.1 s + overhead)
+        assert elapsed < 2.0, f"handle_event took {elapsed:.2f} s — LLM timeout not firing"

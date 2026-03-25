@@ -27,6 +27,7 @@ can include interaction warnings before the medication is saved.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
@@ -146,11 +147,14 @@ class MedicationManagerAgent(BaseAgent, HandoffMixin):
         )
 
         try:
-            response = await self.llm.complete(
-                [{"role": "user", "content": prompt}],
-                system=_HANDOFF_SYSTEM_PROMPT,
-                max_tokens=256,
-                temperature=0.4,
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": prompt}],
+                    system=_HANDOFF_SYSTEM_PROMPT,
+                    max_tokens=256,
+                    temperature=0.4,
+                ),
+                timeout=self.config.llm.timeout,
             )
             notes = response.content
         except Exception:
@@ -217,11 +221,14 @@ class MedicationManagerAgent(BaseAgent, HandoffMixin):
         )
 
         try:
-            response = await self.llm.complete(
-                [{"role": "user", "content": prompt}],
-                system=_INTERACTION_SYSTEM_PROMPT,
-                max_tokens=128,
-                temperature=0.1,
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": prompt}],
+                    system=_INTERACTION_SYSTEM_PROMPT,
+                    max_tokens=128,
+                    temperature=0.1,
+                ),
+                timeout=self.config.llm.timeout,
             )
             answer = response.content.strip()
         except Exception:
