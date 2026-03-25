@@ -32,6 +32,7 @@ MODE 2 — Adaptive Cognitive Screening (instrument = "cognitive"):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -383,11 +384,14 @@ class CognitiveAssessorAgent(BaseAgent):
             "Reply with ONLY the integer score."
         )
         try:
-            result = await self.llm.complete(
-                [{"role": "user", "content": prompt}],
-                system=_SCORING_SYSTEM_PROMPT,
-                max_tokens=8,
-                temperature=0.0,
+            result = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": prompt}],
+                    system=_SCORING_SYSTEM_PROMPT,
+                    max_tokens=8,
+                    temperature=0.0,
+                ),
+                timeout=self.config.llm.timeout,
             )
             raw = result.content.strip()
             score = int(raw)
@@ -590,13 +594,16 @@ class CognitiveAssessorAgent(BaseAgent):
 
         Returns a serialised task dict or None on failure.
         """
-        # Step 1: generate the task
+        # Step 1: generate the task — bounded by config timeout
         try:
-            gen_result = await self.llm.complete(
-                [{"role": "user", "content": f"Generate a {domain} task for cognitive screening."}],
-                system=_COGNITIVE_TASK_SYSTEM_PROMPT,
-                max_tokens=128,
-                temperature=0.5,
+            gen_result = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": f"Generate a {domain} task for cognitive screening."}],
+                    system=_COGNITIVE_TASK_SYSTEM_PROMPT,
+                    max_tokens=128,
+                    temperature=0.5,
+                ),
+                timeout=self.config.llm.timeout,
             )
             import json as _json
             task_data = _json.loads(gen_result.content.strip())
@@ -614,11 +621,14 @@ class CognitiveAssessorAgent(BaseAgent):
             f"Simulate a patient response appropriate for this domain and score it."
         )
         try:
-            score_result = await self.llm.complete(
-                [{"role": "user", "content": score_prompt}],
-                system=_COGNITIVE_SCORE_SYSTEM_PROMPT,
-                max_tokens=128,
-                temperature=0.3,
+            score_result = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": score_prompt}],
+                    system=_COGNITIVE_SCORE_SYSTEM_PROMPT,
+                    max_tokens=128,
+                    temperature=0.3,
+                ),
+                timeout=self.config.llm.timeout,
             )
             import json as _json2
             score_data = _json2.loads(score_result.content.strip())
@@ -653,11 +663,14 @@ class CognitiveAssessorAgent(BaseAgent):
             for d, v in domains_summary.items()
         )
         try:
-            result = await self.llm.complete(
-                [{"role": "user", "content": f"Domain scores:\n{summary_text}"}],
-                system=_COGNITIVE_CONCERN_SYSTEM_PROMPT,
-                max_tokens=256,
-                temperature=0.2,
+            result = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": f"Domain scores:\n{summary_text}"}],
+                    system=_COGNITIVE_CONCERN_SYSTEM_PROMPT,
+                    max_tokens=256,
+                    temperature=0.2,
+                ),
+                timeout=self.config.llm.timeout,
             )
             import json as _json3
             concerns = _json3.loads(result.content.strip())

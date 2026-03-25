@@ -51,8 +51,18 @@ Concurrency model (Phase 7):
     messages arrive asynchronously via TranscriptionCompletedEvent. Writer
     task drains response_queue continuously; reader task handles typed input.
     Both paths produce responses immediately without waiting for the other.
-    asyncio.gather() with return_exceptions=True ensures clean teardown when
-    either task exits.
+
+@decision DEC-API-005
+@title Graceful WebSocket shutdown: await reader then wait_for(writer, 30s)
+@status accepted
+@rationale The original asyncio.wait(FIRST_COMPLETED) cancelled the writer
+    immediately when the reader exited (user closed tab). If an LLM call was
+    in-flight at that moment the response was lost — RC1 of the timeout bug.
+    The fix awaits the reader to completion, then gives the writer a 30-second
+    grace period to drain any queued response before cancelling. The reader
+    puts _SHUTDOWN on the queue when it exits, so the writer will exit cleanly
+    if no response is pending. The 30s bound prevents an indefinite hang if
+    the writer is stuck.
 """
 
 from __future__ import annotations
@@ -61,7 +71,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
@@ -321,7 +331,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                         "content": event.content,
                         "agent": event.agent_name,
                         "message_id": event.message_id,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "source": source,
                     })
             except Exception:
@@ -339,14 +349,23 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         reader = asyncio.create_task(_reader_task(), name=f"ws-reader:{session_id}")
         writer = asyncio.create_task(_writer_task(), name=f"ws-writer:{session_id}")
 
-        done, pending = await asyncio.wait(
-            {reader, writer},
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        for task in pending:
-            task.cancel()
+        # Wait for the reader to finish naturally (disconnect or error).
+        # The reader puts _SHUTDOWN on the queue when it exits, which signals
+        # the writer to drain remaining items and stop.
+        await reader
+
+        # Give the writer a grace period to drain any in-flight LLM response.
+        # If the writer hasn't finished within 30 s, cancel it.
+        try:
+            await asyncio.wait_for(writer, timeout=30.0)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "WebSocket: writer did not drain within 30 s for session %s — cancelling",
+                session_id,
+            )
+            writer.cancel()
             try:
-                await task
+                await writer
             except asyncio.CancelledError:
                 pass
 

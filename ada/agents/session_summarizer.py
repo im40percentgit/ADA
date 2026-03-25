@@ -35,6 +35,7 @@ instantiated directly in main.py after registry.start_all().
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -140,15 +141,19 @@ class SessionSummarizer:
         # Build transcript
         transcript = _build_transcript(messages)
 
-        # Call LLM
+        # Call LLM — bounded by a 60 s timeout (infrastructure subscriber has
+        # no config reference; use the same default as LLMConfig.timeout)
         try:
-            response = await self._llm.complete(
-                messages=[
-                    {"role": "user", "content": _SOAP_USER.format(transcript=transcript)}
-                ],
-                system=_SOAP_SYSTEM,
-                max_tokens=1024,
-                temperature=0.2,
+            response = await asyncio.wait_for(
+                self._llm.complete(
+                    messages=[
+                        {"role": "user", "content": _SOAP_USER.format(transcript=transcript)}
+                    ],
+                    system=_SOAP_SYSTEM,
+                    max_tokens=1024,
+                    temperature=0.2,
+                ),
+                timeout=60.0,
             )
         except Exception as exc:
             logger.warning(

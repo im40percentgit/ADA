@@ -26,6 +26,7 @@ EmotionAnalyzedEvent, and persists the result to the emotion_analyses table.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -112,13 +113,16 @@ class EmotionAnalyzerAgent(BaseAgent):
         if not content or not content.strip():
             return
 
-        # Call LLM for structured emotion analysis
+        # Call LLM for structured emotion analysis — bounded by config timeout
         try:
-            response = await self.llm.complete(
-                [{"role": "user", "content": content}],
-                system=_SYSTEM_PROMPT,
-                max_tokens=256,
-                temperature=0.2,
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": content}],
+                    system=_SYSTEM_PROMPT,
+                    max_tokens=256,
+                    temperature=0.2,
+                ),
+                timeout=self.config.llm.timeout,
             )
             raw = response.content
         except Exception:

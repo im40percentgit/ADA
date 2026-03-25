@@ -28,6 +28,7 @@ of severity.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import uuid
@@ -193,10 +194,13 @@ class CrisisMonitorAgent(BaseAgent):
 
         prompt = _LLM_ANALYSIS_PROMPT.format(message=content[:1000])
         try:
-            response = await self.llm.complete(
-                [{"role": "user", "content": prompt}],
-                max_tokens=200,
-                temperature=0.1,   # Low temperature for consistent JSON output
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": prompt}],
+                    max_tokens=200,
+                    temperature=0.1,   # Low temperature for consistent JSON output
+                ),
+                timeout=self.config.llm.timeout,
             )
             # Parse JSON response
             raw = response.content.strip()

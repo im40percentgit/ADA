@@ -23,6 +23,7 @@ publishes VoiceAnalyzedEvent, and persists to audio_analyses table.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -120,14 +121,17 @@ class VoiceEmotionAgent(BaseAgent):
             )
             return
 
-        # LLM classification
+        # LLM classification — bounded by config timeout
         prompt = features_to_prompt_summary(features)
         try:
-            response = await self.llm.complete(
-                [{"role": "user", "content": prompt}],
-                system=_SYSTEM_PROMPT,
-                max_tokens=256,
-                temperature=0.2,
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": prompt}],
+                    system=_SYSTEM_PROMPT,
+                    max_tokens=256,
+                    temperature=0.2,
+                ),
+                timeout=self.config.llm.timeout,
             )
             raw = response.content
         except Exception:

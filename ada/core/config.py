@@ -51,6 +51,7 @@ class LLMConfig(BaseModel):
     model: str = "claude-sonnet-4-5-20250514"
     max_tokens: int = 1024
     temperature: float = 0.7
+    timeout: float = 60.0  # seconds — asyncio.wait_for() wraps all llm.complete() calls
     claude: ClaudeConfig = ClaudeConfig()
     openai_compat: OpenAICompatConfig = OpenAICompatConfig()
 

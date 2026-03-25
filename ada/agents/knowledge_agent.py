@@ -29,6 +29,7 @@ and publishes an AGENT_CONSULTATION_RESPONSE with a concise, cited answer.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from ada.agents.base import BaseAgent
@@ -210,13 +211,16 @@ class KnowledgeAgent(BaseAgent):
             f"Search results from the clinical knowledge base:\n{evidence_text}"
         )
 
-        # --- 4. LLM synthesis ---
+        # --- 4. LLM synthesis --- bounded by config timeout
         try:
-            response = await self.llm.complete(
-                [{"role": "user", "content": prompt}],
-                system=_SYNTHESIS_SYSTEM_PROMPT,
-                max_tokens=512,
-                temperature=0.3,
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    [{"role": "user", "content": prompt}],
+                    system=_SYNTHESIS_SYSTEM_PROMPT,
+                    max_tokens=512,
+                    temperature=0.3,
+                ),
+                timeout=self.config.llm.timeout,
             )
             return response.content
         except Exception:
