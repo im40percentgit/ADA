@@ -528,10 +528,11 @@ Browser Mic → MediaRecorder (webm/opus) → Media WS → 3s buffer
 ---
 
 ### Phase 8 — Product Repositioning: Wellness Companion
-**Status:** `in_progress`
+**Status:** `completed`
 
 #### Phase 8a — Agent Rename + Prompt Rewrite
-**Branch:** `feature/wellness-companion-rename`
+**Status:** `completed`
+**Commits:** `55b6103`
 
 Ada is repositioned from "AI therapist" to a caregiver-visibility platform.
 TherapistAgent renamed to WellnessCompanionAgent with a rewritten system prompt
@@ -540,22 +541,41 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 
 | Deliverable | Status | Notes |
 |-------------|--------|-------|
-| `ada/agents/wellness_companion.py` (renamed from therapist.py) | In Progress | Class, name property, system prompt |
-| `ada/core/config.py` wellness_companion field in AgentsConfig | Pending | |
-| `config/default.toml` + `config/development.toml` | Pending | agent section + model routing |
-| `ada/main.py` import + registration | Pending | |
-| `ada/agents/__init__.py` docstring | Pending | |
-| `ada/agents/registry.py` docstring | Pending | |
-| `ada/core/events.py` docstring | Pending | |
-| `ada/api/routes/chat.py` docstring | Pending | |
-| `tests/unit/test_wellness_companion.py` (renamed + new contract tests) | Pending | |
-| All test files: `"therapist"` → `"wellness_companion"` string updates | Pending | ~16 files |
+| `ada/agents/wellness_companion.py` (renamed from therapist.py) | Done | Class, name property, system prompt |
+| `ada/core/config.py` wellness_companion field in AgentsConfig | Done | |
+| `config/default.toml` + `config/development.toml` | Done | agent section + model routing |
+| `ada/main.py` import + registration | Done | |
+| `ada/agents/__init__.py` docstring | Done | |
+| `ada/agents/registry.py` docstring | Done | |
+| `ada/core/events.py` docstring | Done | |
+| `ada/api/routes/chat.py` docstring | Done | |
+| `tests/unit/test_wellness_companion.py` (renamed + new contract tests) | Done | |
+| All test files: `"therapist"` → `"wellness_companion"` string updates | Done | ~16 files |
+
+#### Phase 8b — DailySummaryGenerator + Caregiver Dashboard Enhancement
+**Status:** `completed`
+**Commits:** `a84798b`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/agents/daily_summary_generator.py` — DailySummaryGenerator class | Done | Infrastructure subscriber (DEC-DAILY-001) |
+| `ada/core/config.py` — DailySummaryConfig + AgentsConfig.daily_summary | Done | enabled + debounce_seconds |
+| `ada/core/state.py` — daily_summaries table + CRUD methods | Done | UPSERT with UNIQUE(patient_id, summary_date) |
+| `ada/core/events.py` — DAILY_SUMMARY_GENERATED event | Done | DailySummaryGeneratedEvent dataclass |
+| `ada/api/routes/caregiver.py` — daily_summary in overview response | Done | Caregiver dashboard enhancement |
+| `ada/main.py` — DailySummaryGenerator registration | Done | Infrastructure subscriber pattern |
+| `config/*.toml` — [agents.daily_summary] sections | Done | enabled=true, debounce_seconds=1800 |
+| `tests/integration/test_daily_summary_flow.py` | Done | Debounce + LLM parsing + DB persistence |
+| Tests: 819 passing | Done | 0 regressions |
 
 ### Phase 8 Decisions
 
 | ID | Decision | Rationale | Status |
 |----|----------|-----------|--------|
 | DEC-AGENT-002 | WellnessCompanionAgent: product repositioning from therapy to wellness | Calling the primary agent "therapist" and using CBT/DBT/MI therapeutic language creates regulatory and safety risk — the product is not a licensed therapist and cannot diagnose or treat. Renaming to WellnessCompanionAgent and rewriting the system prompt to daily wellness check-ins accurately represents the product's role. Crisis detection routing through CrisisMonitorAgent via EventBus is unchanged. | accepted |
+| DEC-DAILY-001 | DailySummaryGenerator as infrastructure subscriber, not BaseAgent | Summary generation is a post-session infrastructure concern triggered by SESSION_ENDED events, not a therapy agent. Follows SessionSummarizer pattern (DEC-SUMMARY-003). | accepted |
+| DEC-DAILY-002 | Debounce with configurable interval (default 1800s) | Multiple sessions per day should produce one daily summary, not one per session. Debounce timer resets on each SESSION_ENDED, generating the summary after 30 minutes of inactivity. | accepted |
+| DEC-DAILY-003 | UPSERT with UNIQUE(patient_id, summary_date) | At most one summary per patient per day. Re-running after additional sessions updates rather than duplicates. | accepted |
 
 ---
 
