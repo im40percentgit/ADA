@@ -104,6 +104,10 @@ class EventTypes:
     # Daily summary (Phase 8)
     DAILY_SUMMARY_GENERATED = "daily_summary.generated"
 
+    # Care circles (Phase 9a)
+    CIRCLE_MEMBER_ADDED = "circle.member_added"
+    CIRCLE_MEMBER_REMOVED = "circle.member_removed"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -512,3 +516,24 @@ class DailySummaryGeneratedEvent(AdaEvent):
     patient_id: str = ""
     summary_id: str = ""
     summary_date: str = ""
+
+
+@dataclass
+class CircleMemberAddedEvent(AdaEvent):
+    """Published when a user is added to a care circle."""
+
+    event_type: str = EventTypes.CIRCLE_MEMBER_ADDED
+    circle_id: str = ""
+    patient_id: str = ""
+    user_id: str = ""
+    role: str = ""
+
+
+@dataclass
+class CircleMemberRemovedEvent(AdaEvent):
+    """Published when a user is removed from a care circle."""
+
+    event_type: str = EventTypes.CIRCLE_MEMBER_REMOVED
+    circle_id: str = ""
+    patient_id: str = ""
+    user_id: str = ""
