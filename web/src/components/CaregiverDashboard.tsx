@@ -23,12 +23,15 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import { getCaregiverOverview } from '../api/client'
+import { getCaregiverOverviewForPatient } from '../api/client'
 import type { CaregiverOverview, DailySummary } from '../types'
+import { useCircles } from '../hooks/useCircles'
 import { StatusCard } from './StatusCard'
 import { AlertsCard } from './AlertsCard'
 import { SessionsCard } from './SessionsCard'
 import { WellbeingChart } from './WellbeingChart'
+import { CircleSelector } from './CircleSelector'
+import { CircleMembers } from './CircleMembers'
 
 // ---------------------------------------------------------------------------
 // DailySummaryCard
@@ -125,9 +128,12 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const { circles, selectedCircle, selectCircle } = useCircles()
+
   const fetchData = useCallback(async () => {
+    if (!selectedCircle) return
     try {
-      const overview = await getCaregiverOverview()
+      const overview = await getCaregiverOverviewForPatient(selectedCircle.patient_id)
       setData(overview)
       setError(null)
     } catch (err: unknown) {
@@ -135,7 +141,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedCircle])
 
   useEffect(() => {
     fetchData()
@@ -170,6 +176,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
           <h1 className="cg-dashboard__title">Ada Caregiver Dashboard</h1>
           <p className="cg-dashboard__patient-name">{data.patient.name}</p>
         </div>
+        <CircleSelector circles={circles} selected={selectedCircle} onSelect={selectCircle} />
         <button className="cg-dashboard__logout" onClick={onLogout} type="button">
           Sign out
         </button>
@@ -182,6 +189,16 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
         <AlertsCard alerts={data.crisis_alerts} />
         <SessionsCard sessions={data.recent_sessions} />
         <WellbeingChart who5Scores={data.assessments.who5} />
+
+        {/* Care Team */}
+        {selectedCircle && (
+          <section className="cg-card" aria-label="Care Team">
+            <CircleMembers
+              circleId={selectedCircle.id}
+              currentUserRole={selectedCircle.my_role}
+            />
+          </section>
+        )}
 
         {/* Medications */}
         <section className="cg-card cg-meds" aria-label="Medications">

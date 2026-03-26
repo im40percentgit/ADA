@@ -1653,3 +1653,26 @@ html, body, #root {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* -- Circle Selector --------------------------------------------------- */
+.circle-selector { display: flex; align-items: center; gap: 0.5rem; }
+.circle-selector__label { font-size: 0.875rem; color: var(--color-text-muted); }
+.circle-selector__select { padding: 0.375rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.875rem; }
+
+/* -- Circle Members ---------------------------------------------------- */
+.circle-members { background: var(--color-surface); border-radius: var(--radius-md); padding: 1.25rem; }
+.circle-members__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.circle-members__title { font-size: 1rem; font-weight: 600; }
+.circle-members__add-btn, .circle-members__submit-btn { padding: 0.375rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); cursor: pointer; font-size: 0.8125rem; }
+.circle-members__add-form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.circle-members__input, .circle-members__role-select { padding: 0.375rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); font-size: 0.875rem; }
+.circle-members__input { flex: 1; }
+.circle-members__list { list-style: none; padding: 0; margin: 0; }
+.circle-members__item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--color-border); }
+.circle-members__item:last-child { border-bottom: none; }
+.circle-members__email { flex: 1; font-size: 0.875rem; }
+.circle-members__role { font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 9999px; background: var(--color-bg); }
+.circle-members__role--primary_caregiver { background: #e8f4fd; color: #1976d2; }
+.circle-members__role--clinician { background: #e8f5e9; color: #2e7d32; }
+.circle-members__remove-btn { padding: 0.25rem 0.5rem; font-size: 0.75rem; border: none; background: none; color: #d32f2f; cursor: pointer; }
+.circle-members__error { color: var(--color-error); font-size: 0.8125rem; margin-bottom: 0.75rem; }
