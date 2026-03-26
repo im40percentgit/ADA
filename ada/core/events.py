@@ -563,6 +563,7 @@ class BoardItemAddedEvent(BoardItemEvent):
     event_type: str = EventTypes.BOARD_ITEM_ADDED
     text: str = ""
     created_by: str = ""
+    patient_id: str = ""  # Phase 10: needed for notification routing
 
 
 @dataclass
@@ -572,6 +573,7 @@ class BoardItemCheckedEvent(BoardItemEvent):
     event_type: str = EventTypes.BOARD_ITEM_CHECKED
     checked: bool = False
     updated_by: str = ""
+    patient_id: str = ""  # Phase 10: needed for notification routing
 
 
 @dataclass
