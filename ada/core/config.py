@@ -75,6 +75,13 @@ class DailySummaryConfig(BaseModel):
     debounce_seconds: float = 1800.0  # 30 minutes — wait for last session of day
 
 
+class BoardSuggestionConfig(BaseModel):
+    """Configuration for the board suggestion agent (Phase 9b)."""
+
+    enabled: bool = False
+    debounce_seconds: float = 5.0
+
+
 class AgentsConfig(BaseModel):
     wellness_companion: AgentConfig = AgentConfig()
     crisis_monitor: AgentConfig = AgentConfig()
@@ -83,6 +90,7 @@ class AgentsConfig(BaseModel):
     emotion_analyzer: AgentConfig = AgentConfig()
     knowledge_agent: AgentConfig = AgentConfig()
     daily_summary: DailySummaryConfig = DailySummaryConfig()
+    board_suggestion: BoardSuggestionConfig = BoardSuggestionConfig()
 
 
 class AuthConfig(BaseModel):
