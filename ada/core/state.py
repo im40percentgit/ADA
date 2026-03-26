@@ -31,6 +31,15 @@ all agents via dependency injection at startup.
     appointments are modelled via status="cancelled" — no need to retain
     deleted rows as a separate concept.
 
+@decision DEC-CIRCLE-003
+@title Caregiver-to-circle migration runs at every initialize() call
+@status accepted
+@rationale Running migration on every startup (idempotent via INSERT OR IGNORE)
+    is simpler than tracking a schema version. The query only touches rows where
+    caregiver_id IS NOT NULL, so cold-start cost is negligible. Alternatives
+    (one-shot migration flag, Alembic) add complexity without meaningful benefit
+    for a single-process SQLite deployment.
+
 @decision DEC-SUMMARY-002
 @title session_summaries table with UNIQUE constraint on session_id
 @status accepted
@@ -337,6 +346,26 @@ CREATE TABLE IF NOT EXISTS daily_summaries (
 CREATE INDEX IF NOT EXISTS idx_daily_patient ON daily_summaries(patient_id);
 CREATE INDEX IF NOT EXISTS idx_daily_date ON daily_summaries(summary_date);
 
+CREATE TABLE IF NOT EXISTS care_circles (
+    id          TEXT PRIMARY KEY,
+    patient_id  TEXT NOT NULL UNIQUE REFERENCES patients(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS care_circle_members (
+    id          TEXT PRIMARY KEY,
+    circle_id   TEXT NOT NULL REFERENCES care_circles(id),
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    role        TEXT NOT NULL CHECK(role IN ('primary_caregiver', 'family', 'clinician')),
+    added_by    TEXT REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(circle_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_care_circles_patient ON care_circles(patient_id);
+CREATE INDEX IF NOT EXISTS idx_circle_members_circle ON care_circle_members(circle_id);
+CREATE INDEX IF NOT EXISTS idx_circle_members_user ON care_circle_members(user_id);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -387,6 +416,7 @@ class StateManager:
             except Exception:
                 pass  # column already exists — safe to ignore
         await self._conn.commit()
+        await self._migrate_caregiver_to_circles()
         logger.info("StateManager: initialized at %s", self._db_path)
 
     async def close(self) -> None:
@@ -395,6 +425,38 @@ class StateManager:
             await self._conn.close()
             self._conn = None
             logger.info("StateManager: closed")
+
+    async def _migrate_caregiver_to_circles(self) -> None:
+        """Seed care_circles from existing caregiver_id relationships.
+
+        Idempotent: INSERT OR IGNORE prevents duplicates on repeated calls
+        (e.g., if initialize() is called more than once or the process restarts).
+
+        For every patient row where caregiver_id IS NOT NULL, we:
+          1. Create a care_circle keyed as ``circle-{patient_id}``.
+          2. Add the linked user as ``primary_caregiver`` in that circle.
+
+        This bridges the legacy single-caregiver model to the new many-to-many
+        care circles model without data loss or breaking existing rows.
+        """
+        rows = await self._fetchall(
+            "SELECT id, caregiver_id FROM patients WHERE caregiver_id IS NOT NULL"
+        )
+        for row in rows:
+            patient_id = row["id"]
+            caregiver_user_id = row["caregiver_id"]
+            circle_id = f"circle-{patient_id}"
+            member_id = f"ccm-{caregiver_user_id}-{circle_id}"
+            await self._exec(
+                "INSERT OR IGNORE INTO care_circles (id, patient_id, created_at) VALUES (?, ?, ?)",
+                (circle_id, patient_id, _now()),
+            )
+            await self._exec(
+                """INSERT OR IGNORE INTO care_circle_members
+                   (id, circle_id, user_id, role, created_at)
+                   VALUES (?, ?, ?, 'primary_caregiver', ?)""",
+                (member_id, circle_id, caregiver_user_id, _now()),
+            )
 
     # ------------------------------------------------------------------
     # Patients
@@ -1432,6 +1494,99 @@ class StateManager:
             d["modalities_available"] = json.loads(d.get("modalities_available") or "[]")
             result.append(d)
         return result
+
+    # -- Care circles --------------------------------------------------------
+
+    async def create_care_circle(self, circle_id: str, patient_id: str) -> None:
+        """Insert a new care circle for a patient.
+
+        Raises IntegrityError if a circle already exists for this patient
+        (UNIQUE constraint on patient_id).
+        """
+        await self._exec(
+            "INSERT INTO care_circles (id, patient_id, created_at) VALUES (?, ?, ?)",
+            (circle_id, patient_id, _now()),
+        )
+
+    async def get_care_circle_by_patient(self, patient_id: str) -> dict[str, Any] | None:
+        """Return the care circle for a patient, or None if none exists."""
+        row = await self._fetchone(
+            "SELECT * FROM care_circles WHERE patient_id = ?", (patient_id,)
+        )
+        return dict(row) if row else None
+
+    async def add_circle_member(
+        self,
+        member_id: str,
+        circle_id: str,
+        user_id: str,
+        role: str,
+        added_by: str | None = None,
+    ) -> None:
+        """Add a user to a care circle with a given role.
+
+        Raises IntegrityError on duplicate (circle_id, user_id).
+        """
+        await self._exec(
+            """INSERT INTO care_circle_members (id, circle_id, user_id, role, added_by, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (member_id, circle_id, user_id, role, added_by, _now()),
+        )
+
+    async def remove_circle_member(self, circle_id: str, user_id: str) -> None:
+        """Remove a user from a care circle."""
+        await self._exec(
+            "DELETE FROM care_circle_members WHERE circle_id = ? AND user_id = ?",
+            (circle_id, user_id),
+        )
+
+    async def get_circle_members(self, circle_id: str) -> list[dict[str, Any]]:
+        """Return all members of a care circle with their email addresses."""
+        rows = await self._fetchall(
+            """SELECT ccm.id, ccm.circle_id, ccm.user_id, ccm.role,
+                      ccm.added_by, ccm.created_at, u.email
+               FROM care_circle_members ccm
+               LEFT JOIN users u ON u.id = ccm.user_id
+               WHERE ccm.circle_id = ?
+               ORDER BY ccm.created_at""",
+            (circle_id,),
+        )
+        return [dict(r) for r in rows]
+
+    async def get_circle_member(self, circle_id: str, user_id: str) -> dict[str, Any] | None:
+        """Return a single member row, or None if the user is not in the circle."""
+        row = await self._fetchone(
+            "SELECT * FROM care_circle_members WHERE circle_id = ? AND user_id = ?",
+            (circle_id, user_id),
+        )
+        return dict(row) if row else None
+
+    async def get_circles_by_user(self, user_id: str) -> list[dict[str, Any]]:
+        """Return all care circles a user belongs to, with patient name and role."""
+        rows = await self._fetchall(
+            """SELECT cc.id, cc.patient_id, cc.created_at,
+                      p.name as patient_name, ccm.role as my_role
+               FROM care_circles cc
+               JOIN care_circle_members ccm ON ccm.circle_id = cc.id
+               JOIN patients p ON p.id = cc.patient_id
+               WHERE ccm.user_id = ?
+               ORDER BY cc.created_at""",
+            (user_id,),
+        )
+        return [dict(r) for r in rows]
+
+    async def get_patients_by_circle_member(self, user_id: str) -> list[dict[str, Any]]:
+        """Return all patients whose care circle includes this user."""
+        rows = await self._fetchall(
+            """SELECT p.*
+               FROM patients p
+               JOIN care_circles cc ON cc.patient_id = p.id
+               JOIN care_circle_members ccm ON ccm.circle_id = cc.id
+               WHERE ccm.user_id = ?
+               ORDER BY p.name""",
+            (user_id,),
+        )
+        return [_patient_row(r) for r in rows]
 
     # ------------------------------------------------------------------
     # Internal helpers

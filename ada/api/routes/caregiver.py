@@ -33,17 +33,18 @@ router = APIRouter(prefix="/caregiver", tags=["caregiver"])
 @router.get("/overview")
 async def caregiver_overview(
     request: Request,
+    patient_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Aggregated dashboard data for a caregiver's linked patient."""
-    if current_user.role != "caregiver":
+    if current_user.role not in ("caregiver", "clinician"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Requires caregiver role",
+            detail="Requires caregiver or clinician role",
         )
 
     state = request.app.state.state_manager
-    patient_id = await _resolve_caregiver_patient(current_user, state)
+    patient_id = await _resolve_caregiver_patient(current_user, state, patient_id)
 
     patient = await state.get_patient(patient_id)
     if not patient:
