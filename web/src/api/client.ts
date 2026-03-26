@@ -40,6 +40,8 @@ import type {
   CaregiverOverview,
   CareCircle,
   CareCircleMember,
+  Board,
+  BoardItem,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -184,6 +186,50 @@ export function removeCircleMember(circleId: string, userId: string): Promise<vo
 
 export function getCaregiverOverviewForPatient(patientId: string): Promise<CaregiverOverview> {
   return request<CaregiverOverview>(`/caregiver/overview?patient_id=${patientId}`)
+}
+
+// -- Shared Boards ------------------------------------------------------
+
+export function getCircleBoards(circleId: string): Promise<Board[]> {
+  return request<Board[]>(`/circles/${circleId}/boards`)
+}
+
+export function createBoard(circleId: string, body: { name: string; board_type: string }): Promise<Board> {
+  return request<Board>(`/circles/${circleId}/boards`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function getBoard(boardId: string): Promise<{ board: Board; items: BoardItem[] }> {
+  return request<{ board: Board; items: BoardItem[] }>(`/boards/${boardId}`)
+}
+
+export function addBoardItem(boardId: string, body: { text: string; assigned_to?: string; due_date?: string }): Promise<BoardItem> {
+  return request<BoardItem>(`/boards/${boardId}/items`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateBoardItem(boardId: string, itemId: string, body: Record<string, unknown>): Promise<BoardItem> {
+  return request<BoardItem>(`/boards/${boardId}/items/${itemId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteBoardItem(boardId: string, itemId: string): Promise<void> {
+  return request<void>(`/boards/${boardId}/items/${itemId}`, { method: 'DELETE' })
+}
+
+export function approveBoardItem(boardId: string, itemId: string): Promise<BoardItem> {
+  return request<BoardItem>(`/boards/${boardId}/items/${itemId}/approve`, { method: 'POST' })
+}
+
+export function boardWsUrl(boardId: string): string {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${location.host}/ws/board/${boardId}`
 }
 
 // ---------------------------------------------------------------------------

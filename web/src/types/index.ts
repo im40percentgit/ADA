@@ -298,3 +298,39 @@ export interface CareCircleMember {
   role: 'primary_caregiver' | 'family' | 'clinician'
   created_at: string
 }
+
+// -- Shared Boards ------------------------------------------------------
+
+export interface Board {
+  id: string
+  care_circle_id: string
+  name: string
+  board_type: 'shopping' | 'chores' | 'custom'
+  created_by: string
+  created_at: string
+}
+
+export interface BoardItem {
+  id: string
+  board_id: string
+  text: string
+  checked: boolean
+  assigned_to: string | null
+  due_date: string | null
+  position: number
+  created_by: string
+  suggested_by_ada: boolean
+  approved: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type WsBoardMessage =
+  | { type: 'item_added'; item: BoardItem; by: string }
+  | { type: 'item_checked'; item_id: string; checked: boolean; by: string }
+  | { type: 'item_edited'; item_id: string; text: string; by: string }
+  | { type: 'item_deleted'; item_id: string; by: string }
+  | { type: 'item_reordered'; item_id: string; position: number; by: string }
+  | { type: 'item_suggested'; item: BoardItem; by: 'ada' }
+  | { type: 'item_approved'; item_id: string; by: string }
+  | { type: 'error'; message: string }

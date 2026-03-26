@@ -386,6 +386,8 @@ ada/
 | DEC-FRONTEND-022 | AlertsCard uses index as key — alerts have no stable ID from backend | The CaregiverAlert type from GET /api/caregiver/overview has no ID field. Index-based keys are acceptable since the list is small and replaced on each poll. | accepted |
 | DEC-FRONTEND-023 | SessionsCard shows plan + topics + risk_flags, omits subjective/assessment | The subjective and assessment SOAP fields contain clinical detail inappropriate for non-clinical caregivers. Plan and key_topics convey actionable information safely. | accepted |
 | DEC-FRONTEND-024 | WellbeingChart displays WHO-5 as percentage (0-100), not raw score (0-25) | The WHO-5 raw score (0-25) is unfamiliar to non-clinical caregivers. Percentage is universally understood and aligns with the published WHO-5 scoring guidelines. | accepted |
+| DEC-FRONTEND-030 | useCircles auto-selects first circle, no polling | Care circles change infrequently (invites, not live data). A single fetch on mount with manual refresh is sufficient. Auto-selection of the first circle gives single-patient caregivers a zero-click experience while multi-patient caregivers can override via CircleSelector. | accepted |
+| DEC-FRONTEND-031 | CircleMembers uses local component state, not a shared hook | Member list is only ever displayed in this one card. Extracting a useCircleMembers hook would add indirection without enabling reuse. The fetch + mutate pattern is self-contained: fetchMembers() is called on mount and after every add/remove. | accepted |
 
 ---
 
@@ -576,6 +578,73 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | DEC-DAILY-001 | DailySummaryGenerator as infrastructure subscriber, not BaseAgent | Summary generation is a post-session infrastructure concern triggered by SESSION_ENDED events, not a therapy agent. Follows SessionSummarizer pattern (DEC-SUMMARY-003). | accepted |
 | DEC-DAILY-002 | Debounce with configurable interval (default 1800s) | Multiple sessions per day should produce one daily summary, not one per session. Debounce timer resets on each SESSION_ENDED, generating the summary after 30 minutes of inactivity. | accepted |
 | DEC-DAILY-003 | UPSERT with UNIQUE(patient_id, summary_date) | At most one summary per patient per day. Re-running after additional sessions updates rather than duplicates. | accepted |
+
+---
+
+---
+
+### Phase 9 — Shared Boards + Care Coordination
+
+#### Phase 9a — Care Circles (Many-to-Many Care Team)
+**Status:** `completed`
+**Commits:** `6019871` (merge), `cbda544`..`ef164e5` (9 feature commits)
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/models/circle.py` — CareCircle, CareCircleMember, request models | Done | Task 1 |
+| `ada/core/state.py` — care_circles + care_circle_members tables + CRUD | Done | Task 2 |
+| Caregiver-to-circles migration (idempotent, runs at every `initialize()`) | Done | Task 3 |
+| `ada/core/events.py` — CIRCLE_MEMBER_ADDED + CIRCLE_MEMBER_REMOVED events | Done | Task 4 |
+| `ada/api/auth.py` — `resolve_circle_access` helper (404/403 pattern) | Done | Task 5 |
+| `ada/api/routes/circles.py` — 5 REST endpoints with role-based authorization | Done | Task 6 |
+| `tests/unit/test_circle_state.py` (9 tests) + `test_circle_auth.py` (4 tests) | Done | Task 7 |
+| `tests/integration/test_circle_flow.py` (7 tests) | Done | Task 8 |
+| Frontend: CircleTypes, circleApi, useCircle hook, CirclePanel component | Done | Tasks 9-11 |
+| Caregiver dashboard enhanced with CirclePanel + circle-based patient resolution | Done | Task 12 |
+| `board_suggestion` config placeholder for Phase 9b | Done | Task 13 |
+| Tests: 782 passing (was 819 — delta from ignored ML tests) | Done | 0 regressions |
+
+#### Phase 9b — Shared Boards
+**Status:** `in_progress`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/models/board.py` — Board, BoardItem, request models | In Progress | Task 1 |
+| `ada/core/state.py` — boards + board_items tables + CRUD | In Progress | Task 2 |
+| `ada/core/events.py` — 7 board event types + dataclasses | In Progress | Task 3 |
+| `ada/api/routes/boards.py` — REST endpoints | Pending | Task 4 |
+| Board WebSocket broadcast | Pending | Task 5 |
+| `ada/agents/board_suggestion.py` — BoardSuggestionAgent | Pending | Task 6 |
+| Frontend: board types, API client, hooks, BoardPanel component | Pending | Tasks 7-9 |
+| `tests/integration/test_board_flow.py` | Pending | Task 10 |
+
+### Phase 9 Decisions
+
+#### Phase 9a — Care Circles
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-CIRCLE-001 | Care circle membership as a join table (circle + member) | Separating CareCircle (patient-scoped) from CareCircleMember (user-scoped) creates a clean many-to-many join table. This mirrors a standard relational pattern. Alternatives: embedding members as JSON in the circle row (unqueryable) or a single circle_users table without a circle entity (loses circle-level metadata). | accepted |
+| DEC-CIRCLE-002 | Circle routes use `resolve_circle_access` for all member-scoped endpoints | Every endpoint that touches a specific circle first calls `resolve_circle_access`. This makes the permission model consistent: any member can read, only primary_caregiver/clinician can add, only primary_caregiver can remove. | accepted |
+| DEC-CIRCLE-003 | `add_circle_member` looks up target user by email rather than user_id | Callers (UI) know the invitee's email address, not their internal UUID. The route converts email → user_id server-side. | accepted |
+| DEC-CIRCLE-004 | Circle integration test uses auto-migration + real HTTP round-trips | Unit tests cover edge cases for individual state methods and auth helpers. Integration test verifies the full flow: create circle → add member → list members → remove member. | accepted |
+| DEC-CIRCLE-AUTH-001 | 404 for non-members instead of 403 to avoid leaking circle existence | Returning 404 to non-members means an attacker cannot distinguish "circle doesn't exist" from "you're not a member." 403 would confirm circle existence to unauthenticated callers. | accepted |
+
+#### Phase 9b — Shared Boards
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-BOARD-001 | Board items use float position for reordering | Float positions (0.0, 1.0, 2.0 …) allow cheap reorder by computing the midpoint between two adjacent items without renumbering the whole list. The trade-off (eventual float precision drift) is irrelevant at the scale of a household shopping list. | accepted |
+| DEC-BOARD-003 | Board routes use _verify_board_access for all board-scoped endpoints | Every endpoint that touches a specific board first calls _verify_board_access, which loads the board, verifies the user is a member of the board's care circle via resolve_circle_access, and returns the board dict. This prevents route authors from forgetting membership checks and keeps the permission model consistent with circle routes. | accepted |
+
+### Phase 8 Additional Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-DAILY-004 | Unit tests mock only external boundaries (DB + LLM) | Consistent with Sacred Practice #5: mocks are only acceptable for external boundaries. StateManager and LLM are the only external dependencies the DailySummaryGenerator touches. | accepted |
+| DEC-DAILY-005 | Integration tests use real in-memory SQLite + real EventBus | Consistent with DEC-TEST-005. Real DB catches constraint violations and JSON round-trip bugs. Full EventBus wiring validates the debounce mechanism. | accepted |
+| DEC-TTS-006 | TTSAgent tests use MockTTSProvider + real EventBus (no internal mocks) | Consistent with Sacred Practice #5. The only mocked boundary is the external TTS provider. EventBus, StateManager, and TTSAgent code paths are all exercised with real implementations. | accepted |
+| DEC-TTS-007 | TTS integration tests use real EventBus + StateManager with MockTTSProvider | Unit tests cover TTSAgent logic in isolation. Integration tests verify the full wiring: MESSAGE_SENT → TTSAgent → AUDIO_RESPONSE → chat WebSocket. | accepted |
 
 ---
 

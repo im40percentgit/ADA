@@ -32,6 +32,8 @@ import { SessionsCard } from './SessionsCard'
 import { WellbeingChart } from './WellbeingChart'
 import { CircleSelector } from './CircleSelector'
 import { CircleMembers } from './CircleMembers'
+import { BoardList } from './BoardList'
+import { BoardView } from './BoardView'
 
 // ---------------------------------------------------------------------------
 // DailySummaryCard
@@ -127,6 +129,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
   const [data, setData] = useState<CaregiverOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeBoardId, setActiveBoardId] = useState<string | null>(null)
 
   const { circles, selectedCircle, selectCircle } = useCircles()
 
@@ -148,6 +151,14 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
     const interval = setInterval(fetchData, 60_000)
     return () => clearInterval(interval)
   }, [fetchData])
+
+  if (activeBoardId) {
+    return (
+      <div className="caregiver-dashboard">
+        <BoardView boardId={activeBoardId} onBack={() => setActiveBoardId(null)} />
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -197,6 +208,13 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
               circleId={selectedCircle.id}
               currentUserRole={selectedCircle.my_role}
             />
+          </section>
+        )}
+
+        {/* Shared Boards */}
+        {selectedCircle && (
+          <section className="cg-card" aria-label="Shared Boards">
+            <BoardList circleId={selectedCircle.id} onSelectBoard={setActiveBoardId} />
           </section>
         )}
 

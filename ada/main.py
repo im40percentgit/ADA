@@ -41,6 +41,7 @@ from ada.agents.fusion import MultimodalFusionAgent
 from ada.agents.physiological import PhysiologicalAgent
 from ada.agents.registry import AgentRegistry
 from ada.agents.daily_summary_generator import DailySummaryGenerator
+from ada.agents.board_suggestion import BoardSuggestionAgent
 from ada.agents.session_summarizer import SessionSummarizer
 from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.agents.transcription import TranscriptionAgent
@@ -231,6 +232,19 @@ async def run(config: AdaConfig) -> None:
             debounce_seconds=config.agents.daily_summary.debounce_seconds,
         )
 
+    board_suggestion_agent: BoardSuggestionAgent | None = None
+    if config.agents.board_suggestion.enabled:
+        board_suggestion_agent = BoardSuggestionAgent(
+            bus,
+            state,
+            router.get_provider("board_suggestion"),
+            debounce_seconds=config.agents.board_suggestion.debounce_seconds,
+        )
+        log.info(
+            "BoardSuggestionAgent instantiated",
+            debounce_seconds=config.agents.board_suggestion.debounce_seconds,
+        )
+
     # FastAPI
     app = create_app(config, bus, state, registry, tts_agent=tts_agent)
 
@@ -259,6 +273,8 @@ async def run(config: AdaConfig) -> None:
         log.info("Shutting down agents and state")
         if daily_summary_generator is not None:
             await daily_summary_generator.shutdown()
+        if board_suggestion_agent is not None:
+            await board_suggestion_agent.shutdown()
         await registry.stop_all()
         await bus.stop()
         await state.close()

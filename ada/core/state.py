@@ -366,6 +366,34 @@ CREATE INDEX IF NOT EXISTS idx_care_circles_patient ON care_circles(patient_id);
 CREATE INDEX IF NOT EXISTS idx_circle_members_circle ON care_circle_members(circle_id);
 CREATE INDEX IF NOT EXISTS idx_circle_members_user ON care_circle_members(user_id);
 
+CREATE TABLE IF NOT EXISTS boards (
+    id              TEXT PRIMARY KEY,
+    care_circle_id  TEXT NOT NULL REFERENCES care_circles(id),
+    name            TEXT NOT NULL,
+    board_type      TEXT NOT NULL DEFAULT 'custom' CHECK(board_type IN ('shopping', 'chores', 'custom')),
+    created_by      TEXT NOT NULL REFERENCES users(id),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS board_items (
+    id              TEXT PRIMARY KEY,
+    board_id        TEXT NOT NULL REFERENCES boards(id),
+    text            TEXT NOT NULL,
+    checked         INTEGER NOT NULL DEFAULT 0,
+    assigned_to     TEXT REFERENCES users(id),
+    due_date        TEXT,
+    position        REAL NOT NULL DEFAULT 0.0,
+    created_by      TEXT NOT NULL REFERENCES users(id),
+    suggested_by_ada INTEGER NOT NULL DEFAULT 0,
+    approved        INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_boards_circle ON boards(care_circle_id);
+CREATE INDEX IF NOT EXISTS idx_board_items_board ON board_items(board_id);
+CREATE INDEX IF NOT EXISTS idx_board_items_position ON board_items(board_id, position);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -1588,6 +1616,100 @@ class StateManager:
         )
         return [_patient_row(r) for r in rows]
 
+    # -- Boards (Phase 9b) ---------------------------------------------------
+
+    async def create_board(self, board: dict[str, Any]) -> None:
+        """Insert a new shared board for a care circle."""
+        await self._exec(
+            """INSERT INTO boards (id, care_circle_id, name, board_type, created_by, created_at)
+               VALUES (:id, :care_circle_id, :name, :board_type, :created_by, :created_at)""",
+            {
+                "board_type": "custom",
+                **board,
+                "created_at": board.get("created_at", _now()),
+            },
+        )
+
+    async def get_board(self, board_id: str) -> dict[str, Any] | None:
+        """Return a single board by ID, or None if not found."""
+        row = await self._fetchone("SELECT * FROM boards WHERE id = ?", (board_id,))
+        return dict(row) if row else None
+
+    async def list_boards_by_circle(self, circle_id: str) -> list[dict[str, Any]]:
+        """Return all boards for a care circle, ordered by creation time."""
+        rows = await self._fetchall(
+            "SELECT * FROM boards WHERE care_circle_id = ? ORDER BY created_at ASC",
+            (circle_id,),
+        )
+        return [dict(r) for r in rows]
+
+    async def delete_board(self, board_id: str) -> None:
+        """Hard-delete a board and all its items (children first for FK)."""
+        await self._exec("DELETE FROM board_items WHERE board_id = ?", (board_id,))
+        await self._exec("DELETE FROM boards WHERE id = ?", (board_id,))
+
+    async def create_board_item(self, item: dict[str, Any]) -> None:
+        """Insert a new item onto a board."""
+        now = _now()
+        await self._exec(
+            """INSERT INTO board_items
+               (id, board_id, text, checked, assigned_to, due_date, position,
+                created_by, suggested_by_ada, approved, created_at, updated_at)
+               VALUES
+               (:id, :board_id, :text, :checked, :assigned_to, :due_date, :position,
+                :created_by, :suggested_by_ada, :approved, :created_at, :updated_at)""",
+            {
+                "checked": 0,
+                "assigned_to": None,
+                "due_date": None,
+                "position": 0.0,
+                "suggested_by_ada": 0,
+                "approved": 1,
+                **item,
+                "created_at": item.get("created_at", now),
+                "updated_at": item.get("updated_at", now),
+            },
+        )
+
+    async def get_board_items(self, board_id: str) -> list[dict[str, Any]]:
+        """Return all items for a board, ordered by position then creation time."""
+        rows = await self._fetchall(
+            "SELECT * FROM board_items WHERE board_id = ? ORDER BY position ASC, created_at ASC",
+            (board_id,),
+        )
+        return [_board_item_row(r) for r in rows]
+
+    async def get_board_item(self, item_id: str) -> dict[str, Any] | None:
+        """Return a single board item by ID, or None if not found."""
+        row = await self._fetchone("SELECT * FROM board_items WHERE id = ?", (item_id,))
+        return _board_item_row(row) if row else None
+
+    async def update_board_item(self, item_id: str, updates: dict[str, Any]) -> None:
+        """Update allowed fields on a board item; always refreshes updated_at."""
+        allowed = {"text", "checked", "assigned_to", "due_date", "position",
+                   "suggested_by_ada", "approved"}
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        if not fields:
+            return
+        fields["updated_at"] = _now()
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        sql = f"UPDATE board_items SET {set_clause} WHERE id = :id"
+        await self._exec(sql, {**fields, "id": item_id})
+
+    async def delete_board_item(self, item_id: str) -> None:
+        """Hard-delete a single board item."""
+        await self._exec("DELETE FROM board_items WHERE id = ?", (item_id,))
+
+    async def get_next_board_position(self, board_id: str) -> float:
+        """Return MAX(position) + 1.0 for the given board, or 0.0 if empty."""
+        row = await self._fetchone(
+            "SELECT MAX(position) AS max_pos FROM board_items WHERE board_id = ?",
+            (board_id,),
+        )
+        if row is None or row["max_pos"] is None:
+            return 0.0
+        return float(row["max_pos"]) + 1.0
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -1679,6 +1801,17 @@ def _daily_summary_row(row: aiosqlite.Row) -> dict[str, Any]:
     d["trend_alerts"] = json.loads(d.get("trend_alerts") or "[]")
     d["appointment_prep"] = json.loads(d.get("appointment_prep") or "[]")
     d["key_topics"] = json.loads(d.get("key_topics") or "[]")
+    return d
+
+
+def _board_item_row(row) -> dict[str, Any] | None:
+    """Deserialize a board_items row — convert INTEGER flags to bool."""
+    if row is None:
+        return None
+    d = dict(row)
+    d["checked"] = bool(d.get("checked", 0))
+    d["suggested_by_ada"] = bool(d.get("suggested_by_ada", 0))
+    d["approved"] = bool(d.get("approved", 1))
     return d
 
 

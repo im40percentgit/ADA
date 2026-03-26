@@ -60,6 +60,10 @@ min_confidence = 0.4
 vad_filter = true
 vad_threshold = 0.5
 
+[agents.board_suggestion]
+enabled = true
+debounce_seconds = 5.0
+
 [model_routing.agent_mapping]
 wellness_companion = "local"
 crisis_monitor = "local"
@@ -67,3 +71,4 @@ voice_emotion = "local"
 facial_emotion = "local"
 physiological = "local"
 fusion = "local"
+board_suggestion = "local"

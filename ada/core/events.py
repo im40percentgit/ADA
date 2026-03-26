@@ -108,6 +108,15 @@ class EventTypes:
     CIRCLE_MEMBER_ADDED = "circle.member_added"
     CIRCLE_MEMBER_REMOVED = "circle.member_removed"
 
+    # Shared boards (Phase 9b)
+    BOARD_CREATED = "board.created"
+    BOARD_ITEM_ADDED = "board.item_added"
+    BOARD_ITEM_CHECKED = "board.item_checked"
+    BOARD_ITEM_REORDERED = "board.item_reordered"
+    BOARD_ITEM_DELETED = "board.item_deleted"
+    BOARD_ITEM_SUGGESTED = "board.item_suggested"
+    BOARD_ITEM_APPROVED = "board.item_approved"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -537,3 +546,63 @@ class CircleMemberRemovedEvent(AdaEvent):
     circle_id: str = ""
     patient_id: str = ""
     user_id: str = ""
+
+
+@dataclass
+class BoardItemEvent(AdaEvent):
+    """Base for board item events — carries board_id and item_id."""
+
+    board_id: str = ""
+    item_id: str = ""
+
+
+@dataclass
+class BoardItemAddedEvent(BoardItemEvent):
+    """Published when a new item is added to a shared board."""
+
+    event_type: str = EventTypes.BOARD_ITEM_ADDED
+    text: str = ""
+    created_by: str = ""
+
+
+@dataclass
+class BoardItemCheckedEvent(BoardItemEvent):
+    """Published when a board item is checked or unchecked."""
+
+    event_type: str = EventTypes.BOARD_ITEM_CHECKED
+    checked: bool = False
+    updated_by: str = ""
+
+
+@dataclass
+class BoardItemReorderedEvent(BoardItemEvent):
+    """Published when a board item's position changes."""
+
+    event_type: str = EventTypes.BOARD_ITEM_REORDERED
+    new_position: float = 0.0
+    updated_by: str = ""
+
+
+@dataclass
+class BoardItemDeletedEvent(BoardItemEvent):
+    """Published when a board item is deleted."""
+
+    event_type: str = EventTypes.BOARD_ITEM_DELETED
+    deleted_by: str = ""
+
+
+@dataclass
+class BoardItemSuggestedEvent(BoardItemEvent):
+    """Published when Ada suggests an item for a board (requires caregiver approval)."""
+
+    event_type: str = EventTypes.BOARD_ITEM_SUGGESTED
+    text: str = ""
+    patient_id: str = ""
+
+
+@dataclass
+class BoardItemApprovedEvent(BoardItemEvent):
+    """Published when a caregiver approves an Ada-suggested board item."""
+
+    event_type: str = EventTypes.BOARD_ITEM_APPROVED
+    approved_by: str = ""
