@@ -280,3 +280,21 @@ export interface CaregiverOverview {
   appointments: CaregiverAppointment[]
   daily_summary: DailySummary | null
 }
+
+// -- Care Circles -------------------------------------------------------
+
+export interface CareCircle {
+  id: string
+  patient_id: string
+  patient_name: string
+  my_role: 'primary_caregiver' | 'family' | 'clinician'
+  created_at: string
+}
+
+export interface CareCircleMember {
+  id: string
+  user_id: string
+  email: string
+  role: 'primary_caregiver' | 'family' | 'clinician'
+  created_at: string
+}

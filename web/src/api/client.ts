@@ -38,6 +38,8 @@ import type {
   CreateSessionRequest,
   SubmitAssessmentRequest,
   CaregiverOverview,
+  CareCircle,
+  CareCircleMember,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -151,6 +153,37 @@ export function getMoodHistory(patientId: string): Promise<MoodDataPoint[]> {
 
 export function getCaregiverOverview(): Promise<CaregiverOverview> {
   return request<CaregiverOverview>('/caregiver/overview')
+}
+
+// -- Care Circles -------------------------------------------------------
+
+export function getMyCircles(): Promise<CareCircle[]> {
+  return request<CareCircle[]>('/circles/my')
+}
+
+export function getCircleMembers(circleId: string): Promise<CareCircleMember[]> {
+  return request<CareCircleMember[]>(`/circles/${circleId}/members`)
+}
+
+export function addCircleMember(
+  circleId: string,
+  body: { email: string; role: string },
+): Promise<CareCircleMember> {
+  return request<CareCircleMember>(`/circles/${circleId}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function removeCircleMember(circleId: string, userId: string): Promise<void> {
+  return request<void>(`/circles/${circleId}/members/${userId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function getCaregiverOverviewForPatient(patientId: string): Promise<CaregiverOverview> {
+  return request<CaregiverOverview>(`/caregiver/overview?patient_id=${patientId}`)
 }
 
 // ---------------------------------------------------------------------------
