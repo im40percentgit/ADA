@@ -34,6 +34,7 @@ import { CircleSelector } from './CircleSelector'
 import { CircleMembers } from './CircleMembers'
 import { BoardList } from './BoardList'
 import { BoardView } from './BoardView'
+import { NotificationBell } from './NotificationBell'
 
 // ---------------------------------------------------------------------------
 // DailySummaryCard
@@ -188,6 +189,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
           <p className="cg-dashboard__patient-name">{data.patient.name}</p>
         </div>
         <CircleSelector circles={circles} selected={selectedCircle} onSelect={selectCircle} />
+        <NotificationBell />
         <button className="cg-dashboard__logout" onClick={onLogout} type="button">
           Sign out
         </button>

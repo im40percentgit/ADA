@@ -1733,3 +1733,9 @@ html, body, #root {
 .ada-suggestion__approve:hover { background: #1565c0; }
 .ada-suggestion__dismiss { padding: 0.125rem 0.5rem; border-radius: var(--radius-sm); border: 1px solid #ddd; background: none; color: #757575; font-size: 0.75rem; cursor: pointer; }
 .ada-suggestion__dismiss:hover { background: #f5f5f5; }
+
+/* -- Notification Bell ------------------------------------------------- */
+.notification-bell { padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-size: 0.8125rem; cursor: pointer; }
+.notification-bell--prompt { border: 1px solid #1976d2; background: #e8f4fd; color: #1976d2; }
+.notification-bell--active { border: 1px solid #ddd; background: #f5f5f5; color: #333; }
+.notification-bell--denied { font-size: 0.75rem; color: #999; cursor: default; }
