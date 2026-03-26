@@ -217,17 +217,32 @@ def require_role(*roles: Role):
 # Caregiver authorization helper
 # ---------------------------------------------------------------------------
 
-async def _resolve_caregiver_patient(user: User, state_manager) -> str:
-    """Return the patient_id linked to this caregiver, or raise 404.
+async def _resolve_caregiver_patient(
+    user: User, state_manager, patient_id: str | None = None
+) -> str:
+    """Return the patient_id for this caregiver via circle membership.
 
-    Used by caregiver-scoped endpoints to look up the patient the caregiver
-    is authorised to view. Raises HTTP 404 (not 403) so that the existence
-    of patient records is not leaked to orphaned caregiver tokens.
+    If patient_id is provided, verify the user is in that patient's circle.
+    Otherwise, return the first patient (backward compatibility).
+    Raises HTTP 404 to avoid leaking patient existence.
     """
-    patient = await state_manager.get_patient_by_caregiver(user.id)
-    if not patient:
-        raise HTTPException(status_code=404, detail="No patient linked to this caregiver")
-    return patient["id"]
+    if patient_id:
+        circle = await state_manager.get_care_circle_by_patient(patient_id)
+        if not circle:
+            raise HTTPException(status_code=404, detail="No patient linked to this caregiver")
+        member = await state_manager.get_circle_member(circle["id"], user.id)
+        if not member:
+            raise HTTPException(status_code=404, detail="No patient linked to this caregiver")
+        return patient_id
+
+    patients = await state_manager.get_patients_by_circle_member(user.id)
+    if not patients:
+        # Legacy fallback during transition
+        patient = await state_manager.get_patient_by_caregiver(user.id)
+        if not patient:
+            raise HTTPException(status_code=404, detail="No patient linked to this caregiver")
+        return patient["id"]
+    return patients[0]["id"]
 
 
 # ---------------------------------------------------------------------------

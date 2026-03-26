@@ -25,8 +25,13 @@ from datetime import datetime
 
 @pytest.mark.asyncio
 async def test_caregiver_can_access_own_patient():
-    """Caregiver whose ID matches patient.caregiver_id should get the patient_id back."""
+    """Caregiver whose ID matches patient.caregiver_id should get the patient_id back.
+
+    get_patients_by_circle_member returns [] (no circle yet) so the legacy
+    get_patient_by_caregiver fallback is exercised.
+    """
     state = AsyncMock()
+    state.get_patients_by_circle_member.return_value = []
     state.get_patient_by_caregiver.return_value = {"id": "patient-1", "caregiver_id": "cg-1", "name": "Mom"}
     result = await _resolve_caregiver_patient(
         user=User(id="cg-1", email="cg@test.com", role="caregiver", patient_id=None, created_at=datetime.now(), is_active=True),
@@ -37,8 +42,9 @@ async def test_caregiver_can_access_own_patient():
 
 @pytest.mark.asyncio
 async def test_caregiver_with_no_linked_patient_gets_404():
-    """Caregiver with no patient linked should get 404."""
+    """Caregiver with no patient linked should get 404 (neither circle nor legacy record)."""
     state = AsyncMock()
+    state.get_patients_by_circle_member.return_value = []
     state.get_patient_by_caregiver.return_value = None
     with pytest.raises(HTTPException) as exc:
         await _resolve_caregiver_patient(

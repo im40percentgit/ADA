@@ -130,6 +130,19 @@ async def rich_state() -> StateManager:
         "caregiver_id": _CAREGIVER_ID,
     })
 
+    # Seed care circle for Phase 9a.
+    # initialize() auto-migrates existing patients but patient is created AFTER
+    # initialize() here, so we must manually create the circle in the fixture.
+    await sm._exec(
+        "INSERT INTO users (id, email, hashed_password, role, created_at, is_active)"
+        " VALUES (?, ?, ?, ?, datetime('now'), 1)",
+        (_CAREGIVER_ID, "caregiver-int@example.com", "hashed", "caregiver"),
+    )
+    await sm.create_care_circle(f"circle-{_PATIENT_ID}", _PATIENT_ID)
+    await sm.add_circle_member(
+        f"ccm-{_CAREGIVER_ID}", f"circle-{_PATIENT_ID}", _CAREGIVER_ID, "primary_caregiver"
+    )
+
     # Session
     await sm.create_session({
         "id": _SESSION_ID,
