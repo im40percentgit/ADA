@@ -231,6 +231,31 @@ async def _resolve_caregiver_patient(user: User, state_manager) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Care circle authorization helper
+# ---------------------------------------------------------------------------
+
+async def resolve_circle_access(
+    user: User,
+    circle_id: str,
+    state_manager,
+    require_roles: list[str] | None = None,
+) -> dict[str, Any]:
+    """Verify user is a member of the circle and optionally check role.
+
+    Returns the membership record dict.
+    Raises HTTP 404 if not a member (avoids leaking circle existence).
+    Raises HTTP 403 if require_roles is specified and the user's role does
+    not appear in the allowed list.
+    """
+    member = await state_manager.get_circle_member(circle_id, user.id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Not found")
+    if require_roles and member["role"] not in require_roles:
+        raise HTTPException(status_code=403, detail="Insufficient circle role")
+    return member
+
+
+# ---------------------------------------------------------------------------
 # Token ID generator
 # ---------------------------------------------------------------------------
 
