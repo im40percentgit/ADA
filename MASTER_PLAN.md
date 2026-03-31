@@ -386,8 +386,6 @@ ada/
 | DEC-FRONTEND-022 | AlertsCard uses index as key — alerts have no stable ID from backend | The CaregiverAlert type from GET /api/caregiver/overview has no ID field. Index-based keys are acceptable since the list is small and replaced on each poll. | accepted |
 | DEC-FRONTEND-023 | SessionsCard shows plan + topics + risk_flags, omits subjective/assessment | The subjective and assessment SOAP fields contain clinical detail inappropriate for non-clinical caregivers. Plan and key_topics convey actionable information safely. | accepted |
 | DEC-FRONTEND-024 | WellbeingChart displays WHO-5 as percentage (0-100), not raw score (0-25) | The WHO-5 raw score (0-25) is unfamiliar to non-clinical caregivers. Percentage is universally understood and aligns with the published WHO-5 scoring guidelines. | accepted |
-| DEC-FRONTEND-030 | useCircles auto-selects first circle, no polling | Care circles change infrequently (invites, not live data). A single fetch on mount with manual refresh is sufficient. Auto-selection of the first circle gives single-patient caregivers a zero-click experience while multi-patient caregivers can override via CircleSelector. | accepted |
-| DEC-FRONTEND-031 | CircleMembers uses local component state, not a shared hook | Member list is only ever displayed in this one card. Extracting a useCircleMembers hook would add indirection without enabling reuse. The fetch + mutate pattern is self-contained: fetchMembers() is called on mount and after every add/remove. | accepted |
 
 ---
 
@@ -602,21 +600,23 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | Frontend: CircleTypes, circleApi, useCircle hook, CirclePanel component | Done | Tasks 9-11 |
 | Caregiver dashboard enhanced with CirclePanel + circle-based patient resolution | Done | Task 12 |
 | `board_suggestion` config placeholder for Phase 9b | Done | Task 13 |
-| Tests: 782 passing (was 819 — delta from ignored ML tests) | Done | 0 regressions |
+| Tests: 782 passing | Done | 0 regressions |
 
 #### Phase 9b — Shared Boards
-**Status:** `in_progress`
+**Status:** `completed`
+**Commits:** `8c6da3c` (merge), `09ee5de`..`38812ee` (10 feature commits)
 
 | Deliverable | Status | Notes |
 |-------------|--------|-------|
-| `ada/models/board.py` — Board, BoardItem, request models | In Progress | Task 1 |
-| `ada/core/state.py` — boards + board_items tables + CRUD | In Progress | Task 2 |
-| `ada/core/events.py` — 7 board event types + dataclasses | In Progress | Task 3 |
-| `ada/api/routes/boards.py` — REST endpoints | Pending | Task 4 |
-| Board WebSocket broadcast | Pending | Task 5 |
-| `ada/agents/board_suggestion.py` — BoardSuggestionAgent | Pending | Task 6 |
-| Frontend: board types, API client, hooks, BoardPanel component | Pending | Tasks 7-9 |
-| `tests/integration/test_board_flow.py` | Pending | Task 10 |
+| `ada/models/board.py` — Board, BoardItem, request models | Done | Task 1 |
+| `ada/core/state.py` — boards + board_items tables + CRUD | Done | Task 2 |
+| `ada/core/events.py` — 7 board event types + dataclasses | Done | Task 3 |
+| `ada/api/routes/boards.py` — REST endpoints | Done | Task 4 |
+| Board WebSocket broadcast (`/ws/board/{board_id}`) | Done | Task 5 |
+| `ada/agents/board_suggestion.py` — BoardSuggestionAgent | Done | Task 6 |
+| Frontend: board types, API client, hooks, components | Done | Tasks 7-9 |
+| `tests/integration/test_board_flow.py` | Done | Task 10 |
+| Tests: 914 passing (was 782) | Done | 0 regressions |
 
 ### Phase 9 Decisions
 
@@ -624,27 +624,30 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 
 | ID | Decision | Rationale | Status |
 |----|----------|-----------|--------|
-| DEC-CIRCLE-001 | Care circle membership as a join table (circle + member) | Separating CareCircle (patient-scoped) from CareCircleMember (user-scoped) creates a clean many-to-many join table. This mirrors a standard relational pattern. Alternatives: embedding members as JSON in the circle row (unqueryable) or a single circle_users table without a circle entity (loses circle-level metadata). | accepted |
-| DEC-CIRCLE-002 | Circle routes use `resolve_circle_access` for all member-scoped endpoints | Every endpoint that touches a specific circle first calls `resolve_circle_access`. This makes the permission model consistent: any member can read, only primary_caregiver/clinician can add, only primary_caregiver can remove. | accepted |
-| DEC-CIRCLE-003 | `add_circle_member` looks up target user by email rather than user_id | Callers (UI) know the invitee's email address, not their internal UUID. The route converts email → user_id server-side. | accepted |
-| DEC-CIRCLE-004 | Circle integration test uses auto-migration + real HTTP round-trips | Unit tests cover edge cases for individual state methods and auth helpers. Integration test verifies the full flow: create circle → add member → list members → remove member. | accepted |
-| DEC-CIRCLE-AUTH-001 | 404 for non-members instead of 403 to avoid leaking circle existence | Returning 404 to non-members means an attacker cannot distinguish "circle doesn't exist" from "you're not a member." 403 would confirm circle existence to unauthenticated callers. | accepted |
+| DEC-CIRCLE-001 | Care circle membership as a join table (circle + member) | Separating CareCircle (patient-scoped) from CareCircleMember (user-scoped) creates a clean many-to-many join table. Alternatives: embedding members as JSON (unqueryable) or a single circle_users table (loses circle-level metadata). | accepted |
+| DEC-CIRCLE-002 | Circle routes use `resolve_circle_access` for all member-scoped endpoints | Every endpoint that touches a specific circle first calls `resolve_circle_access`. Makes the permission model consistent: any member can read, only primary_caregiver/clinician can add, only primary_caregiver can remove. | accepted |
+| DEC-CIRCLE-003 | `add_circle_member` looks up target user by email rather than user_id | Callers (UI) know the invitee's email address, not their internal UUID. The route converts email to user_id server-side. | accepted |
+| DEC-CIRCLE-004 | Circle integration test uses auto-migration + real HTTP round-trips | Unit tests cover edge cases for individual state methods and auth helpers. Integration test verifies the full flow. | accepted |
+| DEC-CIRCLE-AUTH-001 | 404 for non-members instead of 403 to avoid leaking circle existence | Returning 404 to non-members means an attacker cannot distinguish "circle doesn't exist" from "you're not a member." | accepted |
 
 #### Phase 9b — Shared Boards
 
 | ID | Decision | Rationale | Status |
 |----|----------|-----------|--------|
-| DEC-BOARD-001 | Board items use float position for reordering | Float positions (0.0, 1.0, 2.0 …) allow cheap reorder by computing the midpoint between two adjacent items without renumbering the whole list. The trade-off (eventual float precision drift) is irrelevant at the scale of a household shopping list. | accepted |
-| DEC-BOARD-003 | Board routes use _verify_board_access for all board-scoped endpoints | Every endpoint that touches a specific board first calls _verify_board_access, which loads the board, verifies the user is a member of the board's care circle via resolve_circle_access, and returns the board dict. This prevents route authors from forgetting membership checks and keeps the permission model consistent with circle routes. | accepted |
+| DEC-BOARD-001 | Board items use float position for reordering | Float positions allow cheap reorder by computing the midpoint between two adjacent items without renumbering. The trade-off (eventual float precision drift) is irrelevant at household-list scale. | accepted |
+| DEC-BOARD-002 | Board state tests use real in-memory SQLite, no mocks | Consistent with DEC-CIRCLE-002 and Sacred Practice #5. Testing against :memory: exercises real SQL constraints (CHECK, REFERENCES, DEFAULT) and catches bool-coercion bugs (INTEGER 0/1 → Python bool) that mocks hide. | accepted |
+| DEC-BOARD-003 | BoardSuggestionAgent as debounced infrastructure subscriber (not BaseAgent) | Message events arrive rapidly (patient + agent turns). Processing each individually wastes LLM calls. A per-session debounce timer waits for a quiet period before extracting. Follows DailySummaryGenerator pattern (DEC-DAILY-001). | accepted |
+| DEC-BOARD-004 | Conservative LLM extraction — only concrete, stated items | Mental health conversations contain frequent vague references ("I might try to get out more"). Extracting these creates review noise that degrades caregiver trust. System prompt instructs LLM to be conservative; empty {"items": []} is the correct answer for most messages. | accepted |
+| DEC-BOARD-005 | BoardSuggestionAgent tests use real in-memory SQLite + real EventBus | Consistent with DEC-BOARD-002 and Sacred Practice #5. Real SQLite exercises the INTEGER 0/1 → Python bool coercion for suggested_by_ada/approved. Real EventBus validates async debounce dispatch. Only LLMProvider is mocked (external HTTP API), consistent with DEC-DAILY-004. | accepted |
 
 ### Phase 8 Additional Decisions
 
 | ID | Decision | Rationale | Status |
 |----|----------|-----------|--------|
-| DEC-DAILY-004 | Unit tests mock only external boundaries (DB + LLM) | Consistent with Sacred Practice #5: mocks are only acceptable for external boundaries. StateManager and LLM are the only external dependencies the DailySummaryGenerator touches. | accepted |
-| DEC-DAILY-005 | Integration tests use real in-memory SQLite + real EventBus | Consistent with DEC-TEST-005. Real DB catches constraint violations and JSON round-trip bugs. Full EventBus wiring validates the debounce mechanism. | accepted |
-| DEC-TTS-006 | TTSAgent tests use MockTTSProvider + real EventBus (no internal mocks) | Consistent with Sacred Practice #5. The only mocked boundary is the external TTS provider. EventBus, StateManager, and TTSAgent code paths are all exercised with real implementations. | accepted |
-| DEC-TTS-007 | TTS integration tests use real EventBus + StateManager with MockTTSProvider | Unit tests cover TTSAgent logic in isolation. Integration tests verify the full wiring: MESSAGE_SENT → TTSAgent → AUDIO_RESPONSE → chat WebSocket. | accepted |
+| DEC-DAILY-004 | Unit tests mock only external boundaries (DB + LLM) | Consistent with Sacred Practice #5: mocks are only acceptable for external boundaries. | accepted |
+| DEC-DAILY-005 | Integration tests use real in-memory SQLite + real EventBus | Consistent with DEC-TEST-005. Real DB catches constraint violations and JSON round-trip bugs. | accepted |
+| DEC-TTS-006 | TTSAgent tests use MockTTSProvider + real EventBus (no internal mocks) | Consistent with Sacred Practice #5. Only the external TTS provider is mocked. | accepted |
+| DEC-TTS-007 | TTS integration tests use real EventBus + StateManager with MockTTSProvider | Unit tests verify TTSAgent logic; integration tests verify full wiring. | accepted |
 
 ---
 
