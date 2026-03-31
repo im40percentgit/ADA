@@ -13,24 +13,12 @@ interface AdaSuggestionBadgeProps {
 
 export function AdaSuggestionBadge({ onApprove, onDismiss }: AdaSuggestionBadgeProps) {
   return (
-    <span className="ada-suggestion">
-      <span className="ada-suggestion__label">Suggested by Ada</span>
-      <button
-        className="ada-suggestion__approve"
-        onClick={onApprove}
-        type="button"
-        aria-label="Approve Ada suggestion"
-      >
-        Approve
-      </button>
-      <button
-        className="ada-suggestion__dismiss"
-        onClick={onDismiss}
-        type="button"
-        aria-label="Dismiss Ada suggestion"
-      >
-        Dismiss
-      </button>
-    </span>
+    <div className="ada-badge">
+      <span className="ada-badge__label">Ada suggestion</span>
+      <button className="ada-badge__approve" onClick={onApprove} type="button"
+              title="Approve this suggestion">Approve</button>
+      <button className="ada-badge__dismiss" onClick={onDismiss} type="button"
+              title="Dismiss this suggestion">Dismiss</button>
+    </div>
   )
 }
