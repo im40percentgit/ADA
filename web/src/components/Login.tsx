@@ -22,7 +22,7 @@ import type { UseAuthReturn } from '../hooks/useAuth'
 
 interface LoginProps {
   onLogin: UseAuthReturn['login']
-  onRegister: UseAuthReturn['register']
+  onRegister: (email: string, password: string, role?: string) => Promise<void>
   error: string | null
 }
 
@@ -30,6 +30,7 @@ export function Login({ onLogin, onRegister, error }: LoginProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState<string>('user')
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
@@ -39,7 +40,7 @@ export function Login({ onLogin, onRegister, error }: LoginProps) {
       if (mode === 'login') {
         await onLogin(email, password)
       } else {
-        await onRegister(email, password)
+        await onRegister(email, password, role)
       }
     } catch {
       // Error is surfaced via the `error` prop from useAuth
@@ -111,6 +112,24 @@ export function Login({ onLogin, onRegister, error }: LoginProps) {
             placeholder={mode === 'register' ? 'At least 8 characters' : '••••••••'}
             disabled={submitting}
           />
+
+          {mode === 'register' && (
+            <>
+              <label className="login__label" htmlFor="login-role">
+                Role
+              </label>
+              <select
+                id="login-role"
+                className="login__input"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                disabled={submitting}
+              >
+                <option value="user">Patient</option>
+                <option value="caregiver">Caregiver</option>
+              </select>
+            </>
+          )}
 
           {error && (
             <p className="login__error" role="alert">
