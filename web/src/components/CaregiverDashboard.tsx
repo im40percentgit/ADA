@@ -134,7 +134,10 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
   const { circles, selectedCircle, selectCircle } = useCircles()
 
   const fetchData = useCallback(async () => {
-    if (!selectedCircle) return
+    if (!selectedCircle) {
+      setLoading(false)
+      return
+    }
     try {
       const overview = await getCaregiverOverviewForPatient(selectedCircle.patient_id)
       setData(overview)
