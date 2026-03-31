@@ -1166,6 +1166,12 @@ html, body, #root {
   background: var(--color-crisis-bg);
 }
 
+.cg-dashboard__empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--color-text-secondary, #6b7280);
+}
+
 .cg-dashboard__header {
   display: flex;
   align-items: center;
