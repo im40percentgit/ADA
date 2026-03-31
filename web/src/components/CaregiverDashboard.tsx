@@ -26,6 +26,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { getCaregiverOverviewForPatient } from '../api/client'
 import type { CaregiverOverview, DailySummary } from '../types'
 import { useCircles } from '../hooks/useCircles'
+import { CircleSetupWizard } from './CircleSetupWizard'
 import { StatusCard } from './StatusCard'
 import { AlertsCard } from './AlertsCard'
 import { SessionsCard } from './SessionsCard'
@@ -34,6 +35,8 @@ import { CircleSelector } from './CircleSelector'
 import { CircleMembers } from './CircleMembers'
 import { BoardList } from './BoardList'
 import { BoardView } from './BoardView'
+import { MedicationCard } from './MedicationCard'
+import { AppointmentCard } from './AppointmentCard'
 
 // ---------------------------------------------------------------------------
 // DailySummaryCard
@@ -131,7 +134,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
   const [error, setError] = useState<string | null>(null)
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null)
 
-  const { circles, selectedCircle, selectCircle } = useCircles()
+  const { circles, selectedCircle, selectCircle, refresh } = useCircles()
 
   const fetchData = useCallback(async () => {
     if (!selectedCircle) {
@@ -182,10 +185,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
             Sign out
           </button>
         </header>
-        <div className="cg-dashboard__empty">
-          <p>You are not part of any care circles yet.</p>
-          <p>Ask a patient or primary caregiver to invite you by email.</p>
-        </div>
+        <CircleSetupWizard onComplete={() => refresh()} />
       </div>
     )
   }
@@ -241,49 +241,13 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
         )}
 
         {/* Medications */}
-        <section className="cg-card cg-meds" aria-label="Medications">
-          <h2 className="cg-card__title">Medications</h2>
-          {data.medications.length === 0 ? (
-            <p className="cg-card__empty">No medications recorded</p>
-          ) : (
-            <ul className="cg-meds__list">
-              {data.medications.map((m, i) => (
-                <li key={i} className={`cg-meds__item${!m.active ? ' cg-meds__item--inactive' : ''}`}>
-                  <span className="cg-meds__name">{m.name}</span>
-                  {m.dosage && <span className="cg-meds__dosage">{m.dosage}</span>}
-                  {m.frequency && <span className="cg-meds__freq">{m.frequency}</span>}
-                  {!m.active && <span className="cg-meds__badge">Discontinued</span>}
-                </li>
-              ))}
-            </ul>
-          )}
+        <section className="cg-dashboard__card">
+          <MedicationCard patientId={selectedCircle.patient_id} />
         </section>
 
         {/* Appointments */}
-        <section className="cg-card cg-appts" aria-label="Appointments">
-          <h2 className="cg-card__title">Upcoming Appointments</h2>
-          {data.appointments.length === 0 ? (
-            <p className="cg-card__empty">No upcoming appointments</p>
-          ) : (
-            <ul className="cg-appts__list">
-              {data.appointments.map((a, i) => (
-                <li key={i} className="cg-appts__item">
-                  <span className="cg-appts__title">{a.title}</span>
-                  <span className="cg-appts__time">
-                    {new Date(a.scheduled_at).toLocaleDateString([], {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                  <span className={`cg-appts__status cg-appts__status--${a.status}`}>
-                    {a.status}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <section className="cg-dashboard__card">
+          <AppointmentCard patientId={selectedCircle.patient_id} />
         </section>
       </div>
     </div>
