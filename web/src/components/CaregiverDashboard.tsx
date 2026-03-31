@@ -171,6 +171,25 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
     )
   }
 
+  if (!selectedCircle) {
+    return (
+      <div className="cg-dashboard">
+        <header className="cg-dashboard__header">
+          <div>
+            <h1 className="cg-dashboard__title">Ada Caregiver Dashboard</h1>
+          </div>
+          <button className="cg-dashboard__sign-out" onClick={onLogout} type="button">
+            Sign out
+          </button>
+        </header>
+        <div className="cg-dashboard__empty">
+          <p>You are not part of any care circles yet.</p>
+          <p>Ask a patient or primary caregiver to invite you by email.</p>
+        </div>
+      </div>
+    )
+  }
+
   if (error || !data) {
     return (
       <div className="cg-dashboard cg-dashboard--error" role="alert">
