@@ -334,3 +334,96 @@ export type WsBoardMessage =
   | { type: 'item_suggested'; item: BoardItem; by: 'ada' }
   | { type: 'item_approved'; item_id: string; by: string }
   | { type: 'error'; message: string }
+
+// -- Medications --------------------------------------------------------
+
+export interface Medication {
+  id: string
+  patient_id: string
+  name: string
+  dosage: string | null
+  frequency: string | null
+  start_date: string | null
+  end_date: string | null
+  notes: string | null
+  prescribed_by: string | null
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface MedicationCreate {
+  name: string
+  dosage?: string
+  frequency?: string
+  start_date?: string
+  prescribed_by?: string
+  notes?: string
+}
+
+export interface MedicationUpdate {
+  name?: string
+  dosage?: string
+  frequency?: string
+  start_date?: string
+  end_date?: string
+  active?: boolean
+  prescribed_by?: string
+  notes?: string
+}
+
+export interface MedicationCreateResponse extends Medication {
+  interaction_warning?: string
+}
+
+// -- Appointments -------------------------------------------------------
+
+export interface Appointment {
+  id: string
+  patient_id: string
+  title: string
+  description: string | null
+  scheduled_at: string
+  duration_minutes: number
+  appointment_type: string
+  status: string
+  provider_name: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AppointmentCreate {
+  title: string
+  scheduled_at: string
+  description?: string
+  duration_minutes?: number
+  appointment_type?: string
+  provider_name?: string
+  notes?: string
+}
+
+export interface AppointmentUpdate {
+  title?: string
+  scheduled_at?: string
+  description?: string
+  duration_minutes?: number
+  status?: string
+  provider_name?: string
+  notes?: string
+}
+
+// -- Circle Setup -------------------------------------------------------
+
+export interface UserLookup {
+  user_id: string
+  email: string
+  patient_id: string | null
+  role: string
+}
+
+export interface CreateWithPatientResponse {
+  circle_id: string
+  patient_id: string
+  patient_name: string
+}

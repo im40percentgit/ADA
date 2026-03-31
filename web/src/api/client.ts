@@ -42,6 +42,15 @@ import type {
   CareCircleMember,
   Board,
   BoardItem,
+  Medication,
+  MedicationCreate,
+  MedicationUpdate,
+  MedicationCreateResponse,
+  Appointment,
+  AppointmentCreate,
+  AppointmentUpdate,
+  UserLookup,
+  CreateWithPatientResponse,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -230,6 +239,69 @@ export function approveBoardItem(boardId: string, itemId: string): Promise<Board
 export function boardWsUrl(boardId: string): string {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${location.host}/ws/board/${boardId}`
+}
+
+// -- Medications --------------------------------------------------------
+
+export function listMedications(patientId: string, activeOnly = false): Promise<Medication[]> {
+  const params = activeOnly ? '?active_only=true' : ''
+  return request<Medication[]>(`/patients/${patientId}/medications${params}`)
+}
+
+export function createMedication(patientId: string, body: MedicationCreate): Promise<MedicationCreateResponse> {
+  return request<MedicationCreateResponse>(`/patients/${patientId}/medications`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateMedication(patientId: string, medId: string, body: MedicationUpdate): Promise<Medication> {
+  return request<Medication>(`/patients/${patientId}/medications/${medId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deactivateMedication(patientId: string, medId: string): Promise<void> {
+  return request<void>(`/patients/${patientId}/medications/${medId}`, { method: 'DELETE' })
+}
+
+// -- Appointments -------------------------------------------------------
+
+export function listAppointments(patientId: string, status?: string): Promise<Appointment[]> {
+  const params = status ? `?status=${status}` : ''
+  return request<Appointment[]>(`/patients/${patientId}/appointments${params}`)
+}
+
+export function createAppointment(patientId: string, body: AppointmentCreate): Promise<Appointment> {
+  return request<Appointment>(`/patients/${patientId}/appointments`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateAppointment(patientId: string, apptId: string, body: AppointmentUpdate): Promise<Appointment> {
+  return request<Appointment>(`/patients/${patientId}/appointments/${apptId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteAppointment(patientId: string, apptId: string): Promise<void> {
+  return request<void>(`/patients/${patientId}/appointments/${apptId}`, { method: 'DELETE' })
+}
+
+// -- Circle Setup -------------------------------------------------------
+
+export function lookupUserByEmail(email: string): Promise<UserLookup> {
+  return request<UserLookup>(`/circles/lookup?email=${encodeURIComponent(email)}`)
+}
+
+export function createCircleWithPatient(body: { patient_name: string; patient_email?: string }): Promise<CreateWithPatientResponse> {
+  return request<CreateWithPatientResponse>('/circles/create-with-patient', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
 // ---------------------------------------------------------------------------
