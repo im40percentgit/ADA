@@ -79,11 +79,12 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
 /**
  * Register a new user account.
  * Returns the created user profile (no tokens — user must then log in).
+ * The role defaults to 'user' (patient); pass 'caregiver' to create a caregiver account.
  */
-export async function register(email: string, password: string): Promise<UserProfile> {
+export async function register(email: string, password: string, role: string = 'user'): Promise<UserProfile> {
   return authFetch<UserProfile>('/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, role }),
   })
 }
 

@@ -41,7 +41,7 @@ export interface UseAuthReturn {
   error: string | null
   login: (email: string, password: string) => Promise<void>
   logout: () => void
-  register: (email: string, password: string) => Promise<void>
+  register: (email: string, password: string, role?: string) => Promise<void>
 }
 
 export function useAuth(): UseAuthReturn {
@@ -90,10 +90,10 @@ export function useAuth(): UseAuthReturn {
     setError(null)
   }, [])
 
-  const register = useCallback(async (email: string, password: string) => {
+  const register = useCallback(async (email: string, password: string, role?: string) => {
     setError(null)
     try {
-      await apiRegister(email, password)
+      await apiRegister(email, password, role ?? 'user')
       // Auto-login after successful registration
       await apiLogin(email, password)
       const token = getAccessToken()!
