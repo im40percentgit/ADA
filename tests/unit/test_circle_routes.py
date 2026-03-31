@@ -300,6 +300,21 @@ def test_lookup_user_by_email_not_found(state):
     assert resp.status_code == 404
 
 
+def test_lookup_user_by_email_forbidden_for_patient(state):
+    """Non-caregiver users get 403 on lookup."""
+    patient_user = User(
+        id=_PATIENT_USER_ID,
+        email=_PATIENT_USER_EMAIL,
+        role="user",
+        patient_id=None,
+        created_at=datetime.utcnow(),
+        is_active=True,
+    )
+    with _client(state, patient_user) as client:
+        resp = client.get("/api/circles/lookup?email=someone@example.com")
+    assert resp.status_code == 403
+
+
 # ---------------------------------------------------------------------------
 # Tests: POST /api/circles/create-with-patient
 # ---------------------------------------------------------------------------
