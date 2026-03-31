@@ -298,3 +298,86 @@ def test_lookup_user_by_email_not_found(state):
     with _client(state, _PC_USER) as client:
         resp = client.get("/api/circles/lookup?email=nobody@example.com")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Tests: POST /api/circles/create-with-patient
+# ---------------------------------------------------------------------------
+
+def test_create_patient_for_circle(state):
+    """Caregiver creates a brand-new patient + circle — returns 201 with IDs."""
+    with _client(state, _PC_USER) as client:
+        resp = client.post(
+            "/api/circles/create-with-patient",
+            json={"patient_name": "New Patient"},
+        )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert "circle_id" in body
+    assert "patient_id" in body
+    assert body["patient_name"] == "New Patient"
+    # Verify the circle actually exists in state
+    import asyncio
+    circle = asyncio.get_event_loop().run_until_complete(
+        state.get_care_circle_by_patient(body["patient_id"])
+    )
+    assert circle is not None
+    assert circle["id"] == body["circle_id"]
+
+
+def test_create_patient_for_circle_links_existing(state):
+    """When patient_email matches an existing patient user, links to their patient_id."""
+    # _PATIENT_USER_ID has role="user" but no patient_id yet — create a patient for them
+    import asyncio
+    from datetime import datetime, timezone
+
+    existing_patient_id = "patient-existing-link-001"
+    asyncio.get_event_loop().run_until_complete(
+        state.create_patient({
+            "id": existing_patient_id,
+            "name": "Existing Patient",
+            "dob": None,
+            "preferences": "{}",
+            "emergency_contact": None,
+            "caregiver_id": None,
+            "created_at": datetime.now(tz=timezone.utc).isoformat(),
+        })
+    )
+    # Update the patient user to point at that patient record
+    asyncio.get_event_loop().run_until_complete(
+        state._exec(
+            "UPDATE users SET patient_id = ? WHERE id = ?",
+            (existing_patient_id, _PATIENT_USER_ID),
+        )
+    )
+
+    with _client(state, _PC_USER) as client:
+        resp = client.post(
+            "/api/circles/create-with-patient",
+            json={"patient_name": "Existing Patient", "patient_email": _PATIENT_USER_EMAIL},
+        )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["patient_id"] == existing_patient_id
+
+
+def test_create_patient_for_circle_duplicate_409(state):
+    """Returns 409 when the target patient already has a care circle."""
+    # _PATIENT_ID already has _CIRCLE_ID in the seeded state
+    # We need a user whose patient_id points at _PATIENT_ID
+    import asyncio
+    from datetime import datetime, timezone
+
+    asyncio.get_event_loop().run_until_complete(
+        state._exec(
+            "UPDATE users SET patient_id = ? WHERE id = ?",
+            (_PATIENT_ID, _PATIENT_USER_ID),
+        )
+    )
+
+    with _client(state, _PC_USER) as client:
+        resp = client.post(
+            "/api/circles/create-with-patient",
+            json={"patient_name": "Route Test Patient", "patient_email": _PATIENT_USER_EMAIL},
+        )
+    assert resp.status_code == 409
