@@ -1871,4 +1871,35 @@ html, body, #root {
 .ada-suggestion__approve { padding: 0.125rem 0.5rem; border-radius: var(--radius-sm); border: none; background: #1976d2; color: #fff; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
 .ada-suggestion__approve:hover { background: #1565c0; }
 .ada-suggestion__dismiss { padding: 0.125rem 0.5rem; border-radius: var(--radius-sm); border: 1px solid #ddd; background: none; color: #757575; font-size: 0.75rem; cursor: pointer; }
+
+/* -- MedicationCard ---------------------------------------------------- */
+.med-card { background: var(--color-surface); border-radius: var(--radius-md); padding: 1.25rem; }
+.med-card__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.med-card__form { display: flex; flex-direction: column; gap: 0.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem; background: var(--color-bg); }
+.med-card__input { padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.875rem; width: 100%; }
+.med-card__input:focus { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+.med-card__form-actions { display: flex; flex-direction: row; justify-content: flex-end; gap: 0.5rem; margin-top: 0.25rem; }
+.med-card__btn { padding: 0.5rem 1.25rem; border-radius: var(--radius-md); border: none; background: var(--color-primary); color: var(--color-primary-text); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background var(--transition); }
+.med-card__btn:hover:not(:disabled) { background: var(--color-primary-hover); }
+.med-card__btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.med-card__btn--secondary { background: transparent; color: var(--color-text); border: 1px solid var(--color-border); }
+.med-card__btn--secondary:hover:not(:disabled) { background: var(--color-border); }
+.med-card__btn--danger { padding: 0.25rem 0.625rem; font-size: 0.8rem; background: transparent; color: var(--color-error); border: 1px solid var(--color-error); border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; transition: background var(--transition), color var(--transition); }
+.med-card__btn--danger:hover { background: #fef2f2; }
+.med-card__list { list-style: none; padding: 0; margin: 0; }
+.med-card__item { display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.625rem 0; border-bottom: 1px solid var(--color-border); }
+.med-card__item:last-child { border-bottom: none; }
+.med-card__item--inactive { opacity: 0.5; }
+.med-card__item-info { display: flex; flex-direction: row; align-items: center; gap: 0.5rem; flex: 1; cursor: pointer; min-width: 0; flex-wrap: wrap; }
+.med-card__name { font-size: 0.9rem; font-weight: 500; color: var(--color-text); }
+.med-card__dosage { font-size: 0.8125rem; color: var(--color-text-muted); }
+.med-card__freq { font-size: 0.75rem; color: var(--color-text-muted); background: var(--color-bg); padding: 0.125rem 0.5rem; border-radius: 9999px; border: 1px solid var(--color-border); }
+.med-card__prescriber { font-size: 0.75rem; color: var(--color-text-muted); }
+.med-card__discontinued-badge { font-size: 0.7rem; padding: 0.125rem 0.5rem; border-radius: 9999px; background: #f3f4f6; color: var(--color-text-muted); white-space: nowrap; }
+.med-card__past { margin-top: 0.75rem; border-top: 1px dashed var(--color-border); padding-top: 0.75rem; }
+.med-card__toggle { background: none; border: none; color: var(--color-primary); font-size: 0.8125rem; cursor: pointer; padding: 0; margin-bottom: 0.5rem; }
+.med-card__toggle:hover { text-decoration: underline; }
+.med-card__error { color: var(--color-error); font-size: 0.8125rem; margin-top: 0.25rem; }
+.med-card__warning { color: #b45309; background: #fffbeb; border: 1px solid #fcd34d; border-radius: var(--radius-sm); font-size: 0.8125rem; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+.med-card__empty { color: var(--color-text-muted); font-size: 0.875rem; padding: 0.5rem 0; }
 .ada-suggestion__dismiss:hover { background: #f5f5f5; }

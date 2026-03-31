@@ -35,6 +35,7 @@ import { CircleSelector } from './CircleSelector'
 import { CircleMembers } from './CircleMembers'
 import { BoardList } from './BoardList'
 import { BoardView } from './BoardView'
+import { MedicationCard } from './MedicationCard'
 
 // ---------------------------------------------------------------------------
 // DailySummaryCard
@@ -239,22 +240,8 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
         )}
 
         {/* Medications */}
-        <section className="cg-card cg-meds" aria-label="Medications">
-          <h2 className="cg-card__title">Medications</h2>
-          {data.medications.length === 0 ? (
-            <p className="cg-card__empty">No medications recorded</p>
-          ) : (
-            <ul className="cg-meds__list">
-              {data.medications.map((m, i) => (
-                <li key={i} className={`cg-meds__item${!m.active ? ' cg-meds__item--inactive' : ''}`}>
-                  <span className="cg-meds__name">{m.name}</span>
-                  {m.dosage && <span className="cg-meds__dosage">{m.dosage}</span>}
-                  {m.frequency && <span className="cg-meds__freq">{m.frequency}</span>}
-                  {!m.active && <span className="cg-meds__badge">Discontinued</span>}
-                </li>
-              ))}
-            </ul>
-          )}
+        <section className="cg-dashboard__card">
+          <MedicationCard patientId={selectedCircle.patient_id} />
         </section>
 
         {/* Appointments */}
