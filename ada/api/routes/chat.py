@@ -315,7 +315,6 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
             try:
                 item = await asyncio.wait_for(response_queue.get(), timeout=120.0)
             except asyncio.TimeoutError:
-                await _send_error(websocket, "Response timeout -- please try again")
                 continue
 
             if item is _SHUTDOWN:
