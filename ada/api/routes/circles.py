@@ -48,6 +48,39 @@ def _state(request: Request) -> StateManager:
     return request.app.state.state_manager
 
 
+@router.get("/lookup")
+async def lookup_user_by_email(
+    email: str,
+    user: User = Depends(get_current_user),
+    state: StateManager = Depends(_state),
+) -> dict:
+    """Look up a patient user by email for circle setup. Caregiver-only.
+
+    Returns basic identity fields so the circle setup wizard can confirm the
+    correct person before adding them. Only users with role 'user' (i.e.
+    patients) are returned — caregivers cannot look up other caregivers.
+
+    @decision DEC-CIRCLE-005
+    @title lookup_user_by_email restricts results to role='user' accounts
+    @status accepted
+    @rationale Exposing a general email-to-user-id lookup would let caregivers
+        enumerate all accounts. Restricting to role='user' limits the surface
+        to patient accounts, which are the only valid targets for circle
+        membership invitations.
+    """
+    if user.role not in ("caregiver", "clinician", "admin"):
+        raise HTTPException(status_code=403, detail="Caregivers only")
+    found = await state.get_user_by_email(email)
+    if not found or found.get("role") != "user":
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {
+        "user_id": found["id"],
+        "email": found["email"],
+        "patient_id": found.get("patient_id"),
+        "role": found["role"],
+    }
+
+
 @router.get("/my")
 async def list_my_circles(
     user: User = Depends(get_current_user),

@@ -80,6 +80,10 @@ _NEW_USER_EMAIL = "newmember-route@example.com"
 _PC_MEMBER_ID = "ccm-pc-route-001"
 _FAM_MEMBER_ID = "ccm-fam-route-001"
 
+# A patient user (role="user") for lookup tests
+_PATIENT_USER_ID = "user-patient-lookup-001"
+_PATIENT_USER_EMAIL = "patient-lookup@example.com"
+
 
 # ---------------------------------------------------------------------------
 # User stubs
@@ -129,6 +133,14 @@ async def state() -> StateManager:
             "hashed_password": "x",
             "role": "caregiver",
         })
+
+    # Patient-role user for lookup endpoint tests
+    await sm.create_user({
+        "id": _PATIENT_USER_ID,
+        "email": _PATIENT_USER_EMAIL,
+        "hashed_password": "x",
+        "role": "user",
+    })
 
     await sm.create_patient({
         "id": _PATIENT_ID,
@@ -264,3 +276,25 @@ def test_remove_member_non_primary_denied(state):
     with _client(state, _FAM_USER) as client:
         resp = client.delete(f"/api/circles/{_CIRCLE_ID}/members/{_PC_USER_ID}")
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Tests: GET /api/circles/lookup
+# ---------------------------------------------------------------------------
+
+def test_lookup_user_by_email_found(state):
+    """Caregiver can look up a patient user by email — returns 200 with correct fields."""
+    with _client(state, _PC_USER) as client:
+        resp = client.get(f"/api/circles/lookup?email={_PATIENT_USER_EMAIL}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["user_id"] == _PATIENT_USER_ID
+    assert body["email"] == _PATIENT_USER_EMAIL
+    assert body["role"] == "user"
+
+
+def test_lookup_user_by_email_not_found(state):
+    """Lookup for a non-existent email returns 404."""
+    with _client(state, _PC_USER) as client:
+        resp = client.get("/api/circles/lookup?email=nobody@example.com")
+    assert resp.status_code == 404
