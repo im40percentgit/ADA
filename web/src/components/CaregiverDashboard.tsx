@@ -26,6 +26,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { getCaregiverOverviewForPatient } from '../api/client'
 import type { CaregiverOverview, DailySummary } from '../types'
 import { useCircles } from '../hooks/useCircles'
+import { CircleSetupWizard } from './CircleSetupWizard'
 import { StatusCard } from './StatusCard'
 import { AlertsCard } from './AlertsCard'
 import { SessionsCard } from './SessionsCard'
@@ -131,7 +132,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
   const [error, setError] = useState<string | null>(null)
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null)
 
-  const { circles, selectedCircle, selectCircle } = useCircles()
+  const { circles, selectedCircle, selectCircle, refresh } = useCircles()
 
   const fetchData = useCallback(async () => {
     if (!selectedCircle) {
@@ -182,10 +183,7 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
             Sign out
           </button>
         </header>
-        <div className="cg-dashboard__empty">
-          <p>You are not part of any care circles yet.</p>
-          <p>Ask a patient or primary caregiver to invite you by email.</p>
-        </div>
+        <CircleSetupWizard onComplete={() => refresh()} />
       </div>
     )
   }

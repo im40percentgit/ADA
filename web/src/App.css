@@ -1172,6 +1172,139 @@ html, body, #root {
   color: var(--color-text-secondary, #6b7280);
 }
 
+/* ---------------------------------------------------------------------------
+   CircleSetupWizard
+--------------------------------------------------------------------------- */
+
+.circle-wizard {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.circle-wizard__heading {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 0.375rem;
+}
+
+.circle-wizard__sub {
+  color: var(--color-text-secondary, #6b7280);
+  font-size: 0.9375rem;
+  margin-bottom: 1.25rem;
+}
+
+.circle-wizard__options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.circle-wizard__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.circle-wizard__option:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+}
+
+.circle-wizard__option-title {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--color-text);
+}
+
+.circle-wizard__option-desc {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.circle-wizard__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.circle-wizard__input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  width: 100%;
+  transition: border-color var(--transition);
+}
+
+.circle-wizard__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.circle-wizard__actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.circle-wizard__btn {
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--color-primary);
+  color: var(--color-primary-text, #ffffff);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.circle-wizard__btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.circle-wizard__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.circle-wizard__btn--secondary {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.circle-wizard__btn--secondary:hover:not(:disabled) {
+  background: var(--color-border);
+}
+
+.circle-wizard__error {
+  color: var(--color-error, #ef4444);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.circle-wizard__done {
+  text-align: center;
+}
+
+.circle-wizard__done .circle-wizard__btn {
+  margin-top: 1rem;
+}
+
 .cg-dashboard__header {
   display: flex;
   align-items: center;

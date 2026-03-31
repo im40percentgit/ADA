@@ -649,6 +649,46 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | DEC-TTS-006 | TTSAgent tests use MockTTSProvider + real EventBus (no internal mocks) | Consistent with Sacred Practice #5. Only the external TTS provider is mocked. | accepted |
 | DEC-TTS-007 | TTS integration tests use real EventBus + StateManager with MockTTSProvider | Unit tests verify TTSAgent logic; integration tests verify full wiring. | accepted |
 
+### Phase 9b Frontend Board Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-BOARDS-010 | Board WS hook mirrors useMediaWebSocket pattern | Re-using the same auth-on-open + auto-reconnect pattern keeps WebSocket hooks consistent and predictable. | accepted |
+| DEC-BOARDS-011 | Optimistic local state + WS echo for board mutations | Board operations (check, edit, delete) are low-risk and fast. Optimistic updates give immediate feedback; WS echo confirms server state. | accepted |
+| DEC-BOARDS-012 | item_added and item_suggested handled identically in state | Both message types carry a full BoardItem object. Handling them identically avoids a special case in the reducer. | accepted |
+| DEC-BOARDS-013 | BoardItem is purely presentational — no direct API calls | All board mutations are issued via the useBoard hook (WS send + optimistic state). BoardItem renders data and emits callbacks. | accepted |
+| DEC-BOARDS-014 | BoardList fetches via REST; no WS subscription for board-list changes | Board creation/deletion is a low-frequency admin operation. REST fetch on mount + manual refresh is sufficient; WS is reserved for real-time item updates inside a board. | accepted |
+| DEC-BOARDS-015 | BoardView renders full-screen; CaregiverDashboard swaps it in place of the grid | A single-level drill-down (list → board) avoids the complexity of nested routing or modals for a household-scale feature. | accepted |
+
+### Phase 6 Docker Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-DOCKER-001 | Single-process uvicorn (SQLite write-contention constraint) | SQLite allows only one writer at a time. Running multiple uvicorn workers would cause write conflicts. | accepted |
+| DEC-DOCKER-002 | python:3.12-slim over alpine (musl libc breaks OpenCV/librosa) | Ada depends on opencv-python-headless and librosa for multimodal analysis. Both require glibc; musl libc (Alpine) causes runtime failures. | accepted |
+
+### Phase 9a + 10a Frontend Circle Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-FRONTEND-030 | useCircles auto-selects first circle, no polling | Care circles change infrequently (invites, not live data). A single fetch on mount with manual refresh is sufficient. Auto-selection of the first circle gives single-patient caregivers a zero-click experience. | accepted |
+| DEC-FRONTEND-031 | CircleMembers uses local component state, not a shared hook | Member list is only ever displayed in this one card. Extracting to a hook would add indirection without benefit. | accepted |
+| DEC-FRONTEND-032 | CircleSetupWizard replaces static empty state for new caregivers | The original empty state told users to wait for an invite but gave no action path. The wizard lets a primary caregiver immediately bootstrap their first circle. | accepted |
+
+### Phase 10a — Caregiver Setup Flow
+**Status:** `in_progress`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `GET /api/users/lookup` — user lookup by email | Done | Task 1 |
+| `POST /api/circles/with-patient` — caregiver-initiated patient creation | Done | Task 2 |
+| Frontend API client: `lookupUserByEmail`, `createCircleWithPatient`, medication + appointment functions | Done | Tasks 3 |
+| `CircleSetupWizard` component (4-step wizard) | In progress | Task 4 |
+| `MedicationCard` component | Pending | Task 5 |
+| `AppointmentCard` component | Pending | Task 6 |
+| Board items + circle members polish | Pending | Task 7 |
+| Integration test — full caregiver setup flow | Pending | Task 8 |
+
 ---
 
 ## Security Posture
