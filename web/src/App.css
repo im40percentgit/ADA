@@ -1452,6 +1452,29 @@ html, body, #root {
   margin-top: 4px;
 }
 
+.cg-alerts__actions {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.cg-alerts__btn {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+.cg-alerts__status-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.cg-alerts__status-label--resolved {
+  color: var(--color-success);
+}
+
 /* SessionsCard */
 .cg-sessions__list {
   list-style: none;
@@ -1909,4 +1932,104 @@ html, body, #root {
 .appt-card__input { padding: 0.4rem 0.6rem; border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-md, 8px); font-size: 0.875rem; font-family: inherit; width: 100%; background: var(--color-surface); color: var(--color-text); }
 .appt-card__input:focus { outline: 2px solid var(--color-primary); outline-offset: 1px; }
 .appt-card__row { display: flex; gap: 0.5rem; }
+
+/* -- PatientDashboard ----------------------------------------------------- */
+.patient-dash {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.patient-dash__card {
+  padding: 1.25rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface, #fff);
+}
+.patient-dash__card--full {
+  grid-column: 1 / -1;
+}
+.patient-dash__card h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+.patient-dash__card--ada {
+  background: var(--color-primary, #6366f1);
+  color: #fff;
+  cursor: pointer;
+  text-align: center;
+  padding: 2rem;
+}
+.patient-dash__card--ada:hover { opacity: 0.9; }
+.patient-dash__card--ada h2 { margin: 0 0 0.5rem; font-size: 1.25rem; }
+.patient-dash__card--ada p { margin: 0; opacity: 0.9; }
+
+.patient-dash__list { list-style: none; padding: 0; margin: 0; }
+.patient-dash__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+.patient-dash__item:last-child { border-bottom: none; }
+.patient-dash__item--col { flex-direction: column; align-items: flex-start; }
+.patient-dash__item-info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.patient-dash__item-name { font-size: 0.9rem; font-weight: 500; color: var(--color-text); }
+.patient-dash__item-sub { font-size: 0.8rem; color: var(--color-text-muted, #6b7280); }
+.patient-dash__item-tag {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #6b7280);
+  background: var(--color-bg, #f9fafb);
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  width: fit-content;
+}
+.patient-dash__taken-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.patient-dash__board-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  cursor: default;
+}
+.patient-dash__board-item:last-child { border-bottom: none; }
+.patient-dash__empty { color: var(--color-text-muted, #6b7280); font-size: 0.875rem; padding: 0.25rem 0; margin: 0; }
+.patient-dash__error { color: var(--color-error, #ef4444); font-size: 0.875rem; padding: 0.25rem 0; margin: 0; }
+
+/* Change-request inline form */
+.patient-dash__change-form { display: flex; flex-direction: column; gap: 0.4rem; width: 100%; }
+.patient-dash__change-input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.875rem;
+  font-family: inherit;
+  width: 100%;
+  background: var(--color-surface, #fff);
+  color: var(--color-text);
+}
+.patient-dash__change-input:focus { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+.patient-dash__change-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+
+/* Mood summary */
+.patient-dash__mood { display: flex; flex-direction: column; gap: 0.25rem; }
+.patient-dash__mood-score { font-size: 2rem; font-weight: 700; color: var(--color-text); line-height: 1; }
+.patient-dash__mood-trend { font-size: 0.875rem; color: var(--color-text-muted, #6b7280); }
+.patient-dash__mood-label { font-size: 0.8rem; color: var(--color-text-muted, #6b7280); margin: 0.25rem 0 0; }
 .appt-card__form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }

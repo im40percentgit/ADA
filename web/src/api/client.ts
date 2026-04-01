@@ -51,6 +51,8 @@ import type {
   AppointmentUpdate,
   UserLookup,
   CreateWithPatientResponse,
+  MedicationLog,
+  CrisisAlertFull,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -303,6 +305,26 @@ export function createCircleWithPatient(body: { patient_name: string; patient_em
   return request<CreateWithPatientResponse>('/circles/create-with-patient', {
     method: 'POST',
     body: JSON.stringify(body),
+  })
+}
+
+// -- Medication Logs ----------------------------------------------------
+
+export function logMedicationTaken(patientId: string, medId: string): Promise<MedicationLog> {
+  return request<MedicationLog>(`/patients/${patientId}/medications/${medId}/log`, { method: 'POST' })
+}
+
+export function getMedicationLogs(patientId: string, medId: string, date?: string): Promise<MedicationLog[]> {
+  const params = date ? `?date=${date}` : ''
+  return request<MedicationLog[]>(`/patients/${patientId}/medications/${medId}/logs${params}`)
+}
+
+// -- Alert Resolution ---------------------------------------------------
+
+export function updateAlertStatus(alertId: string, status: string): Promise<CrisisAlertFull> {
+  return request<CrisisAlertFull>(`/alerts/${alertId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
   })
 }
 

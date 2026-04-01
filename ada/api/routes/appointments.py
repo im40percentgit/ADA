@@ -159,6 +159,9 @@ async def update_appointment(
         else:
             updates[field] = value
 
+    if "change_requested" in updates:
+        updates["change_requested"] = int(updates["change_requested"])
+
     if updates:
         await _state(request).update_appointment(appointment_id, updates)
 

@@ -41,6 +41,8 @@ class Appointment(BaseModel):
     status: str = "scheduled"
     provider_name: str | None = None
     notes: str | None = None
+    change_requested: bool = False
+    change_note: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -71,3 +73,5 @@ class AppointmentUpdate(BaseModel):
     status: str | None = None
     provider_name: str | None = None
     notes: str | None = None
+    change_requested: bool | None = None
+    change_note: str | None = None

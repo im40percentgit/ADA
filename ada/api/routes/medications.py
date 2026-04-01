@@ -19,7 +19,7 @@ so the response can include interaction warnings.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -190,3 +190,45 @@ async def deactivate_medication(
     if not med or med.get("patient_id") != patient_id:
         raise HTTPException(status_code=404, detail="Medication not found")
     await _state(request).deactivate_medication(medication_id)
+
+
+@router.post(
+    "/patients/{patient_id}/medications/{medication_id}/log",
+    status_code=201,
+)
+async def log_medication(
+    patient_id: str,
+    medication_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """Log that a medication was taken."""
+    state = _state(request)
+    med = await state.get_medication(medication_id)
+    if not med or med["patient_id"] != patient_id:
+        raise HTTPException(status_code=404, detail="Medication not found")
+    log_id = str(uuid.uuid4())
+    now = datetime.now(tz=timezone.utc).isoformat()
+    log = {
+        "id": log_id,
+        "medication_id": medication_id,
+        "patient_id": patient_id,
+        "taken_at": now,
+        "status": "taken",
+        "created_at": now,
+    }
+    await state.create_medication_log(log)
+    return log
+
+
+@router.get("/patients/{patient_id}/medications/{medication_id}/logs")
+async def get_medication_logs_endpoint(
+    patient_id: str,
+    medication_id: str,
+    request: Request,
+    date: str | None = None,
+    _user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Get medication logs, optionally filtered by date (YYYY-MM-DD prefix)."""
+    state = _state(request)
+    return await state.get_medication_logs(medication_id, date)

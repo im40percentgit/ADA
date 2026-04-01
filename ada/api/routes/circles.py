@@ -125,6 +125,20 @@ async def create_circle_with_patient(
         role="primary_caregiver",
         added_by=current_user.id,
     )
+
+    # Auto-add patient as circle member if they have a user account
+    if body.patient_email:
+        patient_user = await state.get_user_by_email(body.patient_email)
+        if patient_user:
+            patient_member_id = str(uuid.uuid4())
+            await state.add_circle_member(
+                member_id=patient_member_id,
+                circle_id=circle_id,
+                user_id=patient_user["id"],
+                role="family",
+                added_by=current_user.id,
+            )
+
     return {"circle_id": circle_id, "patient_id": patient_id, "patient_name": body.patient_name}
 
 

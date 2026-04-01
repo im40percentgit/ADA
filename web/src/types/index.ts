@@ -232,9 +232,11 @@ export interface CaregiverSession {
 }
 
 export interface CaregiverAlert {
+  id: string
   severity: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL'
   timestamp: string
   escalation_action: string | null
+  status: 'active' | 'acknowledged' | 'resolved'
 }
 
 export interface CaregiverAssessmentEntry {
@@ -411,6 +413,8 @@ export interface AppointmentUpdate {
   status?: string
   provider_name?: string
   notes?: string
+  change_requested?: boolean
+  change_note?: string
 }
 
 // -- Circle Setup -------------------------------------------------------
@@ -426,4 +430,30 @@ export interface CreateWithPatientResponse {
   circle_id: string
   patient_id: string
   patient_name: string
+}
+
+// -- Medication Logs ----------------------------------------------------
+
+export interface MedicationLog {
+  id: string
+  medication_id: string
+  patient_id: string
+  taken_at: string
+  status: 'taken' | 'skipped' | 'missed'
+  created_at: string
+}
+
+// -- Crisis Alerts (full detail) ----------------------------------------
+
+export interface CrisisAlertFull {
+  id: string
+  patient_id: string
+  session_id: string | null
+  severity: string
+  detection_method: string
+  escalation_action: string | null
+  timestamp: string
+  status: 'active' | 'acknowledged' | 'resolved'
+  resolved_at: string | null
+  resolved_by: string | null
 }

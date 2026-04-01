@@ -376,7 +376,51 @@ def test_create_patient_for_circle_links_existing(state):
     assert body["patient_id"] == existing_patient_id
 
 
+def test_create_circle_adds_patient_as_member(state):
+    """Creating a circle with an existing patient email also adds the patient as a member."""
+    import asyncio
+    from datetime import datetime, timezone
+
+    # Give the existing patient user a patient record so the link resolves
+    existing_patient_id = "patient-auto-member-001"
+    asyncio.get_event_loop().run_until_complete(
+        state.create_patient({
+            "id": existing_patient_id,
+            "name": "Auto Member Patient",
+            "dob": None,
+            "preferences": "{}",
+            "emergency_contact": None,
+            "caregiver_id": None,
+            "created_at": datetime.now(tz=timezone.utc).isoformat(),
+        })
+    )
+    asyncio.get_event_loop().run_until_complete(
+        state._exec(
+            "UPDATE users SET patient_id = ? WHERE id = ?",
+            (existing_patient_id, _PATIENT_USER_ID),
+        )
+    )
+
+    with _client(state, _PC_USER) as client:
+        resp = client.post(
+            "/api/circles/create-with-patient",
+            json={"patient_name": "Auto Member Patient", "patient_email": _PATIENT_USER_EMAIL},
+        )
+        assert resp.status_code == 201
+        circle_id = resp.json()["circle_id"]
+
+        # Verify the patient user appears in the circle members list
+        members_resp = client.get(f"/api/circles/{circle_id}/members")
+    assert members_resp.status_code == 200
+    user_ids = {m["user_id"] for m in members_resp.json()}
+    assert _PATIENT_USER_ID in user_ids, (
+        f"Patient user {_PATIENT_USER_ID} should be auto-added as a circle member, "
+        f"but only found: {user_ids}"
+    )
+
+
 def test_create_patient_for_circle_duplicate_409(state):
+
     """Returns 409 when the target patient already has a care circle."""
     # _PATIENT_ID already has _CIRCLE_ID in the seeded state
     # We need a user whose patient_id points at _PATIENT_ID

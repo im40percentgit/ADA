@@ -35,18 +35,19 @@ import { Chat } from './components/Chat'
 import { MoodChart } from './components/MoodChart'
 import { Login } from './components/Login'
 import { CaregiverDashboard } from './components/CaregiverDashboard'
+import { PatientDashboard } from './components/PatientDashboard'
 import { useAuth } from './hooks/useAuth'
 import './App.css'
 
 // Fallback patient ID for clinician/admin accounts in development
 const DEMO_PATIENT_ID = 'demo-patient-001'
 
-type View = 'chat' | 'mood'
+type View = 'home' | 'chat' | 'mood'
 
 export default function App() {
   const { currentUser, isAuthenticated, loading, error, login, logout, register } = useAuth()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [view, setView] = useState<View>('chat')
+  const [view, setView] = useState<View>('home')
 
   // While token validation is in flight, show a minimal loading screen
   if (loading) {
@@ -84,6 +85,14 @@ export default function App() {
         </div>
 
         <nav className="app__nav" aria-label="Main navigation">
+          <button
+            className={`app__nav-btn${view === 'home' ? ' app__nav-btn--active' : ''}`}
+            onClick={() => setView('home')}
+            aria-current={view === 'home' ? 'page' : undefined}
+            type="button"
+          >
+            Home
+          </button>
           <button
             className={`app__nav-btn${view === 'chat' ? ' app__nav-btn--active' : ''}`}
             onClick={() => setView('chat')}
@@ -126,7 +135,9 @@ export default function App() {
 
       {/* Main content */}
       <div className="app__main">
-        {view === 'chat' ? (
+        {view === 'home' ? (
+          <PatientDashboard patientId={patientId} onNavigateToChat={() => setView('chat')} />
+        ) : view === 'chat' ? (
           activeSessionId ? (
             <Chat sessionId={activeSessionId} patientId={patientId} />
           ) : (
