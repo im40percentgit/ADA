@@ -405,3 +405,55 @@ class TestDeactivateMedication:
         with _make_client(state) as client:
             resp = client.delete("/api/patients/pat-route-001/medications/ghost-id")
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /api/patients/{patient_id}/medications/{medication_id}/log
+# GET  /api/patients/{patient_id}/medications/{medication_id}/logs
+# ---------------------------------------------------------------------------
+
+class TestMedicationLogs:
+
+    def test_log_medication_taken(self, state):
+        """POST /log returns 201 with correct fields."""
+        with _make_client(state) as client:
+            create_resp = client.post(
+                "/api/patients/pat-route-001/medications",
+                json={"name": "Metformin", "dosage": "500mg"},
+            )
+            med_id = create_resp.json()["id"]
+            resp = client.post(
+                f"/api/patients/pat-route-001/medications/{med_id}/log"
+            )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["medication_id"] == med_id
+        assert data["patient_id"] == "pat-route-001"
+        assert data["status"] == "taken"
+        assert "id" in data
+        assert "taken_at" in data
+        assert "created_at" in data
+
+    def test_get_medication_logs(self, state):
+        """POST a log then GET /logs returns a list containing the log."""
+        with _make_client(state) as client:
+            create_resp = client.post(
+                "/api/patients/pat-route-001/medications",
+                json={"name": "Lisinopril"},
+            )
+            med_id = create_resp.json()["id"]
+            client.post(f"/api/patients/pat-route-001/medications/{med_id}/log")
+            resp = client.get(f"/api/patients/pat-route-001/medications/{med_id}/logs")
+        assert resp.status_code == 200
+        logs = resp.json()
+        assert isinstance(logs, list)
+        assert len(logs) == 1
+        assert logs[0]["medication_id"] == med_id
+
+    def test_log_medication_not_found(self, state):
+        """POST log for non-existent medication returns 404."""
+        with _make_client(state) as client:
+            resp = client.post(
+                "/api/patients/pat-route-001/medications/nonexistent-med-id/log"
+            )
+        assert resp.status_code == 404

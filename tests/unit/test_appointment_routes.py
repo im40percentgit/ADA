@@ -442,3 +442,69 @@ class TestDeleteAppointment:
         with _make_unauthenticated_client(state) as client:
             resp = client.delete(f"/api/patients/pat-appt-001/appointments/{appt_id}")
         assert resp.status_code in (401, 403)
+
+
+# ---------------------------------------------------------------------------
+# Phase 10b — Appointment change request fields
+# ---------------------------------------------------------------------------
+
+class TestAppointmentChangeRequest:
+
+    def test_appointment_change_request(self, state):
+        """PATCH with change_requested=true + change_note stores both fields."""
+        with _make_client(state) as client:
+            create_resp = client.post(
+                "/api/patients/pat-appt-001/appointments",
+                json={"title": "Reschedule Me", "scheduled_at": _FUTURE_ISO},
+            )
+            assert create_resp.status_code == 201
+            appt_id = create_resp.json()["id"]
+
+            resp = client.patch(
+                f"/api/patients/pat-appt-001/appointments/{appt_id}",
+                json={
+                    "change_requested": True,
+                    "change_note": "Patient asked to move to Thursday",
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["change_requested"] is True
+        assert data["change_note"] == "Patient asked to move to Thursday"
+
+    def test_change_request_defaults_false(self, state):
+        """Newly created appointments have change_requested=False by default."""
+        with _make_client(state) as client:
+            resp = client.post(
+                "/api/patients/pat-appt-001/appointments",
+                json={"title": "Default Fields", "scheduled_at": _FUTURE_ISO},
+            )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["change_requested"] is False
+        assert data["change_note"] is None
+
+    def test_change_request_can_be_cleared(self, state):
+        """change_requested can be set back to False after being set True."""
+        with _make_client(state) as client:
+            create_resp = client.post(
+                "/api/patients/pat-appt-001/appointments",
+                json={"title": "Toggle Test", "scheduled_at": _FUTURE_ISO},
+            )
+            appt_id = create_resp.json()["id"]
+
+            # Set it
+            client.patch(
+                f"/api/patients/pat-appt-001/appointments/{appt_id}",
+                json={"change_requested": True, "change_note": "Move it"},
+            )
+
+            # Clear it
+            resp = client.patch(
+                f"/api/patients/pat-appt-001/appointments/{appt_id}",
+                json={"change_requested": False},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["change_requested"] is False

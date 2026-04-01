@@ -181,6 +181,15 @@ CREATE TABLE IF NOT EXISTS medications (
     updated_at      TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS medication_logs (
+    id              TEXT PRIMARY KEY,
+    medication_id   TEXT NOT NULL REFERENCES medications(id),
+    patient_id      TEXT NOT NULL REFERENCES patients(id),
+    taken_at        TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'taken' CHECK(status IN ('taken','skipped','missed')),
+    created_at      TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS cognitive_screenings (
     id              TEXT PRIMARY KEY,
     patient_id      TEXT NOT NULL REFERENCES patients(id),
@@ -444,6 +453,24 @@ class StateManager:
             except Exception:
                 pass  # column already exists — safe to ignore
         await self._conn.commit()
+
+        # Phase 10b migrations — appointment change requests
+        for col, typedef in [("change_requested", "INTEGER NOT NULL DEFAULT 0"),
+                              ("change_note", "TEXT")]:
+            try:
+                await self._exec(f"ALTER TABLE appointments ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass  # Column already exists
+
+        # Phase 10b migrations — crisis alert resolution
+        for col, typedef in [("status", "TEXT NOT NULL DEFAULT 'active'"),
+                              ("resolved_at", "TEXT"),
+                              ("resolved_by", "TEXT")]:
+            try:
+                await self._exec(f"ALTER TABLE crisis_alerts ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass  # Column already exists
+
         await self._migrate_caregiver_to_circles()
         logger.info("StateManager: initialized at %s", self._db_path)
 
@@ -642,6 +669,21 @@ class StateManager:
             (patient_id,),
         )
         return [dict(r) for r in rows]
+
+    async def get_crisis_alert(self, alert_id: str) -> dict[str, Any] | None:
+        """Return a single crisis alert by ID."""
+        row = await self._fetchone(
+            "SELECT * FROM crisis_alerts WHERE id = ?", (alert_id,)
+        )
+        return dict(row) if row else None
+
+    async def update_crisis_alert(self, alert_id: str, updates: dict[str, Any]) -> None:
+        """Update fields on a crisis alert record."""
+        sets = ", ".join(f"{k} = :{k}" for k in updates)
+        await self._exec(
+            f"UPDATE crisis_alerts SET {sets} WHERE id = :id",
+            {**updates, "id": alert_id},
+        )
 
     # ------------------------------------------------------------------
     # Users
@@ -984,6 +1026,30 @@ class StateManager:
             {"id": medication_id, "updated_at": _now()},
         )
 
+    async def create_medication_log(self, log: dict[str, Any]) -> None:
+        """Insert a medication adherence log entry."""
+        await self._exec(
+            """INSERT INTO medication_logs (id, medication_id, patient_id, taken_at, status, created_at)
+               VALUES (:id, :medication_id, :patient_id, :taken_at, :status, :created_at)""",
+            log,
+        )
+
+    async def get_medication_logs(
+        self, medication_id: str, date: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return adherence logs for a medication, optionally filtered by date prefix."""
+        if date:
+            rows = await self._fetchall(
+                "SELECT * FROM medication_logs WHERE medication_id = ? AND taken_at LIKE ? ORDER BY taken_at DESC",
+                (medication_id, f"{date}%"),
+            )
+        else:
+            rows = await self._fetchall(
+                "SELECT * FROM medication_logs WHERE medication_id = ? ORDER BY taken_at DESC",
+                (medication_id,),
+            )
+        return [dict(r) for r in rows]
+
     # ------------------------------------------------------------------
     # Cognitive screenings
     # ------------------------------------------------------------------
@@ -1107,6 +1173,7 @@ class StateManager:
         allowed = {
             "title", "description", "scheduled_at", "duration_minutes",
             "appointment_type", "status", "provider_name", "notes",
+            "change_requested", "change_note",
         }
         fields = {k: v for k, v in updates.items() if k in allowed}
         if not fields:
