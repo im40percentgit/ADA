@@ -22,7 +22,8 @@ interface StatusCardProps {
 }
 
 function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
+  const normalized = dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z'
+  const diff = Date.now() - new Date(normalized).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)

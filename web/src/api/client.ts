@@ -66,13 +66,15 @@ async function request<T>(path: string, init?: RequestInit, _isRetry = false): P
     ? { Authorization: `Bearer ${token}` }
     : {}
 
+  const { headers: initHeaders, ...restInit } = init ?? {}
+
   const res = await fetch(`${BASE}${path}`, {
+    ...restInit,
     headers: {
       'Content-Type': 'application/json',
       ...authHeader,
-      ...init?.headers,
+      ...(initHeaders as Record<string, string>),
     },
-    ...init,
   })
 
   // On 401, attempt a single token refresh then retry — but never for auth routes
