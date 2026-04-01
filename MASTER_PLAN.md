@@ -36,7 +36,7 @@ ada/
     api/           FastAPI app + WebSocket + REST routes
   config/          TOML configuration files
   sensors/       SensorSimulator (physiological data streams)
-  tests/           pytest-asyncio unit + integration tests (623 passing)
+  tests/           pytest-asyncio unit + integration tests (939 passing)
   web/             React + TypeScript + Vite frontend
 ```
 
@@ -629,6 +629,8 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | DEC-CIRCLE-003 | `add_circle_member` looks up target user by email rather than user_id | Callers (UI) know the invitee's email address, not their internal UUID. The route converts email to user_id server-side. | accepted |
 | DEC-CIRCLE-004 | Circle integration test uses auto-migration + real HTTP round-trips | Unit tests cover edge cases for individual state methods and auth helpers. Integration test verifies the full flow. | accepted |
 | DEC-CIRCLE-AUTH-001 | 404 for non-members instead of 403 to avoid leaking circle existence | Returning 404 to non-members means an attacker cannot distinguish "circle doesn't exist" from "you're not a member." | accepted |
+| DEC-CIRCLE-005 | `lookup_user_by_email` restricts results to role='user' accounts | Exposing a general email-to-user-id lookup would let caregivers enumerate all accounts. Restricting to role='user' limits the surface to patient accounts, the only valid targets for circle membership. | accepted |
+| DEC-CIRCLE-006 | `create_circle_with_patient` creates placeholder users for email-less patients | Caregivers often register patients who don't yet have Ada accounts. A placeholder user (random password, is_active=1) lets the care circle exist immediately while the patient can claim their account later. | accepted |
 
 #### Phase 9b — Shared Boards
 
@@ -676,18 +678,56 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | DEC-FRONTEND-032 | CircleSetupWizard replaces static empty state for new caregivers | The original empty state told users to wait for an invite but gave no action path. The wizard lets a primary caregiver immediately bootstrap their first circle. | accepted |
 
 ### Phase 10a — Caregiver Setup Flow
-**Status:** `in_progress`
+**Status:** `completed`
+**Commits:** `f549149` (merge)
+
+#### Phase 10a Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-SETUP-001 | Caregiver setup integration tests use real JWT auth | Unlike earlier integration tests which override get_current_user, these tests exercise the full authentication path. | accepted |
+| DEC-FRONTEND-025 | MedicationCard fetches its own data — not from dashboard overview | MedicationCard needs live CRUD access via the dedicated medications endpoints, not the read-only overview snapshot. | accepted |
+| DEC-FRONTEND-026 | AppointmentCard fetches its own data — not from dashboard overview | Same rationale as DEC-FRONTEND-025. | accepted |
 
 | Deliverable | Status | Notes |
 |-------------|--------|-------|
-| `GET /api/users/lookup` — user lookup by email | Done | Task 1 |
-| `POST /api/circles/with-patient` — caregiver-initiated patient creation | Done | Task 2 |
-| Frontend API client: `lookupUserByEmail`, `createCircleWithPatient`, medication + appointment functions | Done | Tasks 3 |
-| `CircleSetupWizard` component (4-step wizard) | In progress | Task 4 |
-| `MedicationCard` component | Pending | Task 5 |
-| `AppointmentCard` component | Pending | Task 6 |
-| Board items + circle members polish | Pending | Task 7 |
-| Integration test — full caregiver setup flow | Pending | Task 8 |
+| `GET /api/circles/lookup` — user lookup by email | Done | Task 1 |
+| `POST /api/circles/create-with-patient` — caregiver-initiated patient creation | Done | Task 2 |
+| Frontend types + API client functions (medication, appointment, circle setup) | Done | Task 3 |
+| `CircleSetupWizard` component (4-step wizard) | Done | Task 4 |
+| `MedicationCard` component (full CRUD) | Done | Task 5 |
+| `AppointmentCard` component (full CRUD) | Done | Task 6 |
+| Ada suggestion badge polish | Done | Task 7 |
+| Integration tests — full caregiver setup flow (3 tests) | Done | Task 8 |
+| Tests: 923 passing (was 914) | Done | 0 regressions |
+
+### Phase 10b — Patient Dashboard
+**Status:** `completed`
+**Commits:** `84d9b6d` (merge)
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Patient auto-membership in circles on creation | Done | Task 1 |
+| `medication_logs` table + `POST/GET` log endpoints | Done | Task 2 |
+| Appointment `change_requested` + `change_note` fields | Done | Task 3 |
+| Crisis alert `status`/`resolved_at`/`resolved_by` + `PATCH /api/alerts/{id}` | Done | Task 3 |
+| Frontend types + API client (MedicationLog, CrisisAlertFull, log/alert functions) | Done | Task 4 |
+| `PatientDashboard` — 6 cards (Talk to Ada, meds, appointments, boards, team, mood) | Done | Task 5 |
+| Navigation refactor — Home/Chat/Mood tabs, default to Home | Done | Task 6 |
+| AlertsCard — acknowledge/resolve buttons with status badges | Done | Task 7 |
+| Integration tests — patient dashboard flow (3 tests) | Done | Task 8 |
+| Tests: 939 passing (was 923) | Done | 0 regressions |
+
+### Phase 10 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-PATIENT-001 | Patient auto-added to circle with role "family" | Reuses existing role instead of adding a new "patient" role. Patient needs circle membership to access boards and see care team. | accepted |
+| DEC-PATIENT-002 | medication_logs table with status CHECK constraint | Three statuses (taken/skipped/missed) cover all adherence tracking scenarios. Separate table from medications keeps the log append-only. | accepted |
+| DEC-PATIENT-003 | Appointment change requests via fields, not separate table | change_requested bool + change_note text on the appointments table is simpler than a separate change_requests table for a low-volume feature. | accepted |
+| DEC-PATIENT-004 | Alert resolution as status enum (active/acknowledged/resolved) | Three states match clinical workflow: detect → acknowledge → resolve. resolved_at + resolved_by provide audit trail. | accepted |
+| DEC-FRONTEND-033 | PatientDashboard as single component with inline cards | At 6 cards, splitting into separate files adds indirection without reuse benefit. Split when cards grow complex. | accepted |
+| DEC-FRONTEND-034 | Navigation default changed from chat to home | Dashboard-first reflects Ada's repositioning from chatbot to wellness platform. Chat is one click away via "Talk to Ada" card. | accepted |
 
 ---
 
