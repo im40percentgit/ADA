@@ -24,9 +24,10 @@ interface LoginProps {
   onLogin: UseAuthReturn['login']
   onRegister: (email: string, password: string, role?: string) => Promise<void>
   error: string | null
+  onForgotPassword?: () => void
 }
 
-export function Login({ onLogin, onRegister, error }: LoginProps) {
+export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -150,6 +151,17 @@ export function Login({ onLogin, onRegister, error }: LoginProps) {
                 ? 'Sign in'
                 : 'Create account'}
           </button>
+
+          {mode === 'login' && onForgotPassword && (
+            <button
+              className="login__link-btn"
+              type="button"
+              onClick={onForgotPassword}
+              disabled={submitting}
+            >
+              Forgot password?
+            </button>
+          )}
         </form>
       </div>
     </div>

@@ -27,6 +27,15 @@
  *   before setting currentUser. Blocking render prevents a flash of the login
  *   screen for already-authenticated users. The spinner disappears in <200 ms
  *   on a local server; for production a skeleton layout is preferable.
+ *
+ * @decision DEC-FRONTEND-014
+ * @title Hash-based routing for forgot-password and reset-password views
+ * @status accepted
+ * @rationale The app uses no routing library. Two new auth-adjacent views
+ *   (ForgotPassword, ResetPassword) are injected before the auth gate so
+ *   unauthenticated users can access them. Hash detection runs once on mount
+ *   via window.location.hash — no router setup required. The reset token is
+ *   parsed from the hash query string (/#/reset-password?token=...).
  */
 
 import { useState } from 'react'
@@ -34,6 +43,8 @@ import { SessionList } from './components/SessionList'
 import { Chat } from './components/Chat'
 import { MoodChart } from './components/MoodChart'
 import { Login } from './components/Login'
+import { ForgotPassword } from './components/ForgotPassword'
+import { ResetPassword } from './components/ResetPassword'
 import { CaregiverDashboard } from './components/CaregiverDashboard'
 import { PatientDashboard } from './components/PatientDashboard'
 import { ConnectionStatus } from './components/ConnectionStatus'
@@ -45,12 +56,32 @@ import './App.css'
 const DEMO_PATIENT_ID = 'demo-patient-001'
 
 type View = 'home' | 'chat' | 'mood'
+type AuthView = 'login' | 'forgot-password' | 'reset-password'
+
+/** Parse the initial auth view from the URL hash (e.g. /#/reset-password?token=...) */
+function parseInitialAuthView(): { view: AuthView; resetToken: string } {
+  const hash = window.location.hash // e.g. "#/reset-password?token=abc"
+  if (hash.includes('/reset-password')) {
+    const search = hash.includes('?') ? hash.slice(hash.indexOf('?')) : ''
+    const token = new URLSearchParams(search).get('token') ?? ''
+    return { view: 'reset-password', resetToken: token }
+  }
+  if (hash.includes('/forgot-password')) {
+    return { view: 'forgot-password', resetToken: '' }
+  }
+  return { view: 'login', resetToken: '' }
+}
+
+const _initial = parseInitialAuthView()
 
 export default function App() {
   const { currentUser, isAuthenticated, loading, error, login, logout, register } = useAuth()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [view, setView] = useState<View>('home')
   const [chatWsStatus, setChatWsStatus] = useState<ReconnectingWsStatus>('connecting')
+  const [authView, setAuthView] = useState<AuthView>(_initial.view)
+  const [resetToken] = useState<string>(_initial.resetToken)
+  const [resetSuccessMsg, setResetSuccessMsg] = useState<string | null>(null)
 
   // While token validation is in flight, show a minimal loading screen
   if (loading) {
@@ -61,9 +92,34 @@ export default function App() {
     )
   }
 
-  // Unauthenticated — show login/register gate
+  // Unauthenticated — show login/register/forgot-password/reset-password
   if (!isAuthenticated) {
-    return <Login onLogin={login} onRegister={register} error={error} />
+    if (authView === 'forgot-password') {
+      return (
+        <ForgotPassword onBack={() => setAuthView('login')} />
+      )
+    }
+    if (authView === 'reset-password') {
+      return (
+        <ResetPassword
+          token={resetToken}
+          onSuccess={() => {
+            setResetSuccessMsg('Password updated. Please sign in with your new password.')
+            window.location.hash = ''
+            setAuthView('login')
+          }}
+          onBack={() => setAuthView('login')}
+        />
+      )
+    }
+    return (
+      <Login
+        onLogin={login}
+        onRegister={register}
+        error={resetSuccessMsg ?? error}
+        onForgotPassword={() => setAuthView('forgot-password')}
+      />
+    )
   }
 
   // Caregiver role — show dedicated dashboard instead of chat/mood
