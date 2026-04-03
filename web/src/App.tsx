@@ -36,7 +36,9 @@ import { MoodChart } from './components/MoodChart'
 import { Login } from './components/Login'
 import { CaregiverDashboard } from './components/CaregiverDashboard'
 import { PatientDashboard } from './components/PatientDashboard'
+import { ConnectionStatus } from './components/ConnectionStatus'
 import { useAuth } from './hooks/useAuth'
+import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
 import './App.css'
 
 // Fallback patient ID for clinician/admin accounts in development
@@ -48,6 +50,7 @@ export default function App() {
   const { currentUser, isAuthenticated, loading, error, login, logout, register } = useAuth()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [view, setView] = useState<View>('home')
+  const [chatWsStatus, setChatWsStatus] = useState<ReconnectingWsStatus>('connecting')
 
   // While token validation is in flight, show a minimal loading screen
   if (loading) {
@@ -77,6 +80,8 @@ export default function App() {
 
   return (
     <div className="app">
+      <ConnectionStatus status={chatWsStatus} />
+
       {/* Sidebar */}
       <div className="app__sidebar">
         <div className="app__brand">
@@ -139,7 +144,7 @@ export default function App() {
           <PatientDashboard patientId={patientId} onNavigateToChat={() => setView('chat')} />
         ) : view === 'chat' ? (
           activeSessionId ? (
-            <Chat sessionId={activeSessionId} patientId={patientId} />
+            <Chat sessionId={activeSessionId} patientId={patientId} onWsStatusChange={setChatWsStatus} />
           ) : (
             <div className="app__no-session">
               <p>Select a session or start a new one to begin.</p>
