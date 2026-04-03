@@ -6,6 +6,8 @@
  *   - 'default'     → renders an "Enable Notifications" prompt button
  *   - 'denied'      → renders a "Notifications Blocked" indicator (no button)
  *   - 'granted'     → renders a toggle button (On/Off) driven by subscribed state
+ *                     + a "Preferences" button when subscribed
+ *                     + an inline preferences panel when preferences button clicked
  *
  * We control permission state by overwriting globalThis.Notification.permission
  * before each test and restoring it after. The serviceWorker mock in setup.ts
@@ -32,7 +34,6 @@ import { NotificationBell } from '../../src/components/NotificationBell'
 
 function setPermission(perm: NotificationPermission | 'unsupported') {
   if (perm === 'unsupported') {
-    // Simulate a browser with no Notification API
     Object.defineProperty(globalThis, 'Notification', {
       value: undefined,
       writable: true,
@@ -50,9 +51,31 @@ function setPermission(perm: NotificationPermission | 'unsupported') {
   }
 }
 
+function setSubscribed(isSubscribed: boolean) {
+  Object.defineProperty(globalThis.navigator, 'serviceWorker', {
+    value: {
+      ready: Promise.resolve({
+        pushManager: {
+          getSubscription: async () =>
+            isSubscribed ? { endpoint: 'https://example.com/push/1' } : null,
+          subscribe: async () => ({ toJSON: () => ({}) }),
+        },
+      }),
+      register: async () => ({
+        pushManager: {
+          getSubscription: async () => null,
+          subscribe: async () => ({ toJSON: () => ({}) }),
+        },
+      }),
+    },
+    writable: true,
+    configurable: true,
+  })
+}
+
 afterEach(() => {
-  // Restore to 'default' so other test files are unaffected
   setPermission('default')
+  setSubscribed(false)
 })
 
 // ---------------------------------------------------------------------------
@@ -82,8 +105,8 @@ describe('NotificationBell', () => {
 
   it('renders Notifications Off toggle when granted but not yet subscribed', async () => {
     setPermission('granted')
+    setSubscribed(false)
     render(<NotificationBell />)
-    // useNotifications checks serviceWorker.ready on mount; wait for it to settle
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Notifications Off/i })).toBeInTheDocument()
     })
@@ -95,60 +118,116 @@ describe('NotificationBell', () => {
     render(<NotificationBell />)
 
     const btn = screen.getByRole('button', { name: /Enable Notifications/i })
-    // The click triggers requestPermission + subscribe. Both are async no-ops in
-    // test (VAPID key returns empty string, so subscribe bails early). We simply
-    // verify the click does not throw and the button was present and clickable.
     await user.click(btn)
     // No assertion error means the handler ran without throwing
   })
 
   it('renders Notifications On toggle when permission granted and subscribed', async () => {
     setPermission('granted')
-    // Override serviceWorker.ready to report an existing subscription
-    Object.defineProperty(globalThis.navigator, 'serviceWorker', {
-      value: {
-        ready: Promise.resolve({
-          pushManager: {
-            // Return a truthy subscription object → subscribed = true
-            getSubscription: async () => ({ endpoint: 'https://example.com/push/1' }),
-            subscribe: async () => ({ toJSON: () => ({}) }),
-          },
-        }),
-        register: async () => ({
-          pushManager: {
-            getSubscription: async () => null,
-            subscribe: async () => ({ toJSON: () => ({}) }),
-          },
-        }),
-      },
-      writable: true,
-      configurable: true,
-    })
-
+    setSubscribed(true)
     render(<NotificationBell />)
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Notifications On/i })).toBeInTheDocument()
     })
+  })
 
-    // Restore default serviceWorker mock so later tests are unaffected
-    Object.defineProperty(globalThis.navigator, 'serviceWorker', {
-      value: {
-        ready: Promise.resolve({
-          pushManager: {
-            getSubscription: async () => null,
-            subscribe: async () => ({ toJSON: () => ({}) }),
-          },
-        }),
-        register: async () => ({
-          pushManager: {
-            getSubscription: async () => null,
-            subscribe: async () => ({ toJSON: () => ({}) }),
-          },
-        }),
-      },
-      writable: true,
-      configurable: true,
+  it('renders Preferences button when subscribed', async () => {
+    setPermission('granted')
+    setSubscribed(true)
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Preferences/i })).toBeInTheDocument()
+    })
+  })
+
+  it('does not render Preferences button when not subscribed', async () => {
+    setPermission('granted')
+    setSubscribed(false)
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Notifications Off/i })).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: /Preferences/i })).not.toBeInTheDocument()
+  })
+
+  it('clicking Preferences button opens the preferences panel', async () => {
+    setPermission('granted')
+    setSubscribed(true)
+    const user = userEvent.setup()
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Preferences/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Preferences/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Notify me about:/i)).toBeInTheDocument()
+    })
+  })
+
+  it('preferences panel shows all 6 event type checkboxes', async () => {
+    setPermission('granted')
+    setSubscribed(true)
+    const user = userEvent.setup()
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Preferences/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Preferences/i }))
+
+    await waitFor(() => {
+      const checkboxes = screen.getAllByRole('checkbox')
+      expect(checkboxes).toHaveLength(6)
+    })
+  })
+
+  it('clicking a preference checkbox calls updatePreferences without error', async () => {
+    setPermission('granted')
+    setSubscribed(true)
+    const user = userEvent.setup()
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Preferences/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /Preferences/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0)
+    })
+
+    const crisisCheckbox = screen.getByRole('checkbox', { name: /Crisis alerts/i })
+    expect(crisisCheckbox).toBeChecked()
+    await user.click(crisisCheckbox)
+    // PUT fires via MSW — no error thrown means success
+  })
+
+  it('clicking Preferences button again collapses the panel', async () => {
+    setPermission('granted')
+    setSubscribed(true)
+    const user = userEvent.setup()
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Preferences/i })).toBeInTheDocument()
+    })
+
+    // Open
+    await user.click(screen.getByRole('button', { name: /Preferences/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/Notify me about:/i)).toBeInTheDocument()
+    })
+
+    // Close — label changes to "Hide preferences"
+    await user.click(screen.getByRole('button', { name: /Hide preferences/i }))
+    await waitFor(() => {
+      expect(screen.queryByText(/Notify me about:/i)).not.toBeInTheDocument()
     })
   })
 })

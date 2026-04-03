@@ -53,6 +53,7 @@ import type {
   CreateWithPatientResponse,
   MedicationLog,
   CrisisAlertFull,
+  NotificationPreferences,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -325,6 +326,21 @@ export function updateAlertStatus(alertId: string, status: string): Promise<Cris
   return request<CrisisAlertFull>(`/alerts/${alertId}`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  })
+}
+
+// -- Notification Preferences -------------------------------------------
+
+export function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return request<NotificationPreferences>('/notifications/preferences')
+}
+
+export function updateNotificationPreferences(
+  prefs: Partial<NotificationPreferences>,
+): Promise<NotificationPreferences> {
+  return request<NotificationPreferences>('/notifications/preferences', {
+    method: 'PUT',
+    body: JSON.stringify(prefs),
   })
 }
 

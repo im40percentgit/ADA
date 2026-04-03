@@ -271,6 +271,30 @@ export const handlers = [
   http.delete('/api/notifications/subscribe', () => {
     return new HttpResponse(null, { status: 204 })
   }),
+
+  http.get('/api/notifications/preferences', () => {
+    return json({
+      crisis_detected: true,
+      board_item_suggested: true,
+      board_item_added: true,
+      board_item_checked: true,
+      daily_summary_generated: true,
+      circle_member_added: true,
+    })
+  }),
+
+  http.put('/api/notifications/preferences', async ({ request }) => {
+    const body = await request.json() as Record<string, boolean>
+    return json({
+      crisis_detected: true,
+      board_item_suggested: true,
+      board_item_added: true,
+      board_item_checked: true,
+      daily_summary_generated: true,
+      circle_member_added: true,
+      ...body,
+    })
+  }),
 ]
 
 // ---------------------------------------------------------------------------

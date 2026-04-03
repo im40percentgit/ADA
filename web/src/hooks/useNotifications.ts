@@ -1,10 +1,13 @@
 /**
- * useNotifications — React hook for Web Push subscription lifecycle.
+ * useNotifications — React hook for Web Push subscription lifecycle and preferences.
  *
  * Manages the full push notification flow: permission request, service worker
- * registration, VAPID subscription creation, and backend sync. Exposes a
- * simple { permission, subscribed, loading, requestPermission, subscribe,
- * unsubscribe } interface so UI components stay free of Web Push plumbing.
+ * registration, VAPID subscription creation, backend sync, and per-user
+ * notification preferences (Phase 11b).
+ *
+ * Exposes { permission, subscribed, loading, preferences, prefsLoading,
+ * requestPermission, subscribe, unsubscribe, updatePreferences } so UI
+ * components stay free of Web Push plumbing.
  *
  * Token retrieval uses the canonical ADA_ACCESS_TOKEN key from auth.ts rather
  * than a hard-coded string, so the auth token lookup stays consistent.
@@ -16,18 +19,42 @@
  *   Uint8Array conversion) inside a single hook means UI components only
  *   depend on a stable interface. This makes it easy to swap the SW
  *   registration strategy or backend endpoint without touching any component.
+ *
+ * @decision DEC-NOTIF-012
+ * @title Preferences co-located in useNotifications — not a separate hook
+ * @status accepted
+ * @rationale Preferences are inseparable from the notification subscription
+ *   lifecycle: both are shown in the same NotificationBell dropdown. A
+ *   separate hook would require two hook calls in every consumer. Co-location
+ *   keeps the interface cohesive and the component simple. Preferences are
+ *   fetched lazily only when subscribed to avoid an unnecessary auth'd
+ *   request for unauthenticated or unsubscribed users.
  */
 
 import { useCallback, useEffect, useState } from 'react'
 import { TOKEN_KEY } from '../api/auth'
+import { getNotificationPreferences, updateNotificationPreferences } from '../api/client'
+import type { NotificationPreferences } from '../types'
+
+export const DEFAULT_PREFERENCES: NotificationPreferences = {
+  crisis_detected: true,
+  board_item_suggested: true,
+  board_item_added: true,
+  board_item_checked: true,
+  daily_summary_generated: true,
+  circle_member_added: true,
+}
 
 interface UseNotificationsResult {
   permission: NotificationPermission | 'unsupported'
   subscribed: boolean
   loading: boolean
+  preferences: NotificationPreferences
+  prefsLoading: boolean
   requestPermission: () => Promise<void>
   subscribe: () => Promise<void>
   unsubscribe: () => Promise<void>
+  updatePreferences: (updates: Partial<NotificationPreferences>) => Promise<void>
 }
 
 export function useNotifications(): UseNotificationsResult {
@@ -36,6 +63,8 @@ export function useNotifications(): UseNotificationsResult {
   )
   const [subscribed, setSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_PREFERENCES)
+  const [prefsLoading, setPrefsLoading] = useState(false)
 
   // Check if already subscribed on mount
   useEffect(() => {
@@ -48,6 +77,16 @@ export function useNotifications(): UseNotificationsResult {
         .catch(() => {})
     }
   }, [])
+
+  // Fetch preferences once when subscribed (lazy — only if the user has opted in)
+  useEffect(() => {
+    if (!subscribed) return
+    setPrefsLoading(true)
+    getNotificationPreferences()
+      .then(setPreferences)
+      .catch(() => {}) // silently fall back to defaults
+      .finally(() => setPrefsLoading(false))
+  }, [subscribed])
 
   const requestPermission = useCallback(async () => {
     if (typeof Notification === 'undefined') return
@@ -124,7 +163,29 @@ export function useNotifications(): UseNotificationsResult {
     }
   }, [])
 
-  return { permission, subscribed, loading, requestPermission, subscribe, unsubscribe }
+  const updatePreferences = useCallback(async (updates: Partial<NotificationPreferences>) => {
+    setPrefsLoading(true)
+    try {
+      const updated = await updateNotificationPreferences(updates)
+      setPreferences(updated)
+    } catch (err) {
+      console.error('Failed to update notification preferences:', err)
+    } finally {
+      setPrefsLoading(false)
+    }
+  }, [])
+
+  return {
+    permission,
+    subscribed,
+    loading,
+    preferences,
+    prefsLoading,
+    requestPermission,
+    subscribe,
+    unsubscribe,
+    updatePreferences,
+  }
 }
 
 // ---------------------------------------------------------------------------
