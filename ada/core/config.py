@@ -82,6 +82,21 @@ class BoardSuggestionConfig(BaseModel):
     debounce_seconds: float = 5.0
 
 
+class NotificationConfig(BaseModel):
+    """Push notification settings (Phase 10).
+
+    VAPID keys are read from environment variables at runtime — never stored
+    in config files.  Set ADA_VAPID_PRIVATE_KEY and ADA_VAPID_PUBLIC_KEY
+    in production.  When vapid_private_key is empty, the dispatcher skips
+    real pushes (safe for testing and local dev).
+    """
+
+    enabled: bool = True
+    vapid_private_key_env: str = "ADA_VAPID_PRIVATE_KEY"
+    vapid_public_key_env: str = "ADA_VAPID_PUBLIC_KEY"
+    vapid_email: str = "mailto:admin@ada.local"
+
+
 class AgentsConfig(BaseModel):
     wellness_companion: AgentConfig = AgentConfig()
     crisis_monitor: AgentConfig = AgentConfig()
@@ -297,8 +312,8 @@ class AdaConfig(BaseSettings):
     database: DatabaseConfig = DatabaseConfig()
     logging: LoggingConfig = LoggingConfig()
     multimodal: MultimodalConfig = MultimodalConfig()
+    notifications: NotificationConfig = NotificationConfig()
     stt: STTConfig = STTConfig()
-
     tts: TTSConfig = TTSConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
     security: SecurityConfig = SecurityConfig()

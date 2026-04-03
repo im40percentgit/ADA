@@ -108,6 +108,12 @@ base_url = "http://localhost:8081/v1"
 max_tokens = 512
 temperature = 0.2
 
+[notifications]
+enabled = true
+vapid_private_key_env = "ADA_VAPID_PRIVATE_KEY"
+vapid_public_key_env = "ADA_VAPID_PUBLIC_KEY"
+vapid_email = "mailto:admin@ada.local"
+
 [model_routing.agent_mapping]
 wellness_companion = "conversational"
 crisis_monitor = "reasoning"

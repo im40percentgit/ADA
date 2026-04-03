@@ -42,6 +42,7 @@ from ada.agents.physiological import PhysiologicalAgent
 from ada.agents.registry import AgentRegistry
 from ada.agents.daily_summary_generator import DailySummaryGenerator
 from ada.agents.board_suggestion import BoardSuggestionAgent
+from ada.notifications.dispatcher import NotificationDispatcher
 from ada.agents.session_summarizer import SessionSummarizer
 from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.agents.transcription import TranscriptionAgent
@@ -245,6 +246,11 @@ async def run(config: AdaConfig) -> None:
             debounce_seconds=config.agents.board_suggestion.debounce_seconds,
         )
 
+    notification_dispatcher: NotificationDispatcher | None = None
+    if config.notifications.enabled:
+        notification_dispatcher = NotificationDispatcher(bus, state, config.notifications)
+        log.info("NotificationDispatcher instantiated")
+
     # FastAPI
     app = create_app(config, bus, state, registry, tts_agent=tts_agent)
 
@@ -275,6 +281,8 @@ async def run(config: AdaConfig) -> None:
             await daily_summary_generator.shutdown()
         if board_suggestion_agent is not None:
             await board_suggestion_agent.shutdown()
+        if notification_dispatcher is not None:
+            await notification_dispatcher.shutdown()
         await registry.stop_all()
         await bus.stop()
         await state.close()

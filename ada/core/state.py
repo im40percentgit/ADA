@@ -403,6 +403,27 @@ CREATE INDEX IF NOT EXISTS idx_boards_circle ON boards(care_circle_id);
 CREATE INDEX IF NOT EXISTS idx_board_items_board ON board_items(board_id);
 CREATE INDEX IF NOT EXISTS idx_board_items_position ON board_items(board_id, position);
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh_key  TEXT NOT NULL,
+    auth_key    TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS notification_log (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    event_type  TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    body        TEXT NOT NULL,
+    sent_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_log_user ON notification_log(user_id);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -1776,6 +1797,49 @@ class StateManager:
         if row is None or row["max_pos"] is None:
             return 0.0
         return float(row["max_pos"]) + 1.0
+
+    # ------------------------------------------------------------------
+    # Push subscriptions (Phase 10)
+    # ------------------------------------------------------------------
+
+    async def create_push_subscription(self, sub: dict[str, Any]) -> None:
+        """Register or replace a push subscription for a user.
+
+        Uses INSERT OR REPLACE so that a device re-subscribing with the same
+        endpoint simply updates the keys rather than raising a unique constraint.
+        """
+        await self._exec(
+            """INSERT OR REPLACE INTO push_subscriptions
+               (id, user_id, endpoint, p256dh_key, auth_key, created_at)
+               VALUES (:id, :user_id, :endpoint, :p256dh_key, :auth_key, :created_at)""",
+            {**sub, "created_at": sub.get("created_at", _now())},
+        )
+
+    async def get_push_subscriptions(self, user_id: str) -> list[dict[str, Any]]:
+        """Return all push subscriptions for a user (one per device)."""
+        rows = await self._fetchall(
+            "SELECT * FROM push_subscriptions WHERE user_id = ? ORDER BY created_at",
+            (user_id,),
+        )
+        return [dict(r) for r in rows]
+
+    async def delete_push_subscription(self, endpoint: str) -> None:
+        """Remove a push subscription identified by its endpoint URL.
+
+        Called when a 410 Gone response is received (subscription expired)
+        or when the user explicitly unsubscribes.
+        """
+        await self._exec(
+            "DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,)
+        )
+
+    async def create_notification_log(self, log: dict[str, Any]) -> None:
+        """Persist a record of a sent push notification for auditing."""
+        await self._exec(
+            """INSERT INTO notification_log (id, user_id, event_type, title, body, sent_at)
+               VALUES (:id, :user_id, :event_type, :title, :body, :sent_at)""",
+            {**log, "sent_at": log.get("sent_at", _now())},
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers
