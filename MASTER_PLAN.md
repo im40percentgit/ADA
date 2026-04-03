@@ -718,6 +718,23 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | Integration tests — patient dashboard flow (3 tests) | Done | Task 8 |
 | Tests: 939 passing (was 923) | Done | 0 regressions |
 
+### Phase 10c — Push Notifications
+**Status:** `completed`
+**Commits:** `c6665b0` (merge feature/phase10-notifications)
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `push_subscriptions` table + CRUD in `ada/core/state.py` | Done | endpoint unique per user |
+| `ada/notifications/dispatcher.py` — NotificationDispatcher subscriber | Done | Role-based routing matrix |
+| `ada/notifications/vapid.py` — VAPID key generation + pywebpush integration | Done | Keys in env vars (DEC-NOTIF-004) |
+| `ada/api/routes/notifications.py` — subscribe/unsubscribe/vapid-key endpoints | Done | Bearer auth required |
+| `ada/core/events.py` — PUSH_SUBSCRIPTION_ADDED/REMOVED events | Done | |
+| `useNotifications` hook — permission, subscribe, unsubscribe lifecycle | Done | Web Push API abstracted (DEC-NOTIF-001) |
+| `NotificationBell` component — three permission states (default/denied/granted) | Done | DEC-NOTIF-002 |
+| Crisis alert → push dispatch wiring | Done | Caregiver notified on HIGH/CRITICAL alerts |
+| `tests/unit/test_notification_dispatcher.py` | Done | Role matrix + 410 auto-delete |
+| Tests: 939 passing | Done | 0 regressions |
+
 ### Phase 10 Decisions
 
 | ID | Decision | Rationale | Status |
@@ -728,6 +745,50 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | DEC-PATIENT-004 | Alert resolution as status enum (active/acknowledged/resolved) | Three states match clinical workflow: detect → acknowledge → resolve. resolved_at + resolved_by provide audit trail. | accepted |
 | DEC-FRONTEND-033 | PatientDashboard as single component with inline cards | At 6 cards, splitting into separate files adds indirection without reuse benefit. Split when cards grow complex. | accepted |
 | DEC-FRONTEND-034 | Navigation default changed from chat to home | Dashboard-first reflects Ada's repositioning from chatbot to wellness platform. Chat is one click away via "Talk to Ada" card. | accepted |
+| DEC-FRONTEND-040 | PatientDashboard co-locates card sections — no separate card files | Six cards each small enough (~30-50 lines JSX) to keep inline. Avoids prop-drilling patientId through six extra file boundaries. Extract if any card exceeds ~80 lines. | accepted |
+| DEC-ALERT-001 | Minimal alert resolution endpoint — direct state access, no agent | Alert resolution is a caregiver UI action with no LLM involvement. Direct state access (DEC-APPT-001 pattern) keeps implementation minimal and response path fast. | accepted |
+| DEC-NOTIF-001 | useNotifications abstracts all Web Push API surface behind a hook | Push API details (VAPID key fetch, PushManager, Uint8Array conversion) isolated in one hook. UI components depend only on a stable {permission, subscribed, subscribe, unsubscribe} interface. | accepted |
+| DEC-NOTIF-002 | NotificationBell renders three states driven by Notification.permission | Web Notifications API has three distinct permission states (default/granted/denied) plus unsupported. One render branch per state. Unsupported returns null for progressive enhancement. | accepted |
+| DEC-NOTIF-003 | Role-based notification matrix (primary_caregiver > family > clinician) | Different stakeholders need different event subsets. Primary caregivers receive everything. Clinicians receive only clinical events (crisis, daily summary). Family receives all care coordination except team membership changes. | accepted |
+| DEC-NOTIF-004 | VAPID keys via env vars, never in config files | Consistent with api_key_env pattern throughout config.py. Config stores the env var name; runtime reads the value. Empty key means push is unconfigured. | accepted |
+| DEC-NOTIF-005 | 410 Gone auto-deletes subscription | W3C Push API spec: browsers return 410 when a subscription expires or is revoked. Auto-deleting on 410 keeps the subscription table clean without requiring explicit client-side unsubscribe. | accepted |
+| DEC-NOTIF-006 | asyncio.to_thread() for pywebpush calls | pywebpush.webpush() is synchronous and makes an HTTP request. Running it in a thread pool keeps the EventBus handler non-blocking. | accepted |
+
+---
+
+### Phase 11 — Production Readiness
+**Design:** `docs/superpowers/specs/2026-04-03-phase11-production-readiness-design.md`
+
+#### Phase 11a — Foundation (Testing + Resilience)
+**Status:** `in_progress`
+
+##### Phase 11a — Testing Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-TEST-010 | MSW at network layer, WebSocket stubbed at global scope | MSW intercepts fetch() so REST calls go through real api/client.ts code. WebSocket cannot be intercepted by MSW in jsdom — a global stub tracks instances and lets tests inject messages without mocking the hook layer. | accepted |
+| DEC-TEST-011 | MSW handlers mirror real API shapes using factories | Factories produce domain objects with sensible defaults, preventing test brittleness when shapes evolve. One canonical factory per domain type, overridable per test. | accepted |
+| DEC-TEST-012 | Factories use sequential counters for unique IDs | Sequential IDs (patient-1, patient-2...) are deterministic and debuggable. UUIDs would be unreadable in test output. | accepted |
+| DEC-TEST-013 | Component tests use vi.mock for complex hooks (useWebSocket, useBoard) | Chat and BoardView use WebSocket-backed hooks that cannot be exercised in jsdom without a real server. vi.mock at the hook boundary provides controlled return values without mocking internal modules. | accepted |
+
+##### Phase 11a Task 1 — Frontend Testing Infrastructure
+**Status:** `in_progress`
+**Branch:** `feature/frontend-testing`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `web/vitest.config.ts` — Vitest + jsdom config | In progress | |
+| `web/test/setup.ts` — RTL cleanup, MSW lifecycle, browser API mocks | In progress | |
+| `web/test/msw/handlers.ts` — MSW request handlers for all API endpoints | Planned | |
+| `web/test/factories.ts` — Test data factories for all domain types | Planned | |
+| `web/package.json` — add vitest, RTL, MSW, user-event, jsdom | Done | |
+| `web/test/components/Login.test.tsx` | Planned | ~7 tests |
+| `web/test/components/Chat.test.tsx` | Planned | ~8 tests |
+| `web/test/components/PatientDashboard.test.tsx` | Planned | ~9 tests |
+| `web/test/components/CaregiverDashboard.test.tsx` | Planned | ~8 tests |
+| `web/test/components/BoardView.test.tsx` | Planned | ~8 tests |
+| `web/test/components/NotificationBell.test.tsx` | Planned | ~7 tests |
+| Target: ~47 frontend component tests | Planned | 0 backend regressions |
 
 ---
 
