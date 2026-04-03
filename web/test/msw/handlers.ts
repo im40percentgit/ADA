@@ -85,6 +85,18 @@ export const handlers = [
     return json({ access_token: 'test-access-token-2', refresh_token: 'test-refresh-token-2' })
   }),
 
+  http.post('/api/auth/forgot-password', () => {
+    return json({ message: 'If an account exists, a reset link has been sent' })
+  }),
+
+  http.post('/api/auth/reset-password', async ({ request }) => {
+    const body = await request.json() as { token: string; new_password: string }
+    if (body.token === 'invalid-token') {
+      return json({ detail: 'Invalid or expired reset link' }, 400)
+    }
+    return json({ message: 'Password updated successfully' })
+  }),
+
   // -- Patients ------------------------------------------------------------
 
   http.get('/api/patients', () => {

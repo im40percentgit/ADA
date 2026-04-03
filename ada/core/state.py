@@ -424,6 +424,16 @@ CREATE TABLE IF NOT EXISTS notification_log (
 CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_notification_log_user ON notification_log(user_id);
 
+CREATE TABLE IF NOT EXISTS password_resets (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    token_hash  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    used_at     TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token_hash);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -751,6 +761,56 @@ class StateManager:
     async def revoke_refresh_token(self, token_id: str) -> None:
         await self._exec(
             "UPDATE refresh_tokens SET revoked = 1 WHERE token_id = ?", (token_id,)
+        )
+
+    async def revoke_all_refresh_tokens(self, user_id: str) -> None:
+        """Revoke every active refresh token for a user (called on password reset)."""
+        await self._exec(
+            "UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ? AND revoked = 0",
+            (user_id,),
+        )
+
+    async def update_user(self, user_id: str, updates: dict[str, Any]) -> None:
+        """Update allowed fields on a user record."""
+        allowed = {"hashed_password", "email", "is_active"}
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        if not fields:
+            return
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await self._exec(
+            f"UPDATE users SET {set_clause} WHERE id = :id",
+            {**fields, "id": user_id},
+        )
+
+    # ------------------------------------------------------------------
+    # Password resets
+    # ------------------------------------------------------------------
+
+    async def create_password_reset(
+        self, user_id: str, token_hash: str, expires_at: str
+    ) -> str:
+        """Persist a password-reset request. Returns the new reset ID."""
+        import uuid as _uuid
+        reset_id = str(_uuid.uuid4())
+        await self._exec(
+            """INSERT INTO password_resets (id, user_id, token_hash, expires_at, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (reset_id, user_id, token_hash, expires_at, _now()),
+        )
+        return reset_id
+
+    async def get_password_reset_by_token(self, token_hash: str) -> dict[str, Any] | None:
+        """Look up a password-reset row by its hashed token."""
+        row = await self._fetchone(
+            "SELECT * FROM password_resets WHERE token_hash = ?", (token_hash,)
+        )
+        return dict(row) if row else None
+
+    async def mark_password_reset_used(self, reset_id: str) -> None:
+        """Stamp used_at so the token cannot be replayed."""
+        await self._exec(
+            "UPDATE password_resets SET used_at = ? WHERE id = ?",
+            (_now(), reset_id),
         )
 
     # ------------------------------------------------------------------
