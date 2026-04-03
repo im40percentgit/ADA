@@ -457,3 +457,14 @@ export interface CrisisAlertFull {
   resolved_at: string | null
   resolved_by: string | null
 }
+
+// -- Notification Preferences (Phase 11b) -------------------------------
+
+export interface NotificationPreferences {
+  crisis_detected: boolean
+  board_item_suggested: boolean
+  board_item_added: boolean
+  board_item_checked: boolean
+  daily_summary_generated: boolean
+  circle_member_added: boolean
+}

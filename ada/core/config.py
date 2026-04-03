@@ -99,8 +99,30 @@ class ResilienceConfig(BaseModel):
     circuit_breaker: CircuitBreakerConfig = CircuitBreakerConfig()
 
 
+class NotificationThrottleConfig(BaseModel):
+    """Per-user, per-event-type throttle and deduplication settings (Phase 11b).
+
+    throttle_window_seconds: minimum seconds between two notifications of the
+        same event_type to the same user. Crisis events bypass this.
+    dedup_window_seconds: if the exact same dedup_key was sent within this
+        window, suppress the duplicate regardless of event type.
+
+    @decision DEC-NOTIF-009
+    @title Throttle via persistent notification_throttle_log in SQLite
+    @status accepted
+    @rationale In-memory throttle would reset on restart, silently allowing
+        a flood after every redeploy. Persistent log gives accurate suppression
+        across restarts and doubles as an audit trail. The table is pruned of
+        records older than max(throttle, dedup) window on every write to cap
+        growth without requiring a scheduled job.
+    """
+
+    throttle_window_seconds: float = 300.0   # 5 minutes per event type
+    dedup_window_seconds: float = 30.0        # 30 seconds per exact duplicate
+
+
 class NotificationConfig(BaseModel):
-    """Push notification settings (Phase 10).
+    """Push notification settings (Phase 10 + 11b).
 
     VAPID keys are read from environment variables at runtime — never stored
     in config files.  Set ADA_VAPID_PRIVATE_KEY and ADA_VAPID_PUBLIC_KEY
@@ -112,6 +134,7 @@ class NotificationConfig(BaseModel):
     vapid_private_key_env: str = "ADA_VAPID_PRIVATE_KEY"
     vapid_public_key_env: str = "ADA_VAPID_PUBLIC_KEY"
     vapid_email: str = "mailto:admin@ada.local"
+    throttle: NotificationThrottleConfig = NotificationThrottleConfig()
 
 
 class AgentsConfig(BaseModel):

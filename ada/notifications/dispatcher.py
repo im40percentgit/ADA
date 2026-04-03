@@ -67,6 +67,7 @@ from ada.core.events import (
     EventTypes,
 )
 from ada.core.state import StateManager
+from ada.notifications.preferences import NotificationPreferenceManager
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,7 @@ class NotificationDispatcher:
         self._bus = bus
         self._state = state
         self._config = config
+        self._pref_mgr = NotificationPreferenceManager(state, config.throttle)
 
         # Read VAPID keys from env at construction time
         self._vapid_private_key = os.environ.get(config.vapid_private_key_env, "")
@@ -152,6 +154,8 @@ class NotificationDispatcher:
                 return
 
             title, body = self._format_notification(event)
+            # Stable dedup key: event type + patient + event id (if present)
+            dedup_key = f"{event.event_type}:{patient_id}:{getattr(event, 'id', '')}"
 
             circle = await self._state.get_care_circle_by_patient(patient_id)
             if not circle:
@@ -165,9 +169,20 @@ class NotificationDispatcher:
                 if event.event_type not in allowed:
                     continue
 
-                subs = await self._state.get_push_subscriptions(member["user_id"])
+                user_id = member["user_id"]
+
+                # Preference + throttle + dedup gate
+                if not await self._pref_mgr.should_send(user_id, event.event_type, dedup_key):
+                    logger.debug(
+                        "NotificationDispatcher: suppressed %s for user %s (pref/throttle/dedup)",
+                        event.event_type,
+                        user_id,
+                    )
+                    continue
+
+                subs = await self._state.get_push_subscriptions(user_id)
                 for sub in subs:
-                    await self._send_push(sub, title, body, event.event_type, member["user_id"])
+                    await self._send_push(sub, title, body, event.event_type, user_id, dedup_key)
 
         except Exception:
             logger.exception(
@@ -206,11 +221,13 @@ class NotificationDispatcher:
         body: str,
         event_type: str,
         user_id: str,
+        dedup_key: str,
     ) -> None:
-        """Deliver a single Web Push notification and log it.
+        """Deliver a single Web Push notification, log it, and record for throttle/dedup.
 
         If the VAPID private key is not configured, push is skipped silently
-        (safe for development and testing environments).
+        (safe for development and testing environments). The audit log and
+        throttle record are always written so the gating logic stays accurate.
         """
         if not self._vapid_private_key:
             logger.debug(
@@ -218,6 +235,7 @@ class NotificationDispatcher:
             )
             # Still log so audit trail shows the notification would have been sent
             await self._log_notification(user_id, event_type, title, body)
+            await self._pref_mgr.record_sent(user_id, event_type, dedup_key)
             return
 
         payload = json.dumps({"title": title, "body": body, "url": "/"})
@@ -229,6 +247,7 @@ class NotificationDispatcher:
             },
         }
 
+        push_succeeded = False
         try:
             await asyncio.to_thread(
                 webpush,
@@ -237,6 +256,7 @@ class NotificationDispatcher:
                 vapid_private_key=self._vapid_private_key,
                 vapid_claims={"sub": self._config.vapid_email},
             )
+            push_succeeded = True
         except Exception as exc:
             # 410 Gone = subscription expired — clean it up automatically
             status_code = getattr(getattr(exc, "response", None), "status_code", 0)
@@ -254,6 +274,9 @@ class NotificationDispatcher:
                 )
 
         await self._log_notification(user_id, event_type, title, body)
+        # Record for throttle/dedup regardless of delivery success — a failed
+        # push still counts as "attempted" to prevent retry floods.
+        await self._pref_mgr.record_sent(user_id, event_type, dedup_key)
 
     async def _log_notification(
         self,

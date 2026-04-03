@@ -424,6 +424,24 @@ CREATE TABLE IF NOT EXISTS notification_log (
 CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_notification_log_user ON notification_log(user_id);
 
+CREATE TABLE IF NOT EXISTS notification_preferences (
+    user_id     TEXT PRIMARY KEY REFERENCES users(id),
+    preferences TEXT NOT NULL DEFAULT '{}',
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS notification_throttle_log (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    event_type  TEXT NOT NULL,
+    dedup_key   TEXT NOT NULL,
+    sent_at     REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notif_pref_user ON notification_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_throttle_log_user_event ON notification_throttle_log(user_id, event_type);
+CREATE INDEX IF NOT EXISTS idx_throttle_log_dedup ON notification_throttle_log(user_id, event_type, dedup_key);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -1840,6 +1858,87 @@ class StateManager:
                VALUES (:id, :user_id, :event_type, :title, :body, :sent_at)""",
             {**log, "sent_at": log.get("sent_at", _now())},
         )
+
+    # ------------------------------------------------------------------
+    # Notification preferences (Phase 11b)
+    # ------------------------------------------------------------------
+
+    async def get_notification_preferences(self, user_id: str) -> dict[str, Any] | None:
+        """Return parsed notification preferences for a user, or None if not set."""
+        row = await self._fetchone(
+            "SELECT preferences FROM notification_preferences WHERE user_id = ?",
+            (user_id,),
+        )
+        if row is None:
+            return None
+        return json.loads(row["preferences"])
+
+    async def set_notification_preferences(self, user_id: str, prefs: dict[str, Any]) -> None:
+        """Upsert notification preferences for a user (INSERT OR REPLACE)."""
+        await self._exec(
+            "INSERT OR REPLACE INTO notification_preferences (user_id, preferences, updated_at)"
+            " VALUES (?, ?, ?)",
+            (user_id, json.dumps(prefs), _now()),
+        )
+
+    # ------------------------------------------------------------------
+    # Notification throttle log (Phase 11b)
+    # ------------------------------------------------------------------
+
+    async def record_notification_sent(
+        self,
+        user_id: str,
+        event_type: str,
+        dedup_key: str,
+        sent_at: float,
+    ) -> None:
+        """Record that a notification was dispatched for throttle/dedup tracking.
+
+        Prunes entries older than 24 hours on each write to prevent unbounded
+        table growth without requiring a scheduled job.
+        """
+        import uuid as _uuid
+        await self._exec(
+            "INSERT INTO notification_throttle_log (id, user_id, event_type, dedup_key, sent_at)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (str(_uuid.uuid4()), user_id, event_type, dedup_key, sent_at),
+        )
+        cutoff = sent_at - 86400.0
+        await self._exec(
+            "DELETE FROM notification_throttle_log WHERE user_id = ? AND sent_at < ?",
+            (user_id, cutoff),
+        )
+
+    async def get_last_notification_sent(
+        self,
+        user_id: str,
+        event_type: str,
+    ) -> float | None:
+        """Return the timestamp of the most recent notification of event_type for user."""
+        row = await self._fetchone(
+            "SELECT MAX(sent_at) AS last_sent FROM notification_throttle_log"
+            " WHERE user_id = ? AND event_type = ?",
+            (user_id, event_type),
+        )
+        if row is None or row["last_sent"] is None:
+            return None
+        return float(row["last_sent"])
+
+    async def get_dedup_key_last_sent(
+        self,
+        user_id: str,
+        event_type: str,
+        dedup_key: str,
+    ) -> float | None:
+        """Return the timestamp of the most recent send for a specific dedup_key."""
+        row = await self._fetchone(
+            "SELECT MAX(sent_at) AS last_sent FROM notification_throttle_log"
+            " WHERE user_id = ? AND event_type = ? AND dedup_key = ?",
+            (user_id, event_type, dedup_key),
+        )
+        if row is None or row["last_sent"] is None:
+            return None
+        return float(row["last_sent"])
 
     # ------------------------------------------------------------------
     # Internal helpers
