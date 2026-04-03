@@ -175,8 +175,22 @@ class CrisisMonitorAgent(BaseAgent):
 
         if keyword_severity in ("MODERATE", "LOW") or _has_emotional_language(content):
             # Stage 2: LLM analysis for nuanced assessment
-            llm_severity = await self._llm_analyse(content)
-            if llm_severity and llm_severity != "NONE":
+            llm_severity = await self._llm_analyse(content, session_id=session_id)
+            if llm_severity is None:
+                # LLM failed — fail-safe: escalate to HIGH rather than fail-silent.
+                # on_agent_failure() is called from llm_call(); we also need to
+                # raise the alert directly since we can't rely on on_agent_failure
+                # knowing the session/patient context here.
+                await self._raise_alert(
+                    session_id=session_id,
+                    patient_id=patient_id,
+                    severity="HIGH",
+                    trigger_text=content[:500],
+                    detection_method="error_escalation",
+                    escalation_action=_escalation_action("HIGH"),
+                )
+                return
+            if llm_severity != "NONE":
                 # Use the higher of keyword and LLM severity
                 final_severity = _higher_severity(keyword_severity or "NONE", llm_severity)
                 await self._raise_alert(
@@ -188,21 +202,32 @@ class CrisisMonitorAgent(BaseAgent):
                     escalation_action=_escalation_action(final_severity),
                 )
 
-    async def _llm_analyse(self, content: str) -> str | None:
-        """Run LLM-based crisis analysis. Returns severity string or None on error."""
+    async def _llm_analyse(self, content: str, session_id: str = "") -> str | None:
+        """
+        Run LLM-based crisis analysis via the circuit-breaker-protected llm_call().
+
+        Returns:
+            Severity string ("CRITICAL"/"HIGH"/"MODERATE"/"LOW"/"NONE") on success.
+            None if the LLM call failed or timed out — caller must escalate.
+        """
         import json
 
         prompt = _LLM_ANALYSIS_PROMPT.format(message=content[:1000])
+        response = await self.llm_call(
+            self.llm.complete(
+                [{"role": "user", "content": prompt}],
+                max_tokens=200,
+                temperature=0.1,   # Low temperature for consistent JSON output
+            ),
+            session_id=session_id,
+            fallback=None,
+        )
+        if response is None:
+            # llm_call() returned None — failure was already logged and
+            # on_agent_failure() called.
+            return None
+
         try:
-            response = await asyncio.wait_for(
-                self.llm.complete(
-                    [{"role": "user", "content": prompt}],
-                    max_tokens=200,
-                    temperature=0.1,   # Low temperature for consistent JSON output
-                ),
-                timeout=self.config.llm.timeout,
-            )
-            # Parse JSON response
             raw = response.content.strip()
             # Strip markdown code fences if present
             if raw.startswith("```"):
@@ -212,8 +237,28 @@ class CrisisMonitorAgent(BaseAgent):
             data = json.loads(raw)
             return data.get("severity", "NONE")
         except Exception:
-            logger.exception("CrisisMonitorAgent: LLM analysis failed")
+            logger.exception("CrisisMonitorAgent: failed to parse LLM response")
             return None
+
+    async def on_agent_failure(
+        self,
+        error_type: str,
+        session_id: str = "",
+        exc: Exception | None = None,
+    ) -> None:
+        """
+        CrisisMonitor always escalates on LLM failure — fail-safe, never fail-silent.
+
+        Publishing the AGENT_ERROR event is skipped here because the crisis
+        alert itself is the notification. The _analyse() method raises a HIGH
+        alert directly when _llm_analyse() returns None.
+        """
+        logger.error(
+            "CrisisMonitorAgent: LLM failure [%s] session=%s — "
+            "caller will escalate to HIGH severity alert",
+            error_type,
+            session_id or "<none>",
+        )
 
     async def _raise_alert(
         self,

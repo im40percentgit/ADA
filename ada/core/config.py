@@ -66,6 +66,7 @@ class LLMConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     enabled: bool = True
+    timeout_seconds: float = 30.0  # Per-agent LLM call timeout (Phase 11a)
 
 
 class DailySummaryConfig(BaseModel):
@@ -73,6 +74,7 @@ class DailySummaryConfig(BaseModel):
 
     enabled: bool = True
     debounce_seconds: float = 1800.0  # 30 minutes — wait for last session of day
+    timeout_seconds: float = 60.0
 
 
 class BoardSuggestionConfig(BaseModel):
@@ -80,6 +82,21 @@ class BoardSuggestionConfig(BaseModel):
 
     enabled: bool = False
     debounce_seconds: float = 5.0
+    timeout_seconds: float = 30.0
+
+
+class CircuitBreakerConfig(BaseModel):
+    """Circuit breaker thresholds (Phase 11a resilience)."""
+
+    failure_threshold: int = 5
+    failure_window_seconds: float = 60.0
+    recovery_timeout_seconds: float = 120.0
+
+
+class ResilienceConfig(BaseModel):
+    """Resilience settings for all agents (Phase 11a)."""
+
+    circuit_breaker: CircuitBreakerConfig = CircuitBreakerConfig()
 
 
 class NotificationConfig(BaseModel):
@@ -317,6 +334,7 @@ class AdaConfig(BaseSettings):
     tts: TTSConfig = TTSConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
     security: SecurityConfig = SecurityConfig()
+    resilience: ResilienceConfig = ResilienceConfig()
     model_routing: ModelRoutingConfig | None = None
 
     @classmethod

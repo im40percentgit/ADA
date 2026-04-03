@@ -14,23 +14,29 @@ model = "local-model"
 
 [agents.wellness_companion]
 enabled = true
+timeout_seconds = 30.0
 
 [agents.crisis_monitor]
 enabled = true
+timeout_seconds = 30.0
 
 [agents.medication_manager]
 enabled = true
+timeout_seconds = 30.0
 
 [agents.cognitive_assessor]
 enabled = true
+timeout_seconds = 30.0
 
 [agents.daily_summary]
 enabled = true
 debounce_seconds = 1800.0
+timeout_seconds = 60.0
 
 [agents.board_suggestion]
 enabled = true
 debounce_seconds = 5.0
+timeout_seconds = 30.0
 
 [auth]
 jwt_secret_env = "ADA_JWT_SECRET"
@@ -113,6 +119,11 @@ enabled = true
 vapid_private_key_env = "ADA_VAPID_PRIVATE_KEY"
 vapid_public_key_env = "ADA_VAPID_PUBLIC_KEY"
 vapid_email = "mailto:admin@ada.local"
+
+[resilience.circuit_breaker]
+failure_threshold = 5
+failure_window_seconds = 60
+recovery_timeout_seconds = 120
 
 [model_routing.agent_mapping]
 wellness_companion = "conversational"

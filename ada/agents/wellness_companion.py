@@ -248,26 +248,23 @@ class WellnessCompanionAgent(BaseAgent, HandoffMixin):
                 + "\n\nIncorporate this context naturally into your response when relevant."
             )
 
-        # Generate response — bounded by config timeout so a hung LLM API
-        # does not block the agent indefinitely.  asyncio.TimeoutError is a
-        # subclass of Exception and is caught by the fallback handler below.
-        try:
-            response = await asyncio.wait_for(
-                self.llm.complete(
-                    llm_messages,
-                    system=system,
-                    max_tokens=self.config.llm.max_tokens,
-                    temperature=self.config.llm.temperature,
-                ),
-                timeout=self.config.llm.timeout,
-            )
+        # Generate response via llm_call() which applies timeout + circuit breaker.
+        # On failure, llm_call() calls on_agent_failure() and returns the fallback.
+        _fallback_text = "I'm having a moment — could you try saying that again?"
+        response = await self.llm_call(
+            self.llm.complete(
+                llm_messages,
+                system=system,
+                max_tokens=self.config.llm.max_tokens,
+                temperature=self.config.llm.temperature,
+            ),
+            session_id=session_id,
+            fallback=None,
+        )
+        if response is not None:
             assistant_content = response.content
-        except Exception:
-            logger.exception("WellnessCompanionAgent: LLM call failed")
-            assistant_content = (
-                "I'm sorry, I'm having trouble responding right now. "
-                "If you're in crisis, please contact a crisis line immediately."
-            )
+        else:
+            assistant_content = _fallback_text
 
         # Persist assistant message
         assistant_msg_id = str(uuid.uuid4())
@@ -306,6 +303,38 @@ class WellnessCompanionAgent(BaseAgent, HandoffMixin):
             event.accepted,
             event.notes,
         )
+
+    async def on_agent_failure(
+        self,
+        error_type: str,
+        session_id: str = "",
+        exc: Exception | None = None,
+    ) -> None:
+        """
+        Publish AGENT_ERROR event with a user-visible fallback message.
+
+        WellnessCompanionAgent is user-facing — the chat WebSocket relays
+        AGENT_ERROR events with a non-empty user_message to the frontend.
+        """
+        from ada.core.events import AgentErrorEvent
+
+        logger.warning(
+            "WellnessCompanionAgent: LLM failure [%s] session=%s",
+            error_type, session_id or "<none>",
+        )
+        if self._bus is not None:
+            try:
+                await self._bus.publish(
+                    AgentErrorEvent(
+                        source=self.name,
+                        agent_name=self.name,
+                        error_type=error_type,
+                        session_id=session_id,
+                        user_message="Ada is having trouble responding. Try sending another message.",
+                    )
+                )
+            except Exception:
+                logger.exception("WellnessCompanionAgent: failed to publish AGENT_ERROR")
 
     async def _consult_knowledge_agent(
         self, session_id: str, patient_id: str, question: str
