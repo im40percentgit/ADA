@@ -3,21 +3,25 @@
  * @description WebSocket hook for real-time board synchronisation.
  *   Opens a connection to /ws/board/{boardId}, authenticates with a Bearer
  *   token on open, and delivers parsed board messages to the onMessage
- *   callback. Reconnects automatically after 3 s on close.
+ *   callback. Uses useReconnectingWebSocket for exponential-backoff reconnect.
  *
  * @decision DEC-BOARDS-010
- * @title Board WS hook mirrors useMediaWebSocket pattern
+ * @title Board WS hook uses useReconnectingWebSocket with onOpen auth callback
  * @status accepted
- * @rationale Re-using the same auth-on-open + auto-reconnect pattern keeps
- *   the codebase consistent and avoids a shared-infrastructure abstraction
- *   before the pattern is proven across enough consumers. The token is read
- *   at connection time (not hook-mount time) so a refresh that happens
- *   between mounts is always picked up.
+ * @rationale Migrating from manual WS management to useReconnectingWebSocket
+ *   gives the board connection the same exponential-backoff resilience as the
+ *   chat connection. The onOpen callback sends the auth frame immediately after
+ *   each (re)connect — the token is read at connect time (not hook-mount time)
+ *   so a refresh that happens between reconnects is always picked up.
+ *   The 'connected' ack from the server is filtered in onMessage, consistent
+ *   with the prior implementation.
  */
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback } from 'react'
 import { getAccessToken } from '../api/auth'
+import { useReconnectingWebSocket } from './useReconnectingWebSocket'
 import type { WsBoardMessage } from '../types'
+import type { WsInboundMessage } from '../types'
 
 interface UseBoardWebSocketOptions {
   boardId: string
@@ -30,54 +34,32 @@ export function useBoardWebSocket({
   onMessage,
   enabled = true,
 }: UseBoardWebSocketOptions) {
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectRef = useRef<ReturnType<typeof setTimeout>>()
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const url = `${protocol}//${location.host}/ws/board/${boardId}`
 
-  const connect = useCallback(() => {
-    if (!enabled || wsRef.current?.readyState === WebSocket.OPEN) return
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${location.host}/ws/board/${boardId}`)
-    wsRef.current = ws
+  // Send auth frame immediately after each (re)connect
+  const handleOpen = useCallback((ws: WebSocket) => {
+    const token = getAccessToken()
+    ws.send(JSON.stringify({ type: 'auth', token: token ?? '' }))
+  }, [])
 
-    ws.onopen = () => {
-      const token = getAccessToken()
-      ws.send(JSON.stringify({ type: 'auth', token: token ?? '' }))
+  // Filter the server 'connected' ack; deliver all other messages
+  const handleMessage = useCallback((msg: WsInboundMessage) => {
+    if ((msg as { type: string }).type !== 'connected') {
+      onMessage(msg as unknown as WsBoardMessage)
     }
+  }, [onMessage])
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        // The server sends a 'connected' ack on auth success — ignore it
-        if (data.type !== 'connected') {
-          onMessage(data as WsBoardMessage)
-        }
-      } catch {
-        // Malformed JSON — silently ignore
-      }
-    }
-
-    ws.onclose = () => {
-      wsRef.current = null
-      if (enabled) reconnectRef.current = setTimeout(connect, 3000)
-    }
-
-    ws.onerror = () => ws.close()
-  }, [boardId, onMessage, enabled])
-
-  useEffect(() => {
-    connect()
-    return () => {
-      if (reconnectRef.current) clearTimeout(reconnectRef.current)
-      wsRef.current?.close()
-      wsRef.current = null
-    }
-  }, [connect])
+  const { sendJson } = useReconnectingWebSocket({
+    url,
+    onMessage: handleMessage,
+    onOpen: handleOpen,
+    enabled,
+  })
 
   const send = useCallback((msg: Record<string, unknown>) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg))
-    }
-  }, [])
+    sendJson(msg)
+  }, [sendJson])
 
   return { send }
 }

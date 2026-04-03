@@ -3,7 +3,7 @@
  *
  * Owns the message list, streaming state, crisis alerts, assessment
  * prompts, emotion state, and vitals received over WebSocket.
- * Delegates transport to useWebSocket.
+ * Delegates transport to useReconnectingWebSocket.
  *
  * @decision DEC-FRONTEND-004
  * @title useChat accumulates streaming tokens into a mutable message buffer
@@ -21,10 +21,20 @@
  *   only — they do not render history charts. Storing only the latest value
  *   avoids unbounded state growth during long sessions with frequent sensor
  *   updates. A future phase can add a rolling buffer for trend visualisation.
+ *
+ * @decision DEC-FRONTEND-017
+ * @title useChat maps ReconnectingWsStatus to the legacy WsStatus type
+ * @status accepted
+ * @rationale Chat.tsx and its tests use WsStatus ('connecting'|'open'|'closed'|'error').
+ *   useReconnectingWebSocket emits a superset: 'connecting'|'open'|'reconnecting'|'closed'.
+ *   We collapse 'reconnecting' → 'connecting' so the Chat UI and tests remain unchanged.
+ *   The richer status is available to App.tsx via the onWsStatusChange callback for the
+ *   global ConnectionStatus banner.
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useWebSocket, type WsStatus } from './useWebSocket'
+import { useReconnectingWebSocket, type ReconnectingWsStatus } from './useReconnectingWebSocket'
+import type { WsStatus } from './useWebSocket'
 import { wsUrl, getSessionMessages } from '../api/client'
 import type {
   ChatMessage,
@@ -53,7 +63,10 @@ export interface UseChatReturn {
   messages: ChatMessage[]
   crisisAlert: WsCrisisAlert | null
   assessmentPrompt: WsAssessmentPrompt | null
+  /** Collapsed status for Chat UI: 'reconnecting' maps to 'connecting' */
   wsStatus: WsStatus
+  /** Full reconnecting status — use this for the global ConnectionStatus banner */
+  reconnectingStatus: ReconnectingWsStatus
   sendMessage: (content: string) => void
   clearAssessmentPrompt: () => void
   currentEmotion: WsEmotionUpdate | null
@@ -236,11 +249,21 @@ export function useChat(
     [onAudioData],
   )
 
-  const { send, sendJson } = useWebSocket({
+  const [reconnectingStatus, setReconnectingStatus] = useState<ReconnectingWsStatus>('connecting')
+
+  const handleStatusChange = useCallback((s: ReconnectingWsStatus) => {
+    setReconnectingStatus(s)
+    // Collapse 'reconnecting' → 'connecting' for the legacy WsStatus consumers
+    const collapsed: WsStatus =
+      s === 'open' ? 'open' : s === 'closed' ? 'closed' : 'connecting'
+    setWsStatus(collapsed)
+  }, [])
+
+  const { sendJson } = useReconnectingWebSocket({
     url: wsUrl(sessionId),
     onMessage: handleMessage,
     onBinaryMessage: handleBinaryMessage,
-    onStatusChange: setWsStatus,
+    onStatusChange: handleStatusChange,
   })
 
   const sendMessage = useCallback(
@@ -257,9 +280,9 @@ export function useChat(
           timestamp: new Date(),
         },
       ])
-      send({ content: trimmed, patient_id: patientId })
+      sendJson({ content: trimmed, patient_id: patientId })
     },
-    [send, patientId],
+    [sendJson, patientId],
   )
 
   const sendVoiceMode = useCallback(
@@ -276,6 +299,7 @@ export function useChat(
     crisisAlert,
     assessmentPrompt,
     wsStatus,
+    reconnectingStatus,
     sendMessage,
     clearAssessmentPrompt,
     currentEmotion,

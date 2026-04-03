@@ -51,10 +51,13 @@ import { FacePreview } from './FacePreview'
 import { MediaControls } from './MediaControls'
 import type { Assessment } from '../types'
 import type { SimulatorPreset } from '../hooks/useSensorSimulator'
+import type { ReconnectingWsStatus } from '../hooks/useReconnectingWebSocket'
 
 interface ChatProps {
   sessionId: string
   patientId: string
+  /** Optional callback to lift the full reconnecting WS status to a parent */
+  onWsStatusChange?: (status: ReconnectingWsStatus) => void
 }
 
 const WS_STATUS_LABELS: Record<string, string> = {
@@ -64,7 +67,7 @@ const WS_STATUS_LABELS: Record<string, string> = {
   error: 'Connection error',
 }
 
-export function Chat({ sessionId, patientId }: ChatProps) {
+export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
   const { queueAudio, interrupt, isSpeaking } = useAudioPlayback()
   const [voiceEnabled, setVoiceEnabled] = useState(false)
 
@@ -80,6 +83,7 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     crisisAlert,
     assessmentPrompt,
     wsStatus,
+    reconnectingStatus,
     sendMessage,
     clearAssessmentPrompt,
     currentEmotion,
@@ -87,6 +91,11 @@ export function Chat({ sessionId, patientId }: ChatProps) {
     sendVoiceMode,
     pendingTranscription,
   } = useChat(sessionId, patientId, { onAudioData: handleAudioData })
+
+  // Bubble full reconnecting status up to App for the global ConnectionStatus banner
+  useEffect(() => {
+    onWsStatusChange?.(reconnectingStatus)
+  }, [reconnectingStatus, onWsStatusChange])
 
   // Media WebSocket — handles binary audio/video uploads
   const { sendAudioChunk, sendVideoFrame, sendEndOfUtterance } = useMediaWebSocket({ sessionId })
