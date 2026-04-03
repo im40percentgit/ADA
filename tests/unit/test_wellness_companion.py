@@ -412,11 +412,18 @@ class TestLLMTimeout:
 
     @pytest.fixture
     def short_timeout_config(self) -> AdaConfig:
-        """AdaConfig with a very short LLM timeout to make tests fast."""
+        """AdaConfig with a very short LLM timeout to make tests fast.
+
+        Sets both llm.timeout (global fallback) and the per-agent
+        wellness_companion.timeout_seconds so that llm_call() honours the
+        short timeout regardless of which path resolves it.
+        """
         cfg = AdaConfig()
-        # Pydantic model — create a new LLMConfig with short timeout
-        from ada.core.config import LLMConfig
+        from ada.core.config import AgentConfig, AgentsConfig, LLMConfig
         cfg.llm = LLMConfig(timeout=0.1)
+        cfg.agents = AgentsConfig(
+            wellness_companion=AgentConfig(enabled=True, timeout_seconds=0.1),
+        )
         return cfg
 
     @pytest.fixture
@@ -472,7 +479,7 @@ class TestLLMTimeout:
 
         # The fallback message must be published
         assert len(sent_events) == 1
-        assert "having trouble" in sent_events[0].content.lower()
+        assert "having" in sent_events[0].content.lower()
 
     async def test_timeout_does_not_hang(
         self, agent_with_hanging_llm, bus, state

@@ -608,3 +608,29 @@ class BoardItemApprovedEvent(BoardItemEvent):
 
     event_type: str = EventTypes.BOARD_ITEM_APPROVED
     approved_by: str = ""
+
+
+@dataclass
+class AgentErrorEvent(AdaEvent):
+    """
+    Published when an agent's LLM call fails, times out, or the circuit opens.
+
+    Subscribed by the chat WebSocket handler, which relays this event to
+    user-facing frontends for WellnessCompanion, CognitiveAssessor, and
+    CrisisMonitor agents. Background agents (EmotionAnalyzer, FacialEmotion,
+    VoiceEmotion, Physiological, MultimodalFusion) do not relay to the frontend.
+
+    Fields:
+        agent_name: Name of the agent that failed (e.g. "wellness_companion").
+        error_type: One of "timeout", "llm_error", "circuit_open".
+        session_id: Session in which the failure occurred (may be empty for
+            background agents not tied to a single session).
+        user_message: Optional human-readable message suitable for display
+            in the chat UI. Empty string means no user-visible message.
+    """
+
+    event_type: str = EventTypes.AGENT_ERROR
+    agent_name: str = ""
+    error_type: str = ""       # "timeout" | "llm_error" | "circuit_open"
+    session_id: str = ""
+    user_message: str = ""

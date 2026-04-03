@@ -77,6 +77,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from ada.core.events import (
+    AgentErrorEvent,
     AudioResponseEvent,
     EventTypes,
     FusedEmotionEvent,
@@ -86,6 +87,14 @@ from ada.core.events import (
     SessionStartedEvent,
     TranscriptionCompletedEvent,
 )
+
+# Agents whose AGENT_ERROR events are relayed to the frontend.
+# Background agents (emotion, voice, face, physiological, fusion) fail silently.
+_USER_FACING_AGENTS = frozenset({
+    "wellness_companion",
+    "cognitive_assessor",
+    "crisis_monitor",
+})
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +252,36 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         except Exception:
             pass  # Client disconnected — suppress, let finally clean up
 
+    async def on_agent_error(event: AgentErrorEvent) -> None:
+        """
+        Relay AGENT_ERROR to the frontend for user-facing agents only.
+
+        Background agents (emotion analysis, voice, face, physiological, fusion)
+        fail silently — their errors are not shown to the user. User-facing agents
+        (wellness_companion, cognitive_assessor, crisis_monitor) send an inline
+        amber system message with the optional user_message from the event.
+
+        The event is not session-filtered here because AGENT_ERROR events may not
+        carry a session_id (e.g. background agents). User-facing agents always
+        set session_id, so we check both agent name and session for relevance.
+        """
+        if event.agent_name not in _USER_FACING_AGENTS:
+            return
+        if event.session_id and event.session_id != session_id:
+            return
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json({
+                    "type": "agent_error",
+                    "agent": event.agent_name,
+                    "error_type": event.error_type,
+                    "user_message": event.user_message or (
+                        "Ada is having trouble responding. Try sending another message."
+                    ),
+                })
+        except Exception:
+            pass
+
     bus.subscribe(EventTypes.MESSAGE_SENT, on_message_sent, f"ws:{session_id}")
     bus.subscribe(EventTypes.EMOTION_FUSED, on_emotion_fused, f"ws-emotion:{session_id}")
     bus.subscribe(EventTypes.SENSOR_READING, on_sensor_reading, f"ws-sensor:{session_id}")
@@ -251,8 +290,8 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         on_transcription_completed,
         f"ws-transcription:{session_id}",
     )
-
     bus.subscribe(EventTypes.AUDIO_RESPONSE, on_audio_response, f"ws-audio:{session_id}")
+    bus.subscribe(EventTypes.AGENT_ERROR, on_agent_error, f"ws-agent-error:{session_id}")
 
     # -----------------------------------------------------------------------
     # Concurrent tasks
@@ -380,6 +419,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         )
 
         bus.unsubscribe(EventTypes.AUDIO_RESPONSE, f"ws-audio:{session_id}")
+        bus.unsubscribe(EventTypes.AGENT_ERROR, f"ws-agent-error:{session_id}")
         tts_agent = getattr(websocket.app.state, 'tts_agent', None)
         if tts_agent:
             tts_agent.disable_voice(session_id)
