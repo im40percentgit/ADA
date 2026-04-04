@@ -73,6 +73,8 @@ class EventTypes:
     # Cognitive assessment
     COGNITIVE_SCREENING_STARTED = "cognitive.screening_started"
     COGNITIVE_SCREENING_COMPLETED = "cognitive.screening_completed"
+    COGNITIVE_TASK_PRESENTED = "cognitive.task_presented"
+    COGNITIVE_TASK_RESPONSE = "cognitive.task_response"
 
     # Appointments
     APPOINTMENT_CREATED = "appointment.created"
@@ -355,6 +357,34 @@ class CognitiveScreeningCompletedEvent(AdaEvent):
     screening_id: str = ""
     overall_score: float = 0.0
     concerns: list = field(default_factory=list)
+
+
+@dataclass
+class CognitiveTaskPresentedEvent(AdaEvent):
+    """Published when an individual cognitive task is presented during screening."""
+
+    event_type: str = EventTypes.COGNITIVE_TASK_PRESENTED
+    screening_id: str = ""
+    task_index: int = 0
+    total_tasks: int = 0
+    domain: str = ""
+    task_type: str = ""            # "text" | "pattern_grid" | "sequence_order" | "clock_reading"
+    prompt: str = ""
+    task_data: dict = field(default_factory=dict)
+    session_id: str = ""
+    patient_id: str = ""
+
+
+@dataclass
+class CognitiveTaskResponseEvent(AdaEvent):
+    """Published when a patient submits a response to a cognitive task."""
+
+    event_type: str = EventTypes.COGNITIVE_TASK_RESPONSE
+    screening_id: str = ""
+    task_index: int = 0
+    response: Any = ""             # str or dict depending on task_type
+    session_id: str = ""
+    patient_id: str = ""
 
 
 @dataclass

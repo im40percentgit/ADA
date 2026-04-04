@@ -126,6 +126,18 @@ export interface WsAudioResponse {
   format: string
 }
 
+/** Phase 12b: cognitive screening task delivered inline in chat */
+export interface WsCognitiveTask {
+  type: 'cognitive_task'
+  screening_id: string
+  task_index: number
+  total_tasks: number
+  domain: string
+  task_type: 'text' | 'pattern_grid' | 'sequence_order' | 'clock_reading'
+  prompt: string
+  task_data: Record<string, unknown>
+}
+
 export type WsInboundMessage =
   | WsTokenMessage
   | WsCompleteMessage
@@ -136,6 +148,7 @@ export type WsInboundMessage =
   | WsVitalsUpdate
   | WsTranscription
   | WsAudioResponse
+  | WsCognitiveTask
 
 // ---------------------------------------------------------------------------
 // UI-only chat message (combines streaming + complete states)
@@ -151,6 +164,10 @@ export interface ChatMessage {
   timestamp: Date
   /** Phase 7: 'voice' for messages that originated from speech transcription */
   source?: 'text' | 'voice'
+  /** Phase 12b: cognitive screening task data for inline task cards */
+  cognitiveTask?: CognitiveTaskPresented
+  /** Phase 12b: true once the user has submitted a response to a cognitive task */
+  cognitiveTaskAnswered?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -467,6 +484,32 @@ export interface NotificationPreferences {
   board_item_checked: boolean
   daily_summary_generated: boolean
   circle_member_added: boolean
+}
+
+// -- Cognitive Screening (Phase 12b) ------------------------------------
+
+export interface CognitiveTaskPresented {
+  screening_id: string
+  task_index: number
+  total_tasks: number
+  domain: string
+  task_type: 'text' | 'pattern_grid' | 'sequence_order' | 'clock_reading'
+  prompt: string
+  task_data: Record<string, unknown>
+}
+
+export interface CognitiveScreening {
+  id: string
+  patient_id: string
+  session_id: string | null
+  status: 'in_progress' | 'completed'
+  domains: Record<string, { task_count: number; avg_score: number; total_score: number }>
+  tasks: Array<{ domain: string; prompt: string; response: string; score: number; rationale: string }>
+  overall_score: number | null
+  concerns: string[]
+  started_at: string
+  completed_at: string | null
+  created_at: string
 }
 
 // -- Clinical Visualization (Phase 12a) ---------------------------------

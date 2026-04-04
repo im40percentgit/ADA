@@ -22,7 +22,7 @@ import { getClinicianNotes, upsertClinicianNote } from '../api/client'
 import type { ClinicianNote } from '../types'
 
 interface ClinicianNotesProps {
-  entityType: 'session_summary' | 'daily_summary'
+  entityType: 'session_summary' | 'daily_summary' | 'cognitive_screening'
   entityId: string
   /** Current user role — hide component entirely for 'user' (patient) */
   role?: string

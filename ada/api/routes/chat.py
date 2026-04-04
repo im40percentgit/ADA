@@ -3,8 +3,9 @@ WebSocket chat endpoint -- /ws/chat/{session_id}.
 
 Streams wellness companion responses in real time. The WebSocket receives user
 messages, publishes them to the EventBus, and forwards MESSAGE_SENT,
-EMOTION_FUSED, SENSOR_READING, and TRANSCRIPTION_COMPLETED events back
-to the client.
+EMOTION_FUSED, SENSOR_READING, TRANSCRIPTION_COMPLETED, and
+COGNITIVE_TASK_PRESENTED events back to the client. Accepts cognitive_response
+messages from the client and publishes them as CognitiveTaskResponseEvents.
 
 Authentication protocol (Phase 2):
     After connection is accepted, the client must send within 5 seconds:
@@ -79,6 +80,8 @@ from starlette.websockets import WebSocketState
 from ada.core.events import (
     AgentErrorEvent,
     AudioResponseEvent,
+    CognitiveTaskPresentedEvent,
+    CognitiveTaskResponseEvent,
     EventTypes,
     FusedEmotionEvent,
     MessageReceivedEvent,
@@ -282,6 +285,25 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         except Exception:
             pass
 
+    async def on_cognitive_task(event: CognitiveTaskPresentedEvent) -> None:
+        """Relay cognitive screening tasks to the frontend as inline chat cards."""
+        if event.session_id != session_id:
+            return
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json({
+                    "type": "cognitive_task",
+                    "screening_id": event.screening_id,
+                    "task_index": event.task_index,
+                    "total_tasks": event.total_tasks,
+                    "domain": event.domain,
+                    "task_type": event.task_type,
+                    "prompt": event.prompt,
+                    "task_data": event.task_data,
+                })
+        except Exception:
+            pass
+
     bus.subscribe(EventTypes.MESSAGE_SENT, on_message_sent, f"ws:{session_id}")
     bus.subscribe(EventTypes.EMOTION_FUSED, on_emotion_fused, f"ws-emotion:{session_id}")
     bus.subscribe(EventTypes.SENSOR_READING, on_sensor_reading, f"ws-sensor:{session_id}")
@@ -292,6 +314,11 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
     )
     bus.subscribe(EventTypes.AUDIO_RESPONSE, on_audio_response, f"ws-audio:{session_id}")
     bus.subscribe(EventTypes.AGENT_ERROR, on_agent_error, f"ws-agent-error:{session_id}")
+    bus.subscribe(
+        EventTypes.COGNITIVE_TASK_PRESENTED,
+        on_cognitive_task,
+        f"ws-cognitive-task:{session_id}",
+    )
 
     # -----------------------------------------------------------------------
     # Concurrent tasks
@@ -323,6 +350,23 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                         tts_agent.enable_voice(session_id)
                     else:
                         tts_agent.disable_voice(session_id)
+                continue
+
+            if msg_type == "cognitive_response":
+                screening_id = data.get("screening_id", "")
+                task_index = data.get("task_index", 0)
+                response = data.get("response", "")
+                if screening_id:
+                    await bus.publish(
+                        CognitiveTaskResponseEvent(
+                            source="api",
+                            screening_id=screening_id,
+                            task_index=task_index,
+                            response=response,
+                            session_id=session_id,
+                            patient_id=data.get("patient_id", ""),
+                        )
+                    )
                 continue
 
             content = data.get("content", "").strip()
@@ -420,6 +464,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
 
         bus.unsubscribe(EventTypes.AUDIO_RESPONSE, f"ws-audio:{session_id}")
         bus.unsubscribe(EventTypes.AGENT_ERROR, f"ws-agent-error:{session_id}")
+        bus.unsubscribe(EventTypes.COGNITIVE_TASK_PRESENTED, f"ws-cognitive-task:{session_id}")
         tts_agent = getattr(websocket.app.state, 'tts_agent', None)
         if tts_agent:
             tts_agent.disable_voice(session_id)

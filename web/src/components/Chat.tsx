@@ -44,6 +44,7 @@ import { endSession } from '../api/client'
 import { ChatMessage } from './ChatMessage'
 import { CrisisAlert } from './CrisisAlert'
 import { AssessmentForm } from './AssessmentForm'
+import { ScreeningTask } from './ScreeningTask'
 import { EmotionChip } from './EmotionChip'
 import { VitalsStrip } from './VitalsStrip'
 import { VoiceIndicator } from './VoiceIndicator'
@@ -90,6 +91,8 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
     currentVitals,
     sendVoiceMode,
     pendingTranscription,
+    sendCognitiveResponse,
+    markCognitiveTaskAnswered,
   } = useChat(sessionId, patientId, { onAudioData: handleAudioData })
 
   // Bubble full reconnecting status up to App for the global ConnectionStatus banner
@@ -289,9 +292,34 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
             <p>Welcome. How are you feeling today?</p>
           </div>
         )}
-        {messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
-        ))}
+        {messages.map((msg) =>
+          msg.cognitiveTask ? (
+            <div key={msg.id} className="chat-message chat-message--assistant chat-message--cognitive-task">
+              <div className="chat-message__agent-label">Cognitive Screening</div>
+              <div className="chat-message__bubble">
+                <p className="chat-message__text" style={{ marginBottom: '8px' }}>
+                  <strong>{msg.cognitiveTask.domain}</strong> — Task {msg.cognitiveTask.task_index + 1} of {msg.cognitiveTask.total_tasks}
+                </p>
+                <p className="chat-message__text" style={{ marginBottom: '12px' }}>{msg.content}</p>
+                {msg.cognitiveTaskAnswered ? (
+                  <div className="screening-task__answered" aria-label="Task answered" style={{ padding: '8px 12px', backgroundColor: '#f0fdf4', borderRadius: '6px', color: '#166534', fontWeight: 600 }}>
+                    {msg.cognitiveTask.domain} — Answered
+                  </div>
+                ) : (
+                  <ScreeningTask
+                    task={msg.cognitiveTask}
+                    onSubmit={(response) => {
+                      sendCognitiveResponse(msg.cognitiveTask!.screening_id, msg.cognitiveTask!.task_index, response)
+                      markCognitiveTaskAnswered(msg.id)
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          ) : (
+            <ChatMessage key={msg.id} message={msg} />
+          ),
+        )}
         <div ref={sentinelRef} aria-hidden="true" />
       </main>
 

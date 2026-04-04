@@ -435,6 +435,30 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
         )}
       </div>
 
+      {/* Card: Cognitive Screening */}
+      <div className="patient-dash__card">
+        <h3>Cognitive Screening</h3>
+        <p className="patient-dash__card-desc">Assess memory, attention, and cognitive function</p>
+        <div className="patient-dash__card-actions">
+          <button
+            type="button"
+            className="med-card__btn"
+            onClick={() => onNavigate('cognitive-screening')}
+            aria-label="Start a new cognitive screening"
+          >
+            Start Screening
+          </button>
+          <button
+            type="button"
+            className="med-card__btn med-card__btn--secondary"
+            onClick={() => onNavigate('screening-history')}
+            aria-label="View cognitive screening history"
+          >
+            View History
+          </button>
+        </div>
+      </div>
+
       {/* Card 6: Mood Summary */}
       <div className="patient-dash__card">
         <h3>Mood Summary</h3>

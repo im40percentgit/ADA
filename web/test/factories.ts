@@ -35,6 +35,8 @@ import type {
   ProgressReportData,
   SessionSummaryData,
   ClinicianNote,
+  CognitiveTaskPresented,
+  CognitiveScreening,
 } from '../src/types'
 import type { UserProfile } from '../src/api/auth'
 
@@ -53,6 +55,7 @@ let alertCount = 0
 let nodeCount = 0
 let edgeCount = 0
 let noteCount = 0
+let screeningCount = 0
 
 // ---------------------------------------------------------------------------
 // User / Auth
@@ -342,6 +345,52 @@ export function makeClinicianNote(overrides: Partial<ClinicianNote> = {}): Clini
     content: `Clinician note ${n}`,
     created_at: '2026-01-15T11:00:00Z',
     updated_at: '2026-01-15T11:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cognitive Screening (Phase 12b)
+// ---------------------------------------------------------------------------
+
+export function makeCognitiveTaskPresented(overrides: Partial<CognitiveTaskPresented> = {}): CognitiveTaskPresented {
+  return {
+    screening_id: 'screening-1',
+    task_index: 0,
+    total_tasks: 5,
+    domain: 'memory',
+    task_type: 'text',
+    prompt: 'Please repeat the following words: apple, table, penny',
+    task_data: {},
+    ...overrides,
+  }
+}
+
+export function makeCognitiveScreening(overrides: Partial<CognitiveScreening> = {}): CognitiveScreening {
+  const n = ++screeningCount
+  return {
+    id: `screening-${n}`,
+    patient_id: 'patient-1',
+    session_id: null,
+    status: 'completed',
+    domains: {
+      memory: { task_count: 2, avg_score: 0.75, total_score: 1.5 },
+      attention: { task_count: 1, avg_score: 0.8, total_score: 0.8 },
+    },
+    tasks: [
+      {
+        domain: 'memory',
+        prompt: 'Please repeat the following words: apple, table, penny',
+        response: 'apple, table, penny',
+        score: 1.0,
+        rationale: 'All three words recalled correctly.',
+      },
+    ],
+    overall_score: 0.77,
+    concerns: [],
+    started_at: '2026-01-15T10:00:00Z',
+    completed_at: '2026-01-15T10:15:00Z',
+    created_at: '2026-01-15T10:00:00Z',
     ...overrides,
   }
 }

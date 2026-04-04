@@ -455,7 +455,7 @@ CREATE INDEX IF NOT EXISTS idx_throttle_log_dedup ON notification_throttle_log(u
 CREATE TABLE IF NOT EXISTS clinician_notes (
     id          TEXT PRIMARY KEY,
     user_id     TEXT NOT NULL REFERENCES users(id),
-    entity_type TEXT NOT NULL CHECK(entity_type IN ('session_summary', 'daily_summary')),
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('session_summary', 'daily_summary', 'cognitive_screening')),
     entity_id   TEXT NOT NULL,
     content     TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),

@@ -12,7 +12,7 @@ Coverage:
 - LLM scoring failure falls back to 0 gracefully
 - Unknown instrument is silently ignored
 - MESSAGE_RECEIVED with no active session is a no-op
-- Adaptive cognitive screening: ASSESSMENT_TRIGGERED(cognitive) → screening created
+- Simulated cognitive screening: ASSESSMENT_TRIGGERED(cognitive_simulated) → screening created
   → tasks generated → scored → COGNITIVE_SCREENING_COMPLETED published
 - Adaptive screening: LLM failure on task generation degrades gracefully
 
@@ -652,7 +652,7 @@ class TestEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# Adaptive cognitive screening
+# Simulated cognitive screening (legacy mode)
 # ---------------------------------------------------------------------------
 
 class TestCognitiveScreening:
@@ -678,7 +678,7 @@ class TestCognitiveScreening:
     async def test_cognitive_trigger_creates_screening_record(
         self, agent, bus, llm, state
     ):
-        """ASSESSMENT_TRIGGERED(cognitive) should create a cognitive_screenings row."""
+        """ASSESSMENT_TRIGGERED(cognitive_simulated) should create a cognitive_screenings row."""
         # Queue enough responses for 8 tasks (2 gen + 2 score per domain × 4 domains = 16)
         # Plus 1 concerns call
         for domain in ["memory", "memory", "attention", "attention",
@@ -702,7 +702,7 @@ class TestCognitiveScreening:
             source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
-            instrument="cognitive",
+            instrument="cognitive_simulated",
         )
         await agent.handle_event(trigger)
         await asyncio.sleep(0.3)  # Give time for all LLM calls
@@ -744,7 +744,7 @@ class TestCognitiveScreening:
             source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
-            instrument="cognitive",
+            instrument="cognitive_simulated",
         )
         await agent.handle_event(trigger)
         await asyncio.sleep(0.3)
@@ -796,7 +796,7 @@ class TestCognitiveScreening:
             source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
-            instrument="cognitive",
+            instrument="cognitive_simulated",
         )
         await agent.handle_event(trigger)
         await asyncio.sleep(0.5)  # Allow for adaptive extra probes
@@ -846,7 +846,7 @@ class TestCognitiveScreening:
             source="wellness_companion",
             session_id="sess-cog-001",
             patient_id="pat-cog-001",
-            instrument="cognitive",
+            instrument="cognitive_simulated",
         )
         await failing_agent.handle_event(trigger)
         await asyncio.sleep(0.3)
