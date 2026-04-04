@@ -22,6 +22,10 @@
 import { useEffect, useRef } from 'react'
 import { useCognitiveScreening } from '../hooks/useCognitiveScreening'
 import { ScreeningTask } from './ScreeningTask'
+import { Card } from './ui/Card'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
+import { ProgressBar } from './ui/ProgressBar'
 
 interface CognitiveScreeningProps {
   patientId: string
@@ -59,48 +63,52 @@ export function CognitiveScreening({
 
   if (status === 'idle') {
     return (
-      <div className="patient-dash" data-testid="screening-intro">
-        <button
-          type="button"
-          className="med-card__btn med-card__btn--secondary"
+      <div className="patient-dash" data-testid="screening-intro" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onBack}
-          style={{ alignSelf: 'flex-start', marginBottom: '12px' }}
+          className="med-card__btn"
         >
           Back
-        </button>
+        </Button>
 
-        <h2 style={{ margin: '0 0 8px', fontSize: '1.5rem', fontWeight: 700 }}>
-          Cognitive Screening
-        </h2>
-        <p style={{ margin: '0 0 16px', lineHeight: 1.6, color: '#4b5563' }}>
-          This assessment takes about 8-10 minutes and covers memory, attention,
-          language, and visuospatial skills. You will be shown a series of tasks
-          to complete at your own pace.
-        </p>
-
-        {error && (
-          <p className="patient-dash__error" role="alert" style={{ marginBottom: '12px' }}>
-            {error}
+        <Card style={{ marginTop: 'var(--space-md)' }}>
+          <h2 style={{ margin: '0 0 var(--space-sm)', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)', fontWeight: 700 }}>
+            Cognitive Screening
+          </h2>
+          <p style={{ margin: '0 0 var(--space-md)', lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>
+            This assessment takes about 8-10 minutes and covers memory, attention,
+            language, and visuospatial skills. You will be shown a series of tasks
+            to complete at your own pace.
           </p>
-        )}
 
-        <button
-          type="button"
-          onClick={() => start(patientId)}
-          data-testid="start-screening"
-          style={{
-            padding: '12px 32px',
-            borderRadius: '8px',
-            border: 'none',
-            backgroundColor: '#3b82f6',
-            color: '#fff',
-            fontWeight: 600,
-            fontSize: '1rem',
-            cursor: 'pointer',
-          }}
-        >
-          Start Screening
-        </button>
+          {error && (
+            <p className="patient-dash__error" role="alert" style={{ marginBottom: 'var(--space-md)', color: 'var(--color-danger)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => start(patientId)}
+            data-testid="start-screening"
+            style={{
+              padding: 'var(--space-md) var(--space-xl)',
+              borderRadius: 'var(--radius-button)',
+              border: 'none',
+              backgroundColor: 'var(--color-primary)',
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: 'var(--size-body)',
+              fontFamily: 'var(--font-body)',
+              cursor: 'pointer',
+              minHeight: 'var(--touch-target-min)',
+            }}
+          >
+            Start Screening
+          </button>
+        </Card>
       </div>
     )
   }
@@ -109,7 +117,7 @@ export function CognitiveScreening({
 
   if (status === 'starting') {
     return (
-      <div className="patient-dash" aria-busy="true" data-testid="screening-loading">
+      <div className="patient-dash" aria-busy="true" data-testid="screening-loading" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
         <p>Starting screening...</p>
       </div>
     )
@@ -119,15 +127,9 @@ export function CognitiveScreening({
 
   if (error && !currentTask) {
     return (
-      <div className="patient-dash" role="alert">
-        <p className="patient-dash__error">{error}</p>
-        <button
-          type="button"
-          className="med-card__btn med-card__btn--secondary"
-          onClick={onBack}
-        >
-          Back
-        </button>
+      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
@@ -136,7 +138,7 @@ export function CognitiveScreening({
 
   if (status === 'in_progress' && !currentTask) {
     return (
-      <div className="patient-dash" data-testid="screening-waiting">
+      <div className="patient-dash" data-testid="screening-waiting" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
         <p>Waiting for next task...</p>
       </div>
     )
@@ -148,92 +150,72 @@ export function CognitiveScreening({
     const progressPct = totalTasks > 0 ? ((taskIndex) / totalTasks) * 100 : 0
 
     return (
-      <div className="patient-dash" data-testid="screening-task">
-        <button
-          type="button"
-          className="med-card__btn med-card__btn--secondary"
+      <div className="patient-dash" data-testid="screening-task" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onBack}
-          style={{ alignSelf: 'flex-start', marginBottom: '12px' }}
+          className="med-card__btn"
         >
           Back
-        </button>
+        </Button>
 
-        {/* Domain label + task counter */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '8px',
-          }}
-        >
-          <span
-            data-testid="domain-label"
-            style={{
-              display: 'inline-block',
-              padding: '4px 12px',
-              borderRadius: '12px',
-              backgroundColor: '#ede9fe',
-              color: '#5b21b6',
-              fontWeight: 600,
-              fontSize: '0.85rem',
-              textTransform: 'uppercase',
-            }}
-          >
-            {currentTask.domain}
-          </span>
-          <span
-            data-testid="task-counter"
-            style={{ fontSize: '0.9rem', color: '#6b7280', fontWeight: 500 }}
-          >
-            Task {currentTask.task_index + 1} of {totalTasks}
-          </span>
-        </div>
-
-        {/* Progress bar */}
-        <div
-          role="progressbar"
-          aria-valuenow={Math.round(progressPct)}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Screening progress"
-          style={{
-            height: '6px',
-            backgroundColor: '#e5e7eb',
-            borderRadius: '3px',
-            marginBottom: '20px',
-            overflow: 'hidden',
-          }}
-        >
+        <Card style={{ marginTop: 'var(--space-md)' }}>
+          {/* Domain label + task counter */}
           <div
-            data-testid="progress-fill"
             style={{
-              width: `${progressPct}%`,
-              height: '100%',
-              backgroundColor: '#3b82f6',
-              borderRadius: '3px',
-              transition: 'width 0.3s ease',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 'var(--space-sm)',
             }}
+          >
+            <span
+              data-testid="domain-label"
+              style={{
+                display: 'inline-block',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                backgroundColor: 'var(--color-primary-subtle)',
+                color: 'var(--color-primary-light)',
+                fontWeight: 600,
+                fontSize: 'var(--size-xs)',
+                textTransform: 'uppercase',
+              }}
+            >
+              {currentTask.domain}
+            </span>
+            <span
+              data-testid="task-counter"
+              style={{ fontSize: 'var(--size-sm)', color: 'var(--color-text-muted)', fontWeight: 500 }}
+            >
+              Task {currentTask.task_index + 1} of {totalTasks}
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ marginBottom: 'var(--space-lg)' }}>
+            <ProgressBar value={progressPct} />
+          </div>
+
+          {/* Task prompt */}
+          <p
+            style={{
+              margin: '0 0 var(--space-md)',
+              fontSize: 'var(--size-h2)',
+              fontWeight: 500,
+              lineHeight: 1.5,
+            }}
+          >
+            {currentTask.prompt}
+          </p>
+
+          {/* Task component */}
+          <ScreeningTask
+            task={currentTask}
+            onSubmit={(response) => respond(currentTask.task_index, response)}
           />
-        </div>
-
-        {/* Task prompt */}
-        <p
-          style={{
-            margin: '0 0 16px',
-            fontSize: '1.1rem',
-            fontWeight: 500,
-            lineHeight: 1.5,
-          }}
-        >
-          {currentTask.prompt}
-        </p>
-
-        {/* Task component */}
-        <ScreeningTask
-          task={currentTask}
-          onSubmit={(response) => respond(currentTask.task_index, response)}
-        />
+        </Card>
       </div>
     )
   }
@@ -241,7 +223,7 @@ export function CognitiveScreening({
   // -- Completed (brief display before onComplete fires) ---------------------
 
   return (
-    <div className="patient-dash" data-testid="screening-complete">
+    <div className="patient-dash" data-testid="screening-complete" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
       <p>Screening complete.</p>
     </div>
   )

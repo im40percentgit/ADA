@@ -329,6 +329,18 @@ class LoggingConfig(BaseModel):
 # Model routing config
 # ---------------------------------------------------------------------------
 
+class CompanionConfig(BaseModel):
+    """Companion persona defaults (Phase 13a).
+
+    These are used when a user has no saved preferences in the database.
+    default_voice must be one of the values accepted by the companion_preferences
+    table CHECK constraint: male, female, neutral.
+    """
+
+    default_name: str = "Ada"
+    default_voice: str = "female"
+
+
 class ModelProfile(BaseModel):
     """Configuration for a single model profile."""
     provider: str  # "claude" | "openai_compat"
@@ -387,6 +399,7 @@ class AdaConfig(BaseSettings):
     security: SecurityConfig = SecurityConfig()
     resilience: ResilienceConfig = ResilienceConfig()
     progress_report: ProgressReportConfig = ProgressReportConfig()
+    companion: CompanionConfig = CompanionConfig()
     model_routing: ModelRoutingConfig | None = None
 
     @classmethod

@@ -20,6 +20,9 @@ import { useState, useEffect } from 'react'
 import { getSessionSummary } from '../api/client'
 import type { SessionSummaryData } from '../types'
 import { ClinicianNotes } from './ClinicianNotes'
+import { Card } from './ui/Card'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
 
 interface SessionSummaryProps {
   sessionId: string
@@ -29,10 +32,10 @@ interface SessionSummaryProps {
 }
 
 const SEVERITY_STYLES: Record<string, { background: string; color: string; fontWeight?: number }> = {
-  LOW: { background: '#e5e7eb', color: '#374151' },
-  MODERATE: { background: '#fef3c7', color: '#92400e' },
-  HIGH: { background: '#fee2e2', color: '#991b1b' },
-  CRITICAL: { background: '#fee2e2', color: '#991b1b', fontWeight: 700 },
+  LOW: { background: 'var(--color-bg-elevated)', color: 'var(--color-text-muted)' },
+  MODERATE: { background: '#451a03', color: 'var(--color-warning)' },
+  HIGH: { background: '#450a0a', color: 'var(--color-danger)' },
+  CRITICAL: { background: '#450a0a', color: 'var(--color-danger)', fontWeight: 700 },
 }
 
 function formatDate(dateStr: string): string {
@@ -83,7 +86,7 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
 
   if (loading) {
     return (
-      <div className="patient-dash" aria-busy="true">
+      <div className="patient-dash" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
         Loading session summary...
       </div>
     )
@@ -91,22 +94,18 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
 
   if (error) {
     return (
-      <div className="patient-dash" role="alert">
-        <p className="patient-dash__error">{error}</p>
-        <button type="button" className="med-card__btn med-card__btn--secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="patient-dash">
-        <p className="patient-dash__empty">No summary available</p>
-        <button type="button" className="med-card__btn med-card__btn--secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__empty" style={{ color: 'var(--color-text-muted)' }}>No summary available</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
@@ -119,19 +118,19 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
   ]
 
   return (
-    <div className="patient-dash">
+    <div className="patient-dash" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
       {/* Back button */}
-      <button
-        type="button"
-        className="med-card__btn med-card__btn--secondary"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={onBack}
-        style={{ alignSelf: 'flex-start', marginBottom: '12px' }}
+        className="med-card__btn"
       >
         Back
-      </button>
+      </Button>
 
       {/* Header */}
-      <h2 style={{ margin: '0 0 16px' }}>
+      <h2 style={{ margin: 'var(--space-md) 0', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>
         Session — {formatDate(data.created_at)}
       </h2>
 
@@ -140,46 +139,34 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '16px',
+          gap: 'var(--space-md)',
         }}
       >
         {soapSections.map((s) => (
-          <div key={s.title} className="patient-dash__card">
-            <h3>{s.title}</h3>
-            <p style={{ margin: 0, lineHeight: 1.6 }}>{s.content}</p>
-          </div>
+          <Card key={s.title}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>{s.title}</h3>
+            <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>{s.content}</p>
+          </Card>
         ))}
       </div>
 
       {/* Key topics */}
       {data.key_topics.length > 0 && (
-        <div className="patient-dash__card patient-dash__card--full" style={{ marginTop: '16px' }}>
-          <h3>Key Topics</h3>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <Card style={{ marginTop: 'var(--space-md)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Key Topics</h3>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
             {data.key_topics.map((topic, i) => (
-              <span
-                key={i}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: '16px',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  background: '#ede9fe',
-                  color: '#5b21b6',
-                }}
-              >
-                {topic}
-              </span>
+              <Badge key={i} variant="info">{topic}</Badge>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Risk flags */}
       {data.risk_flags.length > 0 && (
-        <div className="patient-dash__card patient-dash__card--full" style={{ marginTop: '16px' }}>
-          <h3>Risk Flags</h3>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <Card style={{ marginTop: 'var(--space-md)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Risk Flags</h3>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
             {data.risk_flags.map((flag, i) => {
               const { severity, text } = parseSeverity(flag)
               const style = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.MODERATE
@@ -188,12 +175,15 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
                   key={i}
                   data-testid="risk-flag"
                   style={{
-                    padding: '4px 12px',
-                    borderRadius: '16px',
-                    fontSize: '13px',
-                    fontWeight: style.fontWeight ?? 500,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontSize: 'var(--size-xs)',
+                    fontWeight: style.fontWeight ?? 600,
                     background: style.background,
                     color: style.color,
+                    lineHeight: 1.4,
                   }}
                 >
                   {severity}: {text}
@@ -201,11 +191,11 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
               )
             })}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Clinician Notes */}
-      <div style={{ marginTop: '16px' }}>
+      <div style={{ marginTop: 'var(--space-md)' }}>
         <ClinicianNotes entityType="session_summary" entityId={sessionId} role={role} />
       </div>
     </div>

@@ -1,0 +1,56 @@
+/**
+ * @file base.css
+ * @description Global reset and base element styles. Relies on design tokens
+ *   from tokens.css (must be imported first). Sets the typographic baseline,
+ *   focus-visible ring, and link color for the entire application.
+ * @decision DEC-BASE — Minimal reset (box-sizing + margin/padding zero) chosen
+ *   over a full normalize.css to keep bundle small and avoid overriding styles
+ *   we never use. Focus-visible ring uses primary color for accessibility.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--size-body);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+}
+
+h1 {
+  font-size: var(--size-h1);
+}
+
+h2 {
+  font-size: var(--size-h2);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+a {
+  color: var(--color-primary-light);
+  text-decoration: none;
+}

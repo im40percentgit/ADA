@@ -1,0 +1,67 @@
+/**
+ * @file tokens.css
+ * @description Design tokens for Ada's warm, human-centered UI. All visual
+ *   constants live here as CSS custom properties so components reference
+ *   semantic names instead of raw values.
+ * @decision DEC-TOKENS — Single-file CSS custom properties chosen over
+ *   JS theme objects for zero-runtime cost, native cascade support, and
+ *   straightforward dark-mode extensibility via media queries.
+ */
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────────────────────── */
+  --color-bg-base: #1c1917;
+  --color-bg-card: #292524;
+  --color-bg-elevated: #3b3634;
+
+  /* ── Primary ──────────────────────────────────────────────────────── */
+  --color-primary: #7c3aed;
+  --color-primary-light: #a78bfa;
+  --color-primary-subtle: #2e1065;
+
+  /* ── Semantic ─────────────────────────────────────────────────────── */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-warmth: #fce7f3;
+
+  /* ── Text ─────────────────────────────────────────────────────────── */
+  --color-text-primary: #fafaf9;
+  --color-text-secondary: #e7e5e4;
+  --color-text-muted: #a8a29e;
+
+  /* ── Border ───────────────────────────────────────────────────────── */
+  --color-border: #44403c;
+
+  /* ── Fonts ────────────────────────────────────────────────────────── */
+  --font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body: 'Nunito', system-ui, sans-serif;
+
+  /* ── Type scale ───────────────────────────────────────────────────── */
+  --size-h1: 24px;
+  --size-h2: 18px;
+  --size-body: 16px;
+  --size-sm: 14px;
+  --size-caption: 13px;
+  --size-xs: 11px;
+
+  /* ── Border radii ─────────────────────────────────────────────────── */
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --radius-input: 10px;
+
+  /* ── Spacing ──────────────────────────────────────────────────────── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* ── Shadows ──────────────────────────────────────────────────────── */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* ── Touch ────────────────────────────────────────────────────────── */
+  --touch-target-min: 44px;
+}

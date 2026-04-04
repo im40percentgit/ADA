@@ -31,6 +31,27 @@ from ada.tts.sentence_splitter import split_sentences
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Voice preference → Piper model mapping (Phase 13a companion personalization)
+#
+# Maps the companion voice preference ('male', 'female', 'neutral') to a
+# Piper ONNX voice model name.  Currently the TTSAgent uses a single
+# PiperProvider instance with a globally-loaded model (thread-safe singleton
+# in piper.py).  Per-user voice switching would require the PiperProvider to
+# support multiple loaded models or dynamic model swapping, which is a
+# non-trivial change to the singleton pattern.
+#
+# This mapping is defined here so that a future implementation can look up
+# the preferred model via `VOICE_PREFERENCE_MODELS[prefs["voice"]]` and
+# pass it to a multi-model-aware provider.
+# ---------------------------------------------------------------------------
+
+VOICE_PREFERENCE_MODELS: dict[str, str] = {
+    "female": "en_US-lessac-medium",       # current default — female voice
+    "male": "en_US-ryan-medium",           # male Piper voice
+    "neutral": "en_US-lessac-medium",      # neutral maps to default for now
+}
+
 
 class TTSAgent(BaseAgent):
     """Text-to-speech agent — converts agent messages to audio."""

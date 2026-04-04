@@ -5,6 +5,9 @@
  * then polls every 60 seconds. Renders StatusCard, AlertsCard, SessionsCard,
  * WellbeingChart, DailySummaryCard, plus medications and appointments sections.
  *
+ * Uses the design-system Card, Badge, and Button components with token-based
+ * styling from tokens.css.
+ *
  * @decision DEC-FRONTEND-020
  * @title CaregiverDashboard polls at 60s interval — no WebSocket
  * @status accepted
@@ -23,6 +26,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
+import type { CSSProperties } from 'react'
 import { getCaregiverOverviewForPatient } from '../api/client'
 import type { CaregiverOverview, DailySummary } from '../types'
 import { useCircles } from '../hooks/useCircles'
@@ -38,33 +42,199 @@ import { BoardView } from './BoardView'
 import { MedicationCard } from './MedicationCard'
 import { AppointmentCard } from './AppointmentCard'
 import { NotificationBell } from './NotificationBell'
+import { Card } from './ui/Card'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
 
 // ---------------------------------------------------------------------------
-// DailySummaryCard
+// Styles (token-based)
 // ---------------------------------------------------------------------------
 
-const MOOD_CLASS: Record<string, string> = {
-  anxious: 'cg-daily__mood--anxious',
-  depressed: 'cg-daily__mood--depressed',
-  stable: 'cg-daily__mood--stable',
-  improving: 'cg-daily__mood--improving',
-  declining: 'cg-daily__mood--declining',
-  mixed: 'cg-daily__mood--mixed',
+const dashboardStyle: CSSProperties = {
+  padding: 'var(--space-md)',
+  maxWidth: '1100px',
+  margin: '0 auto',
+}
+
+const headerStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'var(--space-md)',
+  marginBottom: 'var(--space-lg)',
+  flexWrap: 'wrap',
+}
+
+const headerLeftStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--space-xs)',
+}
+
+const headerRightStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-sm)',
+}
+
+const titleStyle: CSSProperties = {
+  fontFamily: 'var(--font-heading)',
+  fontSize: 'var(--size-h1)',
+  fontWeight: 700,
+  color: 'var(--color-text-primary)',
+  margin: 0,
+}
+
+const patientNameStyle: CSSProperties = {
+  fontSize: 'var(--size-body)',
+  color: 'var(--color-text-muted)',
+  margin: 0,
+}
+
+const gridStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, 1fr)',
+  gap: 'var(--space-md)',
+}
+
+const fullWidthStyle: CSSProperties = {
+  gridColumn: '1 / -1',
+}
+
+const loadingStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  minHeight: '200px',
+}
+
+const errorContainerStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 'var(--space-md)',
+  padding: 'var(--space-xl)',
+}
+
+const errorTextStyle: CSSProperties = {
+  fontSize: 'var(--size-body)',
+  color: 'var(--color-danger)',
+}
+
+const sectionHeadingStyle: CSSProperties = {
+  fontFamily: 'var(--font-heading)',
+  fontSize: 'var(--size-h2)',
+  fontWeight: 600,
+  color: 'var(--color-text-primary)',
+  margin: '0 0 var(--space-sm) 0',
+}
+
+const cardDescStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-text-muted)',
+  margin: '0 0 var(--space-sm) 0',
+}
+
+const emptyTextStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-text-muted)',
+}
+
+// ---------------------------------------------------------------------------
+// DailySummaryCard (inline, token-based)
+// ---------------------------------------------------------------------------
+
+const MOOD_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
+  anxious: 'warning',
+  depressed: 'danger',
+  stable: 'neutral',
+  improving: 'success',
+  declining: 'danger',
+  mixed: 'info',
+}
+
+const dailyHeaderStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 'var(--space-sm)',
+}
+
+const dailyMetaStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-sm)',
+}
+
+const dailyDateStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-text-muted)',
+}
+
+const narrativeStyle: CSSProperties = {
+  fontSize: 'var(--size-body)',
+  color: 'var(--color-text-secondary)',
+  margin: '0 0 var(--space-md) 0',
+  lineHeight: 1.5,
+}
+
+const dailySectionTitleStyle: CSSProperties = {
+  fontFamily: 'var(--font-heading)',
+  fontSize: 'var(--size-sm)',
+  fontWeight: 600,
+  color: 'var(--color-text-primary)',
+  margin: '0 0 var(--space-xs) 0',
+}
+
+const alertListStyle: CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: '0 0 var(--space-sm) 0',
+}
+
+const alertItemStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-warning)',
+  padding: 'var(--space-xs) 0',
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 'var(--space-xs)',
+}
+
+const prepListStyle: CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: '0 0 var(--space-sm) 0',
+}
+
+const prepItemStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-text-secondary)',
+  padding: 'var(--space-xs) 0',
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 'var(--space-xs)',
+}
+
+const topicChipsStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 'var(--space-xs)',
 }
 
 function DailySummaryCard({ summary, onViewDetail }: { summary: DailySummary | null; onViewDetail?: (date: string) => void }) {
   if (!summary) {
     return (
-      <section className="cg-card cg-daily" aria-label="Daily Summary">
-        <h2 className="cg-card__title">Today's Summary</h2>
-        <p className="cg-card__empty">
+      <Card style={fullWidthStyle}>
+        <h2 style={sectionHeadingStyle}>Today's Summary</h2>
+        <p style={emptyTextStyle}>
           No daily summary yet — check back after a session
         </p>
-      </section>
+      </Card>
     )
   }
 
-  const moodClass = MOOD_CLASS[summary.overall_mood] ?? 'cg-daily__mood--stable'
+  const moodVariant = MOOD_VARIANT[summary.overall_mood] ?? 'neutral'
   const dateLabel = new Date(summary.summary_date + 'T00:00:00').toLocaleDateString([], {
     weekday: 'long',
     month: 'long',
@@ -72,35 +242,34 @@ function DailySummaryCard({ summary, onViewDetail }: { summary: DailySummary | n
   })
 
   return (
-    <section className="cg-card cg-daily" aria-label="Daily Summary">
-      <div className="cg-daily__header">
-        <h2 className="cg-card__title">Today's Summary</h2>
-        <div className="cg-daily__meta">
-          <span className={`cg-daily__mood ${moodClass}`}>{summary.overall_mood}</span>
-          <span className="cg-daily__date">{dateLabel}</span>
+    <Card style={fullWidthStyle}>
+      <div style={dailyHeaderStyle}>
+        <h2 style={{ ...sectionHeadingStyle, margin: 0 }}>Today's Summary</h2>
+        <div style={dailyMetaStyle}>
+          <Badge variant={moodVariant}>{summary.overall_mood}</Badge>
+          <span style={dailyDateStyle}>{dateLabel}</span>
         </div>
       </div>
 
-      <p className="cg-daily__narrative">{summary.narrative}</p>
+      <p style={narrativeStyle}>{summary.narrative}</p>
 
       {onViewDetail && (
-        <button
-          type="button"
-          className="cg-daily__view-detail"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => onViewDetail(summary.summary_date)}
-          aria-label="View full daily summary"
         >
-          View full summary &rarr;
-        </button>
+          <span aria-label="View full daily summary">View full summary →</span>
+        </Button>
       )}
 
       {summary.trend_alerts.length > 0 && (
-        <div className="cg-daily__alerts" role="alert">
-          <h3 className="cg-daily__section-title">Trends to Watch</h3>
-          <ul className="cg-daily__alert-list">
+        <div role="alert" style={{ marginTop: 'var(--space-sm)' }}>
+          <h3 style={dailySectionTitleStyle}>Trends to Watch</h3>
+          <ul style={alertListStyle}>
             {summary.trend_alerts.map((alert, i) => (
-              <li key={i} className="cg-daily__alert-item">
-                <span className="cg-daily__alert-icon" aria-hidden="true">!</span>
+              <li key={i} style={alertItemStyle}>
+                <span aria-hidden="true">!</span>
                 {alert}
               </li>
             ))}
@@ -109,12 +278,12 @@ function DailySummaryCard({ summary, onViewDetail }: { summary: DailySummary | n
       )}
 
       {summary.appointment_prep.length > 0 && (
-        <div className="cg-daily__prep">
-          <h3 className="cg-daily__section-title">Bring Up at Next Appointment</h3>
-          <ul className="cg-daily__prep-list">
+        <div style={{ marginTop: 'var(--space-sm)' }}>
+          <h3 style={dailySectionTitleStyle}>Bring Up at Next Appointment</h3>
+          <ul style={prepListStyle}>
             {summary.appointment_prep.map((item, i) => (
-              <li key={i} className="cg-daily__prep-item">
-                <span className="cg-daily__prep-check" aria-hidden="true">&#9744;</span>
+              <li key={i} style={prepItemStyle}>
+                <span aria-hidden="true">&#9744;</span>
                 {item}
               </li>
             ))}
@@ -123,16 +292,16 @@ function DailySummaryCard({ summary, onViewDetail }: { summary: DailySummary | n
       )}
 
       {summary.key_topics.length > 0 && (
-        <div className="cg-daily__topics">
-          <h3 className="cg-daily__section-title">Topics Today</h3>
-          <div className="cg-daily__topic-chips">
+        <div style={{ marginTop: 'var(--space-sm)' }}>
+          <h3 style={dailySectionTitleStyle}>Topics Today</h3>
+          <div style={topicChipsStyle}>
             {summary.key_topics.map((topic, i) => (
-              <span key={i} className="cg-daily__topic-chip">{topic}</span>
+              <Badge key={i} variant="neutral">{topic}</Badge>
             ))}
           </div>
         </div>
       )}
-    </section>
+    </Card>
   )
 }
 
@@ -178,7 +347,7 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
 
   if (activeBoardId) {
     return (
-      <div className="caregiver-dashboard">
+      <div style={dashboardStyle}>
         <BoardView boardId={activeBoardId} onBack={() => setActiveBoardId(null)} />
       </div>
     )
@@ -186,7 +355,7 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
 
   if (loading) {
     return (
-      <div className="cg-dashboard cg-dashboard--loading" role="status" aria-label="Loading dashboard">
+      <div style={loadingStyle} role="status" aria-label="Loading dashboard">
         <div className="app__loading-spinner" />
       </div>
     )
@@ -194,14 +363,14 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
 
   if (!selectedCircle) {
     return (
-      <div className="cg-dashboard">
-        <header className="cg-dashboard__header">
-          <div>
-            <h1 className="cg-dashboard__title">Ada Caregiver Dashboard</h1>
+      <div style={dashboardStyle}>
+        <header style={headerStyle}>
+          <div style={headerLeftStyle}>
+            <h1 style={titleStyle}>Ada Caregiver Dashboard</h1>
           </div>
-          <button className="cg-dashboard__sign-out" onClick={onLogout} type="button">
+          <Button variant="secondary" size="sm" onClick={onLogout}>
             Sign out
-          </button>
+          </Button>
         </header>
         <CircleSetupWizard onComplete={() => refresh()} />
       </div>
@@ -210,110 +379,135 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
 
   if (error || !data) {
     return (
-      <div className="cg-dashboard cg-dashboard--error" role="alert">
-        <p>{error ?? 'Something went wrong'}</p>
-        <button className="cg-dashboard__retry" onClick={fetchData} type="button">
+      <div style={errorContainerStyle} role="alert">
+        <p style={errorTextStyle}>{error ?? 'Something went wrong'}</p>
+        <Button variant="primary" onClick={fetchData}>
           Try Again
-        </button>
+        </Button>
       </div>
     )
   }
 
+  const hasCrisisAlerts = data.crisis_alerts.length > 0
+
   return (
-    <div className="cg-dashboard">
+    <div style={dashboardStyle}>
       {/* Header */}
-      <header className="cg-dashboard__header">
-        <div>
-          <h1 className="cg-dashboard__title">Ada Caregiver Dashboard</h1>
-          <p className="cg-dashboard__patient-name">{data.patient.name}</p>
+      <header style={headerStyle}>
+        <div style={headerLeftStyle}>
+          <h1 style={titleStyle}>Ada Caregiver Dashboard</h1>
+          <p style={patientNameStyle}>{data.patient.name}</p>
         </div>
-        <CircleSelector circles={circles} selected={selectedCircle} onSelect={selectCircle} />
-        <NotificationBell />
-        <button className="cg-dashboard__logout" onClick={onLogout} type="button">
-          Sign out
-        </button>
+        <div style={headerRightStyle}>
+          <CircleSelector circles={circles} selected={selectedCircle} onSelect={selectCircle} />
+          <NotificationBell />
+          <Button variant="secondary" size="sm" onClick={onLogout}>
+            Sign out
+          </Button>
+        </div>
       </header>
 
       {/* Dashboard grid */}
-      <div className="cg-dashboard__grid">
+      <div style={gridStyle}>
+        {/* Alerts Card — prominent at top if crisis alerts exist */}
+        <Card style={{
+          ...fullWidthStyle,
+          ...(hasCrisisAlerts ? {
+            border: '2px solid var(--color-danger)',
+          } : {}),
+        }}>
+          <AlertsCard alerts={data.crisis_alerts} />
+        </Card>
+
+        {/* Daily Summary */}
         <DailySummaryCard summary={data.daily_summary} onViewDetail={onViewDailySummary} />
-        <StatusCard sessions={data.recent_sessions} who5Scores={data.assessments.who5} />
-        <AlertsCard alerts={data.crisis_alerts} />
-        <SessionsCard sessions={data.recent_sessions} onViewSession={onViewSession} />
-        <WellbeingChart who5Scores={data.assessments.who5} />
+
+        {/* Status Card */}
+        <Card>
+          <StatusCard sessions={data.recent_sessions} who5Scores={data.assessments.who5} />
+        </Card>
+
+        {/* Sessions Card */}
+        <Card>
+          <SessionsCard sessions={data.recent_sessions} onViewSession={onViewSession} />
+        </Card>
+
+        {/* Wellbeing Chart — full width */}
+        <Card style={fullWidthStyle}>
+          <WellbeingChart who5Scores={data.assessments.who5} />
+        </Card>
 
         {/* Knowledge Map */}
         {onNavigate && (
-          <section
-            className="cg-card cg-card--clickable"
-            onClick={() => onNavigate('knowledge-graph')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={e => e.key === 'Enter' && onNavigate('knowledge-graph')}
-            aria-label="View knowledge map"
-          >
-            <h2 className="cg-card__title">Knowledge Map</h2>
-            <p className="cg-card__desc">Visualize patient topics, symptoms, and their connections</p>
-          </section>
+          <Card onClick={() => onNavigate('knowledge-graph')}>
+            <div
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => e.key === 'Enter' && onNavigate('knowledge-graph')}
+              aria-label="View knowledge map"
+            >
+              <h2 style={sectionHeadingStyle}>Knowledge Map</h2>
+              <p style={cardDescStyle}>Visualize patient topics, symptoms, and their connections</p>
+            </div>
+          </Card>
         )}
 
         {/* Progress Report */}
         {onNavigate && (
-          <section
-            className="cg-card cg-card--clickable"
-            onClick={() => onNavigate('progress')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={e => e.key === 'Enter' && onNavigate('progress')}
-            aria-label="View progress report"
-          >
-            <h2 className="cg-card__title">Progress Report</h2>
-            <p className="cg-card__desc">Review trends in wellbeing, assessments, and adherence</p>
-          </section>
+          <Card onClick={() => onNavigate('progress')}>
+            <div
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => e.key === 'Enter' && onNavigate('progress')}
+              aria-label="View progress report"
+            >
+              <h2 style={sectionHeadingStyle}>Progress Report</h2>
+              <p style={cardDescStyle}>Review trends in wellbeing, assessments, and adherence</p>
+            </div>
+          </Card>
         )}
 
         {/* Cognitive Screenings */}
         {onNavigate && (
-          <section className="cg-card" aria-label="Cognitive Screenings">
-            <h2 className="cg-card__title">Cognitive Screenings</h2>
-            <p className="cg-card__desc">Track memory, attention, and cognitive function over time</p>
-            <button
-              type="button"
-              className="cg-daily__view-detail"
+          <Card>
+            <h2 style={sectionHeadingStyle}>Cognitive Screenings</h2>
+            <p style={cardDescStyle}>Track memory, attention, and cognitive function over time</p>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onNavigate('screening-history')}
-              aria-label="View cognitive screening history"
             >
-              View Screening History &rarr;
-            </button>
-          </section>
+              <span aria-label="View cognitive screening history">View Screening History →</span>
+            </Button>
+          </Card>
         )}
 
         {/* Care Team */}
         {selectedCircle && (
-          <section className="cg-card" aria-label="Care Team">
+          <Card>
             <CircleMembers
               circleId={selectedCircle.id}
               currentUserRole={selectedCircle.my_role}
             />
-          </section>
+          </Card>
         )}
 
         {/* Shared Boards */}
         {selectedCircle && (
-          <section className="cg-card" aria-label="Shared Boards">
+          <Card>
             <BoardList circleId={selectedCircle.id} onSelectBoard={setActiveBoardId} />
-          </section>
+          </Card>
         )}
 
         {/* Medications */}
-        <section className="cg-dashboard__card">
+        <Card>
           <MedicationCard patientId={selectedCircle.patient_id} />
-        </section>
+        </Card>
 
         {/* Appointments */}
-        <section className="cg-dashboard__card">
+        <Card>
           <AppointmentCard patientId={selectedCircle.patient_id} />
-        </section>
+        </Card>
       </div>
     </div>
   )

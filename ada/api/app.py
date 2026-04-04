@@ -40,7 +40,7 @@ from fastapi.responses import JSONResponse
 from ada.api.middleware.logging import StructlogRequestMiddleware
 from ada.api.middleware.rate_limit import RateLimitMiddleware
 from ada.api.middleware.security_headers import SecurityHeadersMiddleware
-from ada.api.routes import alerts, appointments, assessments, auth, boards, caregiver, chat, circles, clinician_notes, cognitive, daily_summaries, knowledge, media, medications, notifications, password_reset, patients, progress_report, screening_interact, sessions, simulator
+from ada.api.routes import alerts, appointments, assessments, auth, boards, caregiver, chat, circles, clinician_notes, cognitive, companion, daily_summaries, knowledge, media, medications, notifications, password_reset, patients, progress_report, screening_interact, sessions, simulator
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
@@ -137,6 +137,7 @@ def create_app(
     app.include_router(clinician_notes.router, prefix="/api")  # /api/notes/*
     app.include_router(daily_summaries.router, prefix="/api")  # /api/patients/*/daily-summaries/*
     app.include_router(progress_report.router, prefix="/api")  # /api/patients/*/progress-report
+    app.include_router(companion.router, prefix="/api")          # /api/companion/*
 
     @app.get("/health")
     async def health() -> dict:

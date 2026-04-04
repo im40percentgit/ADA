@@ -18,6 +18,7 @@
  */
 
 import { useState, type FormEvent } from 'react'
+import type { CSSProperties } from 'react'
 import type { UseAuthReturn } from '../hooks/useAuth'
 
 interface LoginProps {
@@ -50,23 +51,79 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
     }
   }
 
+  const cardStyle: CSSProperties = {
+    background: 'var(--color-bg-card)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-card)',
+    padding: 'var(--space-xl)',
+    width: '100%',
+    maxWidth: '400px',
+    boxShadow: 'var(--shadow-elevated)',
+  }
+
+  const inputStyle: CSSProperties = {
+    width: '100%',
+    background: 'var(--color-bg-elevated)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-input)',
+    height: 'var(--touch-target-min)',
+    padding: '0 var(--space-sm)',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 'var(--size-body)',
+    boxSizing: 'border-box' as const,
+  }
+
+  const labelStyle: CSSProperties = {
+    fontSize: 'var(--size-caption)',
+    color: 'var(--color-text-muted)',
+    marginBottom: '4px',
+    display: 'block',
+  }
+
+  const submitStyle: CSSProperties = {
+    width: '100%',
+    background: 'var(--color-primary)',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: 'var(--radius-button)',
+    minHeight: 'var(--touch-target-min)',
+    fontFamily: 'var(--font-body)',
+    fontWeight: 600,
+    fontSize: 'var(--size-body)',
+    cursor: 'pointer',
+  }
+
   return (
-    <div className="login">
-      <div className="login__card">
+    <div className="login" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--color-bg-base)', fontFamily: 'var(--font-body)' }}>
+      <div className="login__card" style={cardStyle}>
         {/* Brand */}
-        <div className="login__brand">
-          <h1 className="login__brand-name">Ada</h1>
-          <p className="login__brand-tagline">Mental Health Support</p>
+        <div className="login__brand" style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
+          <h1 className="login__brand-name" style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)', color: 'var(--color-text-primary)', margin: 0 }}>Ada</h1>
+          <p className="login__brand-tagline" style={{ color: 'var(--color-text-muted)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0 0' }}>Mental Health Support</p>
         </div>
 
         {/* Mode toggle */}
-        <div className="login__tabs" role="tablist">
+        <div className="login__tabs" role="tablist" style={{ display: 'flex', gap: 'var(--space-xs)', marginBottom: 'var(--space-lg)' }}>
           <button
             role="tab"
             aria-selected={mode === 'login'}
             className={`login__tab${mode === 'login' ? ' login__tab--active' : ''}`}
             onClick={() => setMode('login')}
             type="button"
+            style={{
+              flex: 1,
+              padding: 'var(--space-sm)',
+              borderRadius: 'var(--radius-button)',
+              border: 'none',
+              fontFamily: 'var(--font-body)',
+              fontWeight: 600,
+              fontSize: 'var(--size-sm)',
+              cursor: 'pointer',
+              minHeight: 'var(--touch-target-min)',
+              background: mode === 'login' ? 'var(--color-primary)' : 'var(--color-bg-elevated)',
+              color: mode === 'login' ? '#ffffff' : 'var(--color-text-muted)',
+            }}
           >
             Sign in
           </button>
@@ -76,14 +133,27 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
             className={`login__tab${mode === 'register' ? ' login__tab--active' : ''}`}
             onClick={() => setMode('register')}
             type="button"
+            style={{
+              flex: 1,
+              padding: 'var(--space-sm)',
+              borderRadius: 'var(--radius-button)',
+              border: 'none',
+              fontFamily: 'var(--font-body)',
+              fontWeight: 600,
+              fontSize: 'var(--size-sm)',
+              cursor: 'pointer',
+              minHeight: 'var(--touch-target-min)',
+              background: mode === 'register' ? 'var(--color-primary)' : 'var(--color-bg-elevated)',
+              color: mode === 'register' ? '#ffffff' : 'var(--color-text-muted)',
+            }}
           >
             Create account
           </button>
         </div>
 
         {/* Form */}
-        <form className="login__form" onSubmit={handleSubmit} noValidate>
-          <label className="login__label" htmlFor="login-email">
+        <form className="login__form" onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <label className="login__label" htmlFor="login-email" style={labelStyle}>
             Email
           </label>
           <input
@@ -96,9 +166,10 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             disabled={submitting}
+            style={inputStyle}
           />
 
-          <label className="login__label" htmlFor="login-password">
+          <label className="login__label" htmlFor="login-password" style={labelStyle}>
             Password
           </label>
           <input
@@ -112,11 +183,12 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
             onChange={(e) => setPassword(e.target.value)}
             placeholder={mode === 'register' ? 'At least 8 characters' : '••••••••'}
             disabled={submitting}
+            style={inputStyle}
           />
 
           {mode === 'register' && (
             <>
-              <label className="login__label" htmlFor="login-role">
+              <label className="login__label" htmlFor="login-role" style={labelStyle}>
                 Role
               </label>
               <select
@@ -125,6 +197,7 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 disabled={submitting}
+                style={inputStyle}
               >
                 <option value="user">Patient</option>
                 <option value="caregiver">Caregiver</option>
@@ -133,7 +206,7 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
           )}
 
           {error && (
-            <p className="login__error" role="alert">
+            <p className="login__error" role="alert" style={{ color: 'var(--color-danger)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0' }}>
               {error}
             </p>
           )}
@@ -142,6 +215,7 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
             className="login__submit"
             type="submit"
             disabled={submitting || !email || !password}
+            style={{ ...submitStyle, opacity: (submitting || !email || !password) ? 0.5 : 1 }}
           >
             {submitting
               ? mode === 'login'
@@ -158,6 +232,7 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
               type="button"
               onClick={onForgotPassword}
               disabled={submitting}
+              style={{ background: 'none', border: 'none', color: 'var(--color-primary-light)', fontSize: 'var(--size-sm)', cursor: 'pointer', padding: 'var(--space-sm)', fontFamily: 'var(--font-body)' }}
             >
               Forgot password?
             </button>

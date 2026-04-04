@@ -239,8 +239,8 @@ class WellnessCompanionAgent(BaseAgent, HandoffMixin):
             if m["role"] in ("user", "assistant")
         ]
 
-        # Build system prompt, enriched with relevant evidence if available
-        system = _SYSTEM_PROMPT
+        # Build system prompt, personalized with companion preferences if available
+        system = await self._build_personalized_prompt(patient_id)
         if consultation_evidence:
             system += (
                 "\n\nRelevant context for this conversation:\n"
@@ -335,6 +335,41 @@ class WellnessCompanionAgent(BaseAgent, HandoffMixin):
                 )
             except Exception:
                 logger.exception("WellnessCompanionAgent: failed to publish AGENT_ERROR")
+
+    async def _build_personalized_prompt(self, patient_id: str) -> str:
+        """Build the system prompt, prepending personality traits if available.
+
+        Looks up companion preferences for the patient's linked user account.
+        When preferences exist, the companion's name and communication style
+        are injected before the standard wellness prompt.  When no preferences
+        are found (new user, no linked account), the default _SYSTEM_PROMPT
+        is returned unchanged — "Ada" with standard style.
+        """
+        try:
+            prefs = await self.state.get_companion_preferences_for_patient(patient_id)
+        except Exception:
+            logger.debug(
+                "WellnessCompanionAgent: failed to load companion preferences for %s",
+                patient_id,
+            )
+            prefs = None
+
+        if prefs is None:
+            return _SYSTEM_PROMPT
+
+        name = prefs.get("name", "Ada")
+        personality = prefs.get("personality", {})
+        warmth = personality.get("warmth", "warm")
+        verbosity = personality.get("verbosity", "balanced")
+        formality = personality.get("formality", "casual")
+
+        persona_prefix = (
+            f"Your name is {name}. You are a wellness companion. "
+            f"Communication style: {warmth}, {verbosity}, {formality}.\n\n"
+        )
+
+        # Replace the default "You are Ada" opening with the personalized version
+        return persona_prefix + _SYSTEM_PROMPT
 
     async def _consult_knowledge_agent(
         self, session_id: str, patient_id: str, question: str

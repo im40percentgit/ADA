@@ -61,8 +61,8 @@ export function GraphFilters({
   }
 
   return (
-    <div className="graph-filters">
-      <div className="graph-filters__categories" role="group" aria-label="Category filters">
+    <div className="graph-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)', alignItems: 'center' }}>
+      <div className="graph-filters__categories" role="group" aria-label="Category filters" style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
         {Object.keys(NODE_COLORS).map((cat) => {
           const active = categoryFilters.has(cat)
           return (
@@ -72,8 +72,17 @@ export function GraphFilters({
               className={`graph-filters__chip ${active ? 'graph-filters__chip--active' : ''}`}
               style={{
                 backgroundColor: active ? NODE_COLORS[cat] : 'transparent',
-                borderColor: NODE_COLORS[cat],
+                border: `1px solid ${NODE_COLORS[cat]}`,
                 color: active ? '#fff' : NODE_COLORS[cat],
+                borderRadius: '10px',
+                padding: '2px 8px',
+                fontSize: 'var(--size-xs)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+                minHeight: 'var(--touch-target-min)',
+                display: 'inline-flex',
+                alignItems: 'center',
               }}
               onClick={() => toggleCategory(cat)}
               aria-pressed={active}
@@ -85,7 +94,7 @@ export function GraphFilters({
         })}
       </div>
 
-      <div className="graph-filters__time" role="group" aria-label="Time range">
+      <div className="graph-filters__time" role="group" aria-label="Time range" style={{ display: 'flex', gap: 'var(--space-xs)' }}>
         {TIME_RANGES.map((range) => (
           <button
             key={range}
@@ -93,6 +102,18 @@ export function GraphFilters({
             className={`graph-filters__pill ${timeRange === range ? 'graph-filters__pill--active' : ''}`}
             onClick={() => setTimeRange(range)}
             aria-pressed={timeRange === range}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 'var(--radius-card)',
+              fontSize: 'var(--size-xs)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: 'none',
+              fontFamily: 'var(--font-body)',
+              minHeight: 'var(--touch-target-min)',
+              background: timeRange === range ? 'var(--color-primary)' : 'var(--color-bg-elevated)',
+              color: timeRange === range ? '#fff' : 'var(--color-text-muted)',
+            }}
           >
             {range}
           </button>
@@ -106,6 +127,16 @@ export function GraphFilters({
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         aria-label="Search knowledge graph nodes"
+        style={{
+          background: 'var(--color-bg-elevated)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-input)',
+          height: 'var(--touch-target-min)',
+          padding: '0 var(--space-sm)',
+          color: 'var(--color-text-primary)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 'var(--size-sm)',
+        }}
       />
     </div>
   )
