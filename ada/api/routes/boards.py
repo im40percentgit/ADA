@@ -36,6 +36,7 @@ from collections import defaultdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
 from starlette.websockets import WebSocketState
 
 from ada.api.auth import get_current_user, resolve_circle_access
@@ -178,13 +179,13 @@ async def update_item(
     return await state.get_board_item(item_id)
 
 
-@router.delete("/boards/{board_id}/items/{item_id}", status_code=204)
+@router.delete("/boards/{board_id}/items/{item_id}")
 async def delete_item(
     board_id: str,
     item_id: str,
     user: User = Depends(get_current_user),
     state: StateManager = Depends(_state),
-) -> None:
+) -> Response:
     """Delete a board item. Caller must be a circle member."""
     await _verify_board_access(board_id, user, state)
 
@@ -193,6 +194,7 @@ async def delete_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     await state.delete_board_item(item_id)
+    return Response(status_code=204)
 
 
 @router.post("/boards/{board_id}/items/{item_id}/approve")

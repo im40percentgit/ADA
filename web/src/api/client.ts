@@ -54,6 +54,12 @@ import type {
   MedicationLog,
   CrisisAlertFull,
   NotificationPreferences,
+  KnowledgeGraphData,
+  KnowledgeTrend,
+  ProgressReportData,
+  SessionSummaryData,
+  DailySummary,
+  ClinicianNote,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -341,6 +347,47 @@ export function updateNotificationPreferences(
   return request<NotificationPreferences>('/notifications/preferences', {
     method: 'PUT',
     body: JSON.stringify(prefs),
+  })
+}
+
+// -- Knowledge Graph (Phase 12a) ----------------------------------------
+
+export function getKnowledgeGraph(patientId: string): Promise<KnowledgeGraphData> {
+  return request<KnowledgeGraphData>(`/patients/${encodeURIComponent(patientId)}/knowledge/graph`)
+}
+
+export function getKnowledgeTrends(patientId: string, range = '2w'): Promise<KnowledgeTrend[]> {
+  return request<KnowledgeTrend[]>(`/patients/${encodeURIComponent(patientId)}/knowledge/trends?range=${range}`)
+}
+
+// -- Progress Report (Phase 12a) ----------------------------------------
+
+export function getProgressReport(patientId: string, range = '2w'): Promise<ProgressReportData> {
+  return request<ProgressReportData>(`/patients/${encodeURIComponent(patientId)}/progress-report?range=${range}`)
+}
+
+// -- Session Summary (Phase 12a) ----------------------------------------
+
+export function getSessionSummary(sessionId: string): Promise<SessionSummaryData> {
+  return request<SessionSummaryData>(`/sessions/${encodeURIComponent(sessionId)}/summary`)
+}
+
+// -- Daily Summaries (Phase 12a) ----------------------------------------
+
+export function getDailySummary(patientId: string, date: string): Promise<DailySummary> {
+  return request<DailySummary>(`/patients/${encodeURIComponent(patientId)}/daily-summaries/${encodeURIComponent(date)}`)
+}
+
+// -- Clinician Notes (Phase 12a) ----------------------------------------
+
+export function getClinicianNotes(entityType: string, entityId: string): Promise<ClinicianNote[]> {
+  return request<ClinicianNote[]>(`/notes?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`)
+}
+
+export function upsertClinicianNote(entityType: string, entityId: string, content: string): Promise<ClinicianNote> {
+  return request<ClinicianNote>('/notes', {
+    method: 'PUT',
+    body: JSON.stringify({ entity_type: entityType, entity_id: entityId, content }),
   })
 }
 

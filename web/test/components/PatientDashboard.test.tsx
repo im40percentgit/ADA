@@ -18,10 +18,10 @@ import { PatientDashboard } from '../../src/components/PatientDashboard'
 
 const PATIENT_ID = 'patient-1'
 
-function renderDashboard(onNavigateToChat = vi.fn()) {
+function renderDashboard(onNavigate = vi.fn()) {
   localStorage.setItem('ADA_ACCESS_TOKEN', 'test-access-token')
   return render(
-    <PatientDashboard patientId={PATIENT_ID} onNavigateToChat={onNavigateToChat} />,
+    <PatientDashboard patientId={PATIENT_ID} onNavigate={onNavigate} />,
   )
 }
 
@@ -36,13 +36,13 @@ describe('PatientDashboard', () => {
     expect(screen.getByText('Talk to Ada')).toBeInTheDocument()
   })
 
-  it('calls onNavigateToChat when Talk to Ada card is clicked', async () => {
-    const onNavigateToChat = vi.fn()
+  it('calls onNavigate when Talk to Ada card is clicked', async () => {
+    const onNavigate = vi.fn()
     const user = userEvent.setup()
-    renderDashboard(onNavigateToChat)
+    renderDashboard(onNavigate)
 
     await user.click(screen.getByRole('button', { name: /Open chat with Ada/i }))
-    expect(onNavigateToChat).toHaveBeenCalledOnce()
+    expect(onNavigate).toHaveBeenCalledWith('chat')
   })
 
   it('renders Medications card heading', async () => {

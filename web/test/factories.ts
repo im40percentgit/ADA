@@ -30,6 +30,11 @@ import type {
   MoodDataPoint,
   CaregiverOverview,
   CrisisAlertFull,
+  KnowledgeNode,
+  KnowledgeEdge,
+  ProgressReportData,
+  SessionSummaryData,
+  ClinicianNote,
 } from '../src/types'
 import type { UserProfile } from '../src/api/auth'
 
@@ -45,6 +50,9 @@ let itemCount = 0
 let medCount = 0
 let apptCount = 0
 let alertCount = 0
+let nodeCount = 0
+let edgeCount = 0
+let noteCount = 0
 
 // ---------------------------------------------------------------------------
 // User / Auth
@@ -226,6 +234,114 @@ export function makeAlert(overrides: Partial<CrisisAlertFull> = {}): CrisisAlert
     status: 'active',
     resolved_at: null,
     resolved_by: null,
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Caregiver overview (aggregated)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Knowledge Node (Phase 12a)
+// ---------------------------------------------------------------------------
+
+export function makeKnowledgeNode(overrides: Partial<KnowledgeNode> = {}): KnowledgeNode {
+  const n = ++nodeCount
+  return {
+    id: `node-${n}`,
+    patient_id: 'patient-1',
+    node_type: 'symptom',
+    label: `Node ${n}`,
+    properties: {},
+    mention_count: 3,
+    confidence: 0.85,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge Edge (Phase 12a)
+// ---------------------------------------------------------------------------
+
+export function makeKnowledgeEdge(overrides: Partial<KnowledgeEdge> = {}): KnowledgeEdge {
+  const n = ++edgeCount
+  return {
+    id: `edge-${n}`,
+    patient_id: 'patient-1',
+    from_node: 'node-1',
+    to_node: 'node-2',
+    relation: 'related_to',
+    weight: 0.7,
+    mention_count: 2,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Progress Report (Phase 12a)
+// ---------------------------------------------------------------------------
+
+export function makeProgressReport(overrides: Partial<ProgressReportData> = {}): ProgressReportData {
+  return {
+    narrative: 'Patient has shown steady improvement over the reporting period.',
+    who5_trend: [
+      { date: '2026-01-01', score: 12 },
+      { date: '2026-01-08', score: 14 },
+      { date: '2026-01-15', score: 16 },
+    ],
+    session_count_by_week: [
+      { week: '2026-W01', count: 2 },
+      { week: '2026-W02', count: 3 },
+    ],
+    emotion_distribution: { neutral: 0.5, happy: 0.3, sad: 0.2 },
+    medication_adherence: { taken: 12, total: 14, missed_dates: ['2026-01-05'] },
+    assessment_scores: {
+      phq9: { current: 8, previous: 12, severity: 'mild' },
+      gad7: { current: 6, previous: 9, severity: 'mild' },
+    },
+    flags: [],
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Session Summary (Phase 12a)
+// ---------------------------------------------------------------------------
+
+export function makeSessionSummary(overrides: Partial<SessionSummaryData> = {}): SessionSummaryData {
+  return {
+    session_id: 'session-1',
+    patient_id: 'patient-1',
+    subjective: 'Patient reports feeling less anxious this week.',
+    objective: 'Speech was clear, affect appropriate.',
+    assessment: 'Mild anxiety, improving trend.',
+    plan: 'Continue current therapeutic approach. Review in two weeks.',
+    key_topics: ['anxiety', 'sleep', 'work'],
+    risk_flags: [],
+    created_at: '2026-01-15T11:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Clinician Note (Phase 12a)
+// ---------------------------------------------------------------------------
+
+export function makeClinicianNote(overrides: Partial<ClinicianNote> = {}): ClinicianNote {
+  const n = ++noteCount
+  return {
+    id: `note-${n}`,
+    user_id: 'user-1',
+    entity_type: 'session',
+    entity_id: 'session-1',
+    content: `Clinician note ${n}`,
+    created_at: '2026-01-15T11:00:00Z',
+    updated_at: '2026-01-15T11:00:00Z',
     ...overrides,
   }
 }

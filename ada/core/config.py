@@ -85,6 +85,12 @@ class BoardSuggestionConfig(BaseModel):
     timeout_seconds: float = 30.0
 
 
+class ProgressReportConfig(BaseModel):
+    """Configuration for the progress report endpoint (Phase 12a)."""
+
+    cache_ttl_seconds: int = 3600
+
+
 class CircuitBreakerConfig(BaseModel):
     """Circuit breaker thresholds (Phase 11a resilience)."""
 
@@ -380,6 +386,7 @@ class AdaConfig(BaseSettings):
     rate_limit: RateLimitConfig = RateLimitConfig()
     security: SecurityConfig = SecurityConfig()
     resilience: ResilienceConfig = ResilienceConfig()
+    progress_report: ProgressReportConfig = ProgressReportConfig()
     model_routing: ModelRoutingConfig | None = None
 
     @classmethod

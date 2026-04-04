@@ -11,6 +11,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-selection": "^3.0.11",
+    "d3-force": "^3.0.0",
+    "d3-selection": "^3.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "recharts": "^2.12.0"

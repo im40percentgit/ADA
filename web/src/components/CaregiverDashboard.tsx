@@ -52,7 +52,7 @@ const MOOD_CLASS: Record<string, string> = {
   mixed: 'cg-daily__mood--mixed',
 }
 
-function DailySummaryCard({ summary }: { summary: DailySummary | null }) {
+function DailySummaryCard({ summary, onViewDetail }: { summary: DailySummary | null; onViewDetail?: (date: string) => void }) {
   if (!summary) {
     return (
       <section className="cg-card cg-daily" aria-label="Daily Summary">
@@ -82,6 +82,17 @@ function DailySummaryCard({ summary }: { summary: DailySummary | null }) {
       </div>
 
       <p className="cg-daily__narrative">{summary.narrative}</p>
+
+      {onViewDetail && (
+        <button
+          type="button"
+          className="cg-daily__view-detail"
+          onClick={() => onViewDetail(summary.summary_date)}
+          aria-label="View full daily summary"
+        >
+          View full summary &rarr;
+        </button>
+      )}
 
       {summary.trend_alerts.length > 0 && (
         <div className="cg-daily__alerts" role="alert">
@@ -127,9 +138,15 @@ function DailySummaryCard({ summary }: { summary: DailySummary | null }) {
 
 interface CaregiverDashboardProps {
   onLogout: () => void
+  /** Navigate to a named view (e.g. 'knowledge-graph', 'progress'). */
+  onNavigate?: (view: string) => void
+  /** Navigate to a specific session summary. */
+  onViewSession?: (sessionId: string) => void
+  /** Navigate to a specific daily summary. */
+  onViewDailySummary?: (date: string) => void
 }
 
-export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
+export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onViewDailySummary }: CaregiverDashboardProps) {
   const [data, setData] = useState<CaregiverOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -219,11 +236,41 @@ export function CaregiverDashboard({ onLogout }: CaregiverDashboardProps) {
 
       {/* Dashboard grid */}
       <div className="cg-dashboard__grid">
-        <DailySummaryCard summary={data.daily_summary} />
+        <DailySummaryCard summary={data.daily_summary} onViewDetail={onViewDailySummary} />
         <StatusCard sessions={data.recent_sessions} who5Scores={data.assessments.who5} />
         <AlertsCard alerts={data.crisis_alerts} />
-        <SessionsCard sessions={data.recent_sessions} />
+        <SessionsCard sessions={data.recent_sessions} onViewSession={onViewSession} />
         <WellbeingChart who5Scores={data.assessments.who5} />
+
+        {/* Knowledge Map */}
+        {onNavigate && (
+          <section
+            className="cg-card cg-card--clickable"
+            onClick={() => onNavigate('knowledge-graph')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => e.key === 'Enter' && onNavigate('knowledge-graph')}
+            aria-label="View knowledge map"
+          >
+            <h2 className="cg-card__title">Knowledge Map</h2>
+            <p className="cg-card__desc">Visualize patient topics, symptoms, and their connections</p>
+          </section>
+        )}
+
+        {/* Progress Report */}
+        {onNavigate && (
+          <section
+            className="cg-card cg-card--clickable"
+            onClick={() => onNavigate('progress')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => e.key === 'Enter' && onNavigate('progress')}
+            aria-label="View progress report"
+          >
+            <h2 className="cg-card__title">Progress Report</h2>
+            <p className="cg-card__desc">Review trends in wellbeing, assessments, and adherence</p>
+          </section>
+        )}
 
         {/* Care Team */}
         {selectedCircle && (

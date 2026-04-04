@@ -452,6 +452,21 @@ CREATE INDEX IF NOT EXISTS idx_notif_pref_user ON notification_preferences(user_
 CREATE INDEX IF NOT EXISTS idx_throttle_log_user_event ON notification_throttle_log(user_id, event_type);
 CREATE INDEX IF NOT EXISTS idx_throttle_log_dedup ON notification_throttle_log(user_id, event_type, dedup_key);
 
+CREATE TABLE IF NOT EXISTS clinician_notes (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('session_summary', 'daily_summary')),
+    entity_id   TEXT NOT NULL,
+    content     TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clinician_notes_user_entity
+    ON clinician_notes(user_id, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_clinician_notes_entity
+    ON clinician_notes(entity_type, entity_id);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -1634,6 +1649,25 @@ class StateManager:
         )
         return _daily_summary_row(row) if row else None
 
+    async def get_daily_summary_by_date(
+        self, patient_id: str, date: str
+    ) -> dict[str, Any] | None:
+        """Return a daily summary for a specific patient and date, or None.
+
+        Args:
+            patient_id: Patient UUID.
+            date: ISO date string (YYYY-MM-DD) matching summary_date column.
+
+        Returns:
+            Deserialized summary dict, or None if no record exists.
+        """
+        row = await self._fetchone(
+            """SELECT * FROM daily_summaries
+               WHERE patient_id = ? AND summary_date = ?""",
+            (patient_id, date),
+        )
+        return _daily_summary_row(row) if row else None
+
     async def get_daily_summaries(
         self, patient_id: str, limit: int = 7
     ) -> list[dict[str, Any]]:
@@ -1999,6 +2033,61 @@ class StateManager:
         if row is None or row["last_sent"] is None:
             return None
         return float(row["last_sent"])
+
+    # ------------------------------------------------------------------
+    # Clinician notes (Phase 12a)
+    # ------------------------------------------------------------------
+
+    async def get_clinician_notes(
+        self,
+        entity_type: str,
+        entity_id: str,
+        user_id: str | None = None,
+    ) -> list[dict]:
+        """Return clinician notes for an entity, optionally filtered by user.
+
+        Returns a list of dicts with id, user_id, entity_type, entity_id,
+        content, created_at, updated_at.
+        """
+        if user_id is not None:
+            rows = await self._fetchall(
+                "SELECT * FROM clinician_notes"
+                " WHERE entity_type = ? AND entity_id = ? AND user_id = ?"
+                " ORDER BY created_at",
+                (entity_type, entity_id, user_id),
+            )
+        else:
+            rows = await self._fetchall(
+                "SELECT * FROM clinician_notes"
+                " WHERE entity_type = ? AND entity_id = ?"
+                " ORDER BY created_at",
+                (entity_type, entity_id),
+            )
+        return [dict(r) for r in rows]
+
+    async def upsert_clinician_note(self, note: dict) -> None:
+        """Insert or update a clinician note.
+
+        Uses INSERT ... ON CONFLICT on the (user_id, entity_type, entity_id)
+        unique index to update content and updated_at when the same user
+        annotates the same entity again.
+        """
+        await self._exec(
+            "INSERT INTO clinician_notes"
+            " (id, user_id, entity_type, entity_id, content, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT(user_id, entity_type, entity_id)"
+            " DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at",
+            (
+                note["id"],
+                note["user_id"],
+                note["entity_type"],
+                note["entity_id"],
+                note["content"],
+                _now(),
+                _now(),
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers
