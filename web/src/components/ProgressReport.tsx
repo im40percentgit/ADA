@@ -84,6 +84,8 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
         Back
       </Button>
 
+      <h1 className="sr-only">Progress Report</h1>
+
       {/* Time range pills */}
       <div
         style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}
@@ -115,10 +117,12 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
       </div>
 
       {/* AI Narrative card — warmth tint */}
+      <section aria-label="AI Narrative">
       <Card style={{ borderLeft: '4px solid var(--color-warmth)', paddingLeft: 'var(--space-md)' }}>
-        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>AI Narrative</h3>
+        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>AI Narrative</h2>
         <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>{data.narrative}</p>
       </Card>
+      </section>
 
       {/* 2x2 chart grid */}
       <div
@@ -129,24 +133,34 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
           marginTop: 'var(--space-md)',
         }}
       >
-        <Card>
-          <WellbeingTrendChart data={data.who5_trend} />
-        </Card>
-        <Card>
-          <SessionFrequencyChart data={data.session_count_by_week} />
-        </Card>
-        <Card>
-          <EmotionDistribution data={data.emotion_distribution} />
-        </Card>
-        <Card>
-          <AdherenceDonut data={data.medication_adherence} />
-        </Card>
+        <section aria-label="WHO-5 Wellbeing Trend">
+          <Card>
+            <WellbeingTrendChart data={data.who5_trend} />
+          </Card>
+        </section>
+        <section aria-label="Session Frequency">
+          <Card>
+            <SessionFrequencyChart data={data.session_count_by_week} />
+          </Card>
+        </section>
+        <section aria-label="Emotion Distribution">
+          <Card>
+            <EmotionDistribution data={data.emotion_distribution} />
+          </Card>
+        </section>
+        <section aria-label="Medication Adherence">
+          <Card>
+            <AdherenceDonut data={data.medication_adherence} />
+          </Card>
+        </section>
       </div>
 
       {/* Assessment Scores */}
+      <section aria-label="Assessment Scores">
       <Card style={{ marginTop: 'var(--space-md)' }}>
         <AssessmentScores data={data.assessment_scores} />
       </Card>
+      </section>
     </div>
   )
 }

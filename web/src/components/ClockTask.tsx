@@ -56,9 +56,11 @@ export function ClockTask({ hour, minute, options, onSubmit }: ClockTaskProps) {
         width="200"
         height="200"
         role="img"
-        aria-label="Analog clock"
+        aria-label={`Analog clock showing ${hour}:${minute.toString().padStart(2, '0')}`}
         style={{ display: 'block', margin: '0 auto' }}
       >
+        <title>Analog clock</title>
+        <desc>Clock showing {hour}:{minute.toString().padStart(2, '0')}</desc>
         {/* Clock face */}
         <circle cx="100" cy="100" r="95" fill="#fff" stroke="#333" strokeWidth="3" />
 

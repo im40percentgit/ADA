@@ -272,7 +272,7 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
         >
           {/* Date + meta */}
           <div>
-            <h2 style={{ margin: '0 0 4px', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>Cognitive Screening</h2>
+            <h1 style={{ margin: '0 0 4px', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>Cognitive Screening</h1>
             <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--size-sm)' }}>
               {formatDate(data.started_at)}
             </p>
@@ -309,12 +309,12 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
       {/* Domain scores */}
       {domainEntries.length > 0 && (
         <Card style={{ marginTop: 'var(--space-md)' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-md)' }}>Domain Scores</h3>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-md)' }}>Domain Scores</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             {domainEntries.map(([domain, info]) => {
               const barPct = (info.avg_score / 2) * 100
               return (
-                <div key={domain} data-testid="domain-bar">
+                <div key={domain} data-testid="domain-bar" aria-label={`${domain}: ${barPct.toFixed(0)}%`}>
                   <div
                     style={{
                       display: 'flex',
@@ -372,7 +372,7 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
           }}
           data-testid="concerns-card"
         >
-          <h3 style={{ color: 'var(--color-warning)', margin: '0 0 var(--space-sm)', fontFamily: 'var(--font-heading)' }}>Clinical Concerns</h3>
+          <h2 style={{ color: 'var(--color-warning)', margin: '0 0 var(--space-sm)', fontFamily: 'var(--font-heading)' }}>Clinical Concerns</h2>
           <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--color-warning)' }}>
             {data.concerns.map((concern, i) => (
               <li key={i} style={{ marginBottom: '4px', fontSize: 'var(--size-sm)' }}>
@@ -385,10 +385,14 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
 
       {/* Task breakdown */}
       <Card style={{ marginTop: 'var(--space-md)' }}>
-        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-md)' }}>Task Breakdown</h3>
-        {data.tasks.map((task, i) => (
-          <TaskRow key={i} task={task} index={i} />
-        ))}
+        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-md)' }}>Task Breakdown</h2>
+        <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {data.tasks.map((task, i) => (
+            <li key={i}>
+              <TaskRow task={task} index={i} />
+            </li>
+          ))}
+        </ol>
       </Card>
 
       {/* Clinician Notes */}

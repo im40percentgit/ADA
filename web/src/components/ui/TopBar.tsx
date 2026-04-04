@@ -138,7 +138,7 @@ export function TopBar({ greeting, subtitle, onNotification, onProfile, notifica
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') onProfile?.()
           }}
-          aria-label="Profile"
+          aria-label="Profile menu"
         >
           👤
         </div>

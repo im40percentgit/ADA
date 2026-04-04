@@ -16,7 +16,7 @@
  *   screens independently testable and the flow logic easy to follow.
  */
 
-import { useState, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { OnboardingWelcome } from './OnboardingWelcome'
 import { OnboardingName } from './OnboardingName'
 import { OnboardingVoice } from './OnboardingVoice'
@@ -128,6 +128,12 @@ export function OnboardingFlow({ role, onComplete }: OnboardingFlowProps) {
     verbosity: 'balanced',
     formality: 'casual',
   })
+  const stepContainerRef = useRef<HTMLDivElement>(null)
+
+  // Focus the step container when step changes
+  useEffect(() => {
+    stepContainerRef.current?.focus()
+  }, [step])
 
   const goNext = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1))
   const goBack = () => setStep((s) => Math.max(s - 1, 0))
@@ -248,7 +254,13 @@ export function OnboardingFlow({ role, onComplete }: OnboardingFlowProps) {
       </div>
 
       {/* Step content */}
-      <div style={contentStyle}>
+      <div
+        ref={stepContainerRef}
+        style={contentStyle}
+        tabIndex={-1}
+        aria-label={`Onboarding step ${step + 1} of ${TOTAL_STEPS}`}
+        data-testid="step-container"
+      >
         {renderStep()}
       </div>
     </div>

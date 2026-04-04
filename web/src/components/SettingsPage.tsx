@@ -245,46 +245,48 @@ export function SettingsPage({ onLogout, email }: SettingsPageProps) {
 
   return (
     <div style={pageStyle} data-testid="settings-page">
+      <h1 className="sr-only">Settings</h1>
 
-      {/* ── Companion Section ─────────────────────────────────── */}
+      {/* ─��� Companion Section ───────────────────��─────────────── */}
       <Card>
-        <h2 style={sectionHeadingStyle}>Companion</h2>
+        <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+          <legend style={sectionHeadingStyle}>Companion Settings</legend>
 
-        <div style={fieldGroupStyle}>
+          <div style={fieldGroupStyle}>
 
-          {/* Name */}
-          <Input
-            label="What would you like to call your companion?"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={loading}
-            data-testid="companion-name-input"
-          />
+            {/* Name */}
+            <Input
+              label="What would you like to call your companion?"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={loading}
+              data-testid="companion-name-input"
+            />
 
-          {/* Voice */}
-          <div>
-            <span style={fieldLabelStyle}>Voice</span>
-            <div style={voiceRowStyle}>
-              <VoiceButton
-                label="Female"
-                active={voice === 'female'}
-                onClick={() => setVoice('female')}
-                disabled={loading}
-              />
-              <VoiceButton
-                label="Male"
-                active={voice === 'male'}
-                onClick={() => setVoice('male')}
-                disabled={loading}
-              />
-              <VoiceButton
-                label="Neutral"
-                active={voice === 'neutral'}
-                onClick={() => setVoice('neutral')}
-                disabled={loading}
-              />
-            </div>
-          </div>
+            {/* Voice */}
+            <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend style={fieldLabelStyle}>Voice</legend>
+              <div style={voiceRowStyle} role="radiogroup" aria-label="Voice selection">
+                <VoiceButton
+                  label="Female"
+                  active={voice === 'female'}
+                  onClick={() => setVoice('female')}
+                  disabled={loading}
+                />
+                <VoiceButton
+                  label="Male"
+                  active={voice === 'male'}
+                  onClick={() => setVoice('male')}
+                  disabled={loading}
+                />
+                <VoiceButton
+                  label="Neutral"
+                  active={voice === 'neutral'}
+                  onClick={() => setVoice('neutral')}
+                  disabled={loading}
+                />
+              </div>
+            </fieldset>
 
           {/* Personality */}
           <div>
@@ -342,7 +344,8 @@ export function SettingsPage({ onLogout, email }: SettingsPageProps) {
             Save
           </Button>
 
-        </div>
+          </div>
+        </fieldset>
       </Card>
 
       {/* ── Account Section ───────────────────────────────────── */}

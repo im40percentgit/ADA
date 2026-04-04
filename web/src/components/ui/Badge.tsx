@@ -19,6 +19,8 @@ export interface BadgeProps {
   variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral'
   children: ReactNode
   className?: string
+  /** When true, hides the badge from screen readers (use when decorative next to other text) */
+  ariaHidden?: boolean
 }
 
 const baseStyle: CSSProperties = {
@@ -39,12 +41,12 @@ const variantStyles: Record<string, CSSProperties> = {
   neutral: { background: 'var(--color-bg-elevated)', color: 'var(--color-text-muted)' },
 }
 
-export function Badge({ variant, children, className }: BadgeProps) {
+export function Badge({ variant, children, className, ariaHidden }: BadgeProps) {
   const merged: CSSProperties = { ...baseStyle, ...variantStyles[variant] }
   const classes = ['ada-badge', `ada-badge--${variant}`, className].filter(Boolean).join(' ')
 
   return (
-    <span className={classes} style={merged}>
+    <span className={classes} style={merged} aria-hidden={ariaHidden || undefined}>
       {children}
     </span>
   )

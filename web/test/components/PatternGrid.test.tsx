@@ -62,11 +62,11 @@ describe('PatternGrid', () => {
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled()
   })
 
-  it('cells are not interactive during display phase', () => {
+  it('cells have gridcell role', () => {
     render(<PatternGrid {...defaultProps} />)
     const cell0 = screen.getByTestId('cell-0')
-    // During display phase, cells should not have role="button"
-    expect(cell0).not.toHaveAttribute('role', 'button')
+    // Cells always have role="gridcell"
+    expect(cell0).toHaveAttribute('role', 'gridcell')
   })
 
   it('after display phase ends, cells become clickable', () => {
@@ -80,9 +80,10 @@ describe('PatternGrid', () => {
     expect(screen.getByText('Reproduce the pattern')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submit' })).not.toBeDisabled()
 
-    // Cells should now have role="button"
+    // Cells should have gridcell role and be focusable
     const cell0 = screen.getByTestId('cell-0')
-    expect(cell0).toHaveAttribute('role', 'button')
+    expect(cell0).toHaveAttribute('role', 'gridcell')
+    expect(cell0).toHaveAttribute('tabindex')
   })
 
   it('clicking a cell toggles selection in recall phase', () => {

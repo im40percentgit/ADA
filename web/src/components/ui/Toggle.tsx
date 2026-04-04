@@ -95,6 +95,7 @@ export function Toggle({ checked, onChange, label, disabled = false }: TogglePro
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
         style={hiddenInput}
+        aria-label={label}
       />
       <span style={trackStyle} aria-hidden="true">
         <span style={thumbStyle} />

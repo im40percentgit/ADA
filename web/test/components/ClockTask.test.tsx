@@ -21,7 +21,7 @@ describe('ClockTask', () => {
 
   it('renders SVG clock', () => {
     render(<ClockTask {...defaultProps} />)
-    expect(screen.getByRole('img', { name: 'Analog clock' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Analog clock/i })).toBeInTheDocument()
   })
 
   it('renders hour markers', () => {

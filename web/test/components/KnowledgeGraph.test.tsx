@@ -50,7 +50,7 @@ describe('KnowledgeGraph', () => {
   it('renders SVG element for the graph', async () => {
     renderGraph()
     await waitFor(() => {
-      expect(screen.getByLabelText('Knowledge graph visualization')).toBeInTheDocument()
+      expect(screen.getByRole('img', { name: /Knowledge graph/i })).toBeInTheDocument()
     })
   })
 

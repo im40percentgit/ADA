@@ -151,6 +151,7 @@ export function ResetPassword({ token, onSuccess, onBack }: ResetPasswordProps) 
             placeholder="At least 8 characters"
             disabled={submitting}
             style={inputStyle}
+            aria-describedby={error ? 'reset-error' : undefined}
           />
 
           <label className="login__label" htmlFor="reset-confirm-password" style={{ fontSize: 'var(--size-caption)', color: 'var(--color-text-muted)', marginBottom: '4px', display: 'block' }}>
@@ -168,10 +169,11 @@ export function ResetPassword({ token, onSuccess, onBack }: ResetPasswordProps) 
             placeholder="Repeat your new password"
             disabled={submitting}
             style={inputStyle}
+            aria-describedby={error ? 'reset-error' : undefined}
           />
 
           {error && (
-            <p className="login__error" role="alert" style={{ color: 'var(--color-danger)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0' }}>
+            <p className="login__error" id="reset-error" role="alert" style={{ color: 'var(--color-danger)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0' }}>
               {error}
             </p>
           )}

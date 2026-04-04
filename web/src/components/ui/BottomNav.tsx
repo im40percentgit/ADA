@@ -16,7 +16,7 @@
  *   layout are straightforward with inline styles.
  */
 
-import type { CSSProperties } from 'react'
+import { useRef, type CSSProperties, type KeyboardEvent } from 'react'
 
 export interface NavTab {
   id: string
@@ -67,26 +67,50 @@ const labelStyle: CSSProperties = {
 }
 
 export function BottomNav({ tabs, activeTab, onTabChange }: BottomNavProps) {
-  return (
-    <nav className="ada-bottom-nav" style={navStyle} aria-label="Tab navigation">
-      {tabs.map((tab) => {
-        const isActive = tab.id === activeTab
-        const color = isActive ? 'var(--color-primary-light)' : 'var(--color-text-muted)'
+  const tabListRef = useRef<HTMLDivElement>(null)
 
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            style={{ ...tabBaseStyle, color }}
-            onClick={() => onTabChange(tab.id)}
-            aria-current={isActive ? 'page' : undefined}
-            aria-label={tab.label}
-          >
-            <span style={iconStyle} aria-hidden="true">{tab.icon}</span>
-            <span style={labelStyle}>{tab.label}</span>
-          </button>
-        )
-      })}
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const currentIndex = tabs.findIndex((t) => t.id === activeTab)
+    let nextIndex: number | null = null
+
+    if (e.key === 'ArrowRight') {
+      nextIndex = (currentIndex + 1) % tabs.length
+    } else if (e.key === 'ArrowLeft') {
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length
+    }
+
+    if (nextIndex !== null) {
+      e.preventDefault()
+      onTabChange(tabs[nextIndex].id)
+      const buttons = tabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      buttons?.[nextIndex]?.focus()
+    }
+  }
+
+  return (
+    <nav className="ada-bottom-nav" style={navStyle} aria-label="Main navigation">
+      <div role="tablist" ref={tabListRef} style={{ display: 'flex', flex: 1 }} onKeyDown={handleKeyDown}>
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTab
+          const color = isActive ? 'var(--color-primary-light)' : 'var(--color-text-muted)'
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              style={{ ...tabBaseStyle, color }}
+              onClick={() => onTabChange(tab.id)}
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
+              aria-label={tab.label}
+            >
+              <span style={iconStyle} aria-hidden="true">{tab.icon}</span>
+              <span style={labelStyle}>{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
     </nav>
   )
 }

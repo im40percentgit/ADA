@@ -124,6 +124,7 @@ export function ScreeningHistory({ patientId, onViewScreening }: ScreeningHistor
 
   return (
     <div className="patient-dash">
+      <h1 className="sr-only">Screening History</h1>
       {/* Trend banner (only shown when ≥2 screenings exist) */}
       {trend && screenings.length >= 2 && (
         <div
@@ -151,13 +152,13 @@ export function ScreeningHistory({ patientId, onViewScreening }: ScreeningHistor
       )}
 
       {/* Timeline */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }} aria-label="Screening history timeline">
         {screenings.map((s, index) => {
           const pct = s.overall_score != null ? Math.round(s.overall_score * 100) : null
           const domainEntries = Object.entries(s.domains)
 
           return (
-            <div
+            <li
               key={s.id}
               className="patient-dash__card"
               style={{ cursor: 'pointer', transition: 'box-shadow 0.15s' }}
@@ -247,10 +248,10 @@ export function ScreeningHistory({ patientId, onViewScreening }: ScreeningHistor
                   })}
                 </div>
               )}
-            </div>
+            </li>
           )
         })}
-      </div>
+      </ol>
     </div>
   )
 }

@@ -409,7 +409,8 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
   // Render
   // -------------------------------------------------------------------------
   return (
-    <div style={dashboardStyle}>
+    <div style={dashboardStyle} role="main" aria-label="Patient Dashboard">
+      <h1 className="sr-only">Patient Dashboard</h1>
 
       {/* Hero Card: Talk to companion */}
       <Card
@@ -431,8 +432,9 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
       </Card>
 
       {/* Wellbeing / Mood Score Card */}
+      <section aria-label="Wellbeing">
       <Card>
-        <h3 style={sectionHeadingStyle}>Mood Summary</h3>
+        <h2 style={sectionHeadingStyle}>Mood Summary</h2>
         {moodLoading ? (
           <p style={emptyStyle}>Loading…</p>
         ) : moodPoints.length === 0 ? (
@@ -453,6 +455,7 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
           </div>
         )}
       </Card>
+      </section>
 
       {/* Quick Action: My Journey Map */}
       <Card
@@ -464,7 +467,7 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
           onKeyDown={e => e.key === 'Enter' && onNavigate('knowledge-graph')}
           aria-label="View your journey map"
         >
-          <h3 style={sectionHeadingStyle}>My Journey Map</h3>
+          <h2 style={sectionHeadingStyle}>My Journey Map</h2>
           <p style={cardDescStyle}>Explore your wellness journey and how topics connect</p>
         </div>
       </Card>
@@ -479,15 +482,16 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
           onKeyDown={e => e.key === 'Enter' && onNavigate('progress')}
           aria-label="View your progress report"
         >
-          <h3 style={sectionHeadingStyle}>Progress Report</h3>
+          <h2 style={sectionHeadingStyle}>Progress Report</h2>
           <p style={cardDescStyle}>See how you are doing over time</p>
         </div>
       </Card>
 
       {/* Medications Card */}
+      <section aria-label="Medications">
       <Card style={fullWidthCardStyle}>
         <div style={headingRowStyle}>
-          <h3 style={{ ...sectionHeadingStyle, margin: 0 }}>Medications</h3>
+          <h2 style={{ ...sectionHeadingStyle, margin: 0 }}>Medications</h2>
           {!medsLoading && !medError && meds.length > 0 && (
             <Badge variant={pendingMedCount > 0 ? 'warning' : 'success'}>
               {pendingMedCount > 0 ? `${pendingMedCount} pending` : 'All taken'}
@@ -525,11 +529,13 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
           </ul>
         )}
       </Card>
+      </section>
 
       {/* Upcoming Appointments Card */}
+      <section aria-label="Upcoming Appointments">
       <Card style={fullWidthCardStyle}>
         <div style={headingRowStyle}>
-          <h3 style={{ ...sectionHeadingStyle, margin: 0 }}>Upcoming Appointments</h3>
+          <h2 style={{ ...sectionHeadingStyle, margin: 0 }}>Upcoming Appointments</h2>
           {!apptLoading && !apptError && upcomingAppts.length > 0 && (
             <Badge variant="info">
               Next: {formatDate(upcomingAppts[0].scheduled_at)}
@@ -607,10 +613,11 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
           </ul>
         )}
       </Card>
+      </section>
 
       {/* My Boards Card */}
       <Card>
-        <h3 style={sectionHeadingStyle}>My Boards</h3>
+        <h2 style={sectionHeadingStyle}>My Boards</h2>
         {!selectedCircle ? (
           <p style={emptyStyle}>Not part of a care circle</p>
         ) : boardsLoading ? (
@@ -633,7 +640,7 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
 
       {/* My Care Team Card */}
       <Card>
-        <h3 style={sectionHeadingStyle}>My Care Team</h3>
+        <h2 style={sectionHeadingStyle}>My Care Team</h2>
         {!selectedCircle ? (
           <p style={emptyStyle}>Not part of a care circle</p>
         ) : membersLoading ? (
@@ -656,7 +663,7 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
 
       {/* Cognitive Screening Card */}
       <Card style={fullWidthCardStyle}>
-        <h3 style={sectionHeadingStyle}>Cognitive Screening</h3>
+        <h2 style={sectionHeadingStyle}>Cognitive Screening</h2>
         <p style={cardDescStyle}>Assess memory, attention, and cognitive function</p>
         <div style={cardActionsStyle}>
           <Button

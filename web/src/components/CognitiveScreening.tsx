@@ -73,10 +73,11 @@ export function CognitiveScreening({
           Back
         </Button>
 
+        <section aria-label="Screening introduction">
         <Card style={{ marginTop: 'var(--space-md)' }}>
-          <h2 style={{ margin: '0 0 var(--space-sm)', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)', fontWeight: 700 }}>
+          <h1 style={{ margin: '0 0 var(--space-sm)', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)', fontWeight: 700 }}>
             Cognitive Screening
-          </h2>
+          </h1>
           <p style={{ margin: '0 0 var(--space-md)', lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>
             This assessment takes about 8-10 minutes and covers memory, attention,
             language, and visuospatial skills. You will be shown a series of tasks
@@ -109,6 +110,7 @@ export function CognitiveScreening({
             Start Screening
           </button>
         </Card>
+        </section>
       </div>
     )
   }
@@ -160,6 +162,7 @@ export function CognitiveScreening({
           Back
         </Button>
 
+        <section aria-label={`Task ${currentTask.task_index + 1} of ${totalTasks}: ${currentTask.domain}`}>
         <Card style={{ marginTop: 'var(--space-md)' }}>
           {/* Domain label + task counter */}
           <div
@@ -216,6 +219,7 @@ export function CognitiveScreening({
             onSubmit={(response) => respond(currentTask.task_index, response)}
           />
         </Card>
+        </section>
       </div>
     )
   }

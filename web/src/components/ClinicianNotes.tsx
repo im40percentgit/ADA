@@ -114,23 +114,25 @@ export function ClinicianNotes({ entityType, entityId, role }: ClinicianNotesPro
         <p style={{ color: '#6b7280', fontSize: '14px' }}>No notes yet.</p>
       )}
 
-      {notes.map((note) => (
-        <div
-          key={note.id}
-          style={{
-            borderLeft: '3px solid #6366f1',
-            paddingLeft: '12px',
-            marginBottom: '12px',
-          }}
-        >
-          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
-            <span data-testid="note-author">{note.user_id}</span>
-            {' — '}
-            <span data-testid="note-timestamp">{formatTimestamp(note.updated_at)}</span>
-          </div>
-          <p style={{ margin: 0, lineHeight: 1.5 }}>{note.content}</p>
-        </div>
-      ))}
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label="Clinical notes">
+        {notes.map((note) => (
+          <li
+            key={note.id}
+            style={{
+              borderLeft: '3px solid #6366f1',
+              paddingLeft: '12px',
+              marginBottom: '12px',
+            }}
+          >
+            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+              <span data-testid="note-author">{note.user_id}</span>
+              {' — '}
+              <span data-testid="note-timestamp">{formatTimestamp(note.updated_at)}</span>
+            </div>
+            <p style={{ margin: 0, lineHeight: 1.5 }}>{note.content}</p>
+          </li>
+        ))}
+      </ul>
 
       {/* New note editor */}
       <div style={{ marginTop: '12px' }}>

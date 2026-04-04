@@ -130,9 +130,9 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
       </Button>
 
       {/* Header */}
-      <h2 style={{ margin: 'var(--space-md) 0', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>
+      <h1 style={{ margin: 'var(--space-md) 0', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>
         Session — {formatDate(data.created_at)}
-      </h2>
+      </h1>
 
       {/* SOAP cards */}
       <div
@@ -143,17 +143,19 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
         }}
       >
         {soapSections.map((s) => (
-          <Card key={s.title}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>{s.title}</h3>
-            <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>{s.content}</p>
-          </Card>
+          <section key={s.title} aria-label={s.title}>
+            <Card>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>{s.title}</h2>
+              <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>{s.content}</p>
+            </Card>
+          </section>
         ))}
       </div>
 
       {/* Key topics */}
       {data.key_topics.length > 0 && (
         <Card style={{ marginTop: 'var(--space-md)' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Key Topics</h3>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Key Topics</h2>
           <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
             {data.key_topics.map((topic, i) => (
               <Badge key={i} variant="info">{topic}</Badge>
@@ -165,15 +167,17 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
       {/* Risk flags */}
       {data.risk_flags.length > 0 && (
         <Card style={{ marginTop: 'var(--space-md)' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Risk Flags</h3>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Risk Flags</h2>
           <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
             {data.risk_flags.map((flag, i) => {
               const { severity, text } = parseSeverity(flag)
               const style = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.MODERATE
+              const isUrgent = severity === 'HIGH' || severity === 'CRITICAL'
               return (
                 <span
                   key={i}
                   data-testid="risk-flag"
+                  {...(isUrgent ? { role: 'alert' } : {})}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
