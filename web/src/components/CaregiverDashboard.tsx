@@ -485,6 +485,34 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
           </Card>
         )}
 
+        {/* Treatment Plans — clinician role */}
+        {onNavigate && selectedCircle.my_role === 'clinician' && (
+          <Card>
+            <h2 style={sectionHeadingStyle}>Treatment Plans</h2>
+            <p style={cardDescStyle}>
+              {data.active_plan_count != null && data.active_plan_count > 0
+                ? `${data.active_plan_count} active plan${data.active_plan_count !== 1 ? 's' : ''}`
+                : 'No active plans'}
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onNavigate('treatment-plan')}
+              >
+                <span aria-label="View treatment plans">View Plans →</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onNavigate('prescribing-notes')}
+              >
+                <span aria-label="View prescribing notes">Prescribing Notes →</span>
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {/* Care Team */}
         {selectedCircle && (
           <Card>

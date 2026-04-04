@@ -498,6 +498,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_clinician_notes_user_entity
 CREATE INDEX IF NOT EXISTS idx_clinician_notes_entity
     ON clinician_notes(entity_type, entity_id);
 
+CREATE TABLE IF NOT EXISTS prescribing_notes (
+    id              TEXT PRIMARY KEY,
+    patient_id      TEXT NOT NULL REFERENCES patients(id),
+    clinician_id    TEXT NOT NULL REFERENCES users(id),
+    medication_id   TEXT REFERENCES medications(id),
+    note_type       TEXT NOT NULL CHECK(note_type IN ('prescribe', 'adjust', 'discontinue', 'review')),
+    content         TEXT NOT NULL,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_prescribing_notes_patient ON prescribing_notes(patient_id);
+CREATE INDEX IF NOT EXISTS idx_prescribing_notes_clinician ON prescribing_notes(clinician_id);
+
 -- Migration: add columns added in Phase 2a (idempotent ALTER TABLE)
 -- SQLite does not support IF NOT EXISTS in ALTER TABLE; we catch errors in initialize().
 
@@ -514,6 +526,48 @@ CREATE INDEX IF NOT EXISTS idx_medications_patient ON medications(patient_id);
 CREATE INDEX IF NOT EXISTS idx_organizations_slug ON organizations(slug);
 CREATE INDEX IF NOT EXISTS idx_org_members_org ON organization_members(organization_id);
 CREATE INDEX IF NOT EXISTS idx_org_members_user ON organization_members(user_id);
+
+CREATE TABLE IF NOT EXISTS treatment_plans (
+    id              TEXT PRIMARY KEY,
+    patient_id      TEXT NOT NULL REFERENCES patients(id),
+    clinician_id    TEXT NOT NULL REFERENCES users(id),
+    organization_id TEXT REFERENCES organizations(id),
+    title           TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'active'
+        CHECK(status IN ('active', 'completed', 'archived')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_treatment_plans_patient ON treatment_plans(patient_id);
+CREATE INDEX IF NOT EXISTS idx_treatment_plans_clinician ON treatment_plans(clinician_id);
+
+CREATE TABLE IF NOT EXISTS treatment_goals (
+    id              TEXT PRIMARY KEY,
+    plan_id         TEXT NOT NULL REFERENCES treatment_plans(id),
+    description     TEXT NOT NULL,
+    target_metric   TEXT CHECK(target_metric IN ('phq9', 'gad7', 'who5', 'cognitive', 'custom')),
+    target_operator TEXT NOT NULL DEFAULT '<'
+        CHECK(target_operator IN ('<', '>', '<=', '>=')),
+    target_value    REAL,
+    current_value   REAL,
+    status          TEXT NOT NULL DEFAULT 'active'
+        CHECK(status IN ('active', 'met', 'unmet', 'deferred')),
+    due_date        TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_treatment_goals_plan ON treatment_goals(plan_id);
+
+CREATE TABLE IF NOT EXISTS treatment_interventions (
+    id              TEXT PRIMARY KEY,
+    goal_id         TEXT NOT NULL REFERENCES treatment_goals(id),
+    description     TEXT NOT NULL,
+    frequency       TEXT,
+    status          TEXT NOT NULL DEFAULT 'active'
+        CHECK(status IN ('active', 'completed', 'discontinued')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_treatment_interventions_goal ON treatment_interventions(goal_id);
 """
 
 
@@ -2364,6 +2418,231 @@ class StateManager:
             (org_id,),
         )
         return [_patient_row(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Treatment plans / goals / interventions
+    # ------------------------------------------------------------------
+
+    async def create_treatment_plan(self, plan: dict[str, Any]) -> None:
+        """Insert a new treatment plan.
+
+        Args:
+            plan: Dict with keys: id, patient_id, clinician_id, title.
+                  Optional: organization_id, status.
+        """
+        now = _now()
+        await self._exec(
+            """INSERT INTO treatment_plans
+               (id, patient_id, clinician_id, organization_id, title, status, created_at, updated_at)
+               VALUES (:id, :patient_id, :clinician_id, :organization_id, :title, :status, :created_at, :updated_at)""",
+            {
+                "organization_id": None,
+                "status": "active",
+                **plan,
+                "created_at": plan.get("created_at", now),
+                "updated_at": plan.get("updated_at", now),
+            },
+        )
+
+    async def get_treatment_plan(self, plan_id: str) -> dict[str, Any] | None:
+        """Return a treatment plan with its goals and each goal's interventions.
+
+        Returns None if the plan does not exist.
+        """
+        row = await self._fetchone(
+            "SELECT * FROM treatment_plans WHERE id = ?", (plan_id,)
+        )
+        if not row:
+            return None
+        plan = dict(row)
+
+        goal_rows = await self._fetchall(
+            "SELECT * FROM treatment_goals WHERE plan_id = ? ORDER BY created_at",
+            (plan_id,),
+        )
+        goals = []
+        for gr in goal_rows:
+            goal = dict(gr)
+            intervention_rows = await self._fetchall(
+                "SELECT * FROM treatment_interventions WHERE goal_id = ? ORDER BY created_at",
+                (goal["id"],),
+            )
+            goal["interventions"] = [dict(ir) for ir in intervention_rows]
+            goals.append(goal)
+        plan["goals"] = goals
+        return plan
+
+    async def list_treatment_plans(self, patient_id: str) -> list[dict[str, Any]]:
+        """Return all treatment plans for a patient (without nested goals)."""
+        rows = await self._fetchall(
+            "SELECT * FROM treatment_plans WHERE patient_id = ? ORDER BY created_at DESC",
+            (patient_id,),
+        )
+        return [dict(r) for r in rows]
+
+    async def update_treatment_plan(
+        self, plan_id: str, updates: dict[str, Any]
+    ) -> None:
+        """Update allowed fields on a treatment plan.
+
+        Args:
+            plan_id: Treatment plan UUID.
+            updates: Dict with keys to update. Only title and status are updateable.
+        """
+        allowed = {"title", "status"}
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        if not fields:
+            return
+        fields["updated_at"] = _now()
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await self._exec(
+            f"UPDATE treatment_plans SET {set_clause} WHERE id = :id",
+            {**fields, "id": plan_id},
+        )
+
+    async def create_treatment_goal(self, goal: dict[str, Any]) -> None:
+        """Insert a new treatment goal.
+
+        Args:
+            goal: Dict with keys: id, plan_id, description.
+                  Optional: target_metric, target_operator, target_value,
+                  current_value, status, due_date.
+        """
+        now = _now()
+        await self._exec(
+            """INSERT INTO treatment_goals
+               (id, plan_id, description, target_metric, target_operator,
+                target_value, current_value, status, due_date, created_at, updated_at)
+               VALUES (:id, :plan_id, :description, :target_metric, :target_operator,
+                       :target_value, :current_value, :status, :due_date, :created_at, :updated_at)""",
+            {
+                "target_metric": None,
+                "target_operator": "<",
+                "target_value": None,
+                "current_value": None,
+                "status": "active",
+                "due_date": None,
+                **goal,
+                "created_at": goal.get("created_at", now),
+                "updated_at": goal.get("updated_at", now),
+            },
+        )
+
+    async def update_treatment_goal(
+        self, goal_id: str, updates: dict[str, Any]
+    ) -> None:
+        """Update allowed fields on a treatment goal.
+
+        Args:
+            goal_id: Treatment goal UUID.
+            updates: Dict of field names to new values.
+        """
+        allowed = {
+            "description", "target_metric", "target_operator",
+            "target_value", "current_value", "status", "due_date",
+        }
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        if not fields:
+            return
+        fields["updated_at"] = _now()
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await self._exec(
+            f"UPDATE treatment_goals SET {set_clause} WHERE id = :id",
+            {**fields, "id": goal_id},
+        )
+
+    async def get_goals_by_metric(
+        self, patient_id: str, metric: str
+    ) -> list[dict[str, Any]]:
+        """Return all treatment goals for a patient with the given target_metric.
+
+        Useful for automated goal evaluation when a new assessment score arrives.
+        """
+        rows = await self._fetchall(
+            """SELECT tg.* FROM treatment_goals tg
+               JOIN treatment_plans tp ON tp.id = tg.plan_id
+               WHERE tp.patient_id = ? AND tg.target_metric = ?
+               ORDER BY tg.created_at""",
+            (patient_id, metric),
+        )
+        return [dict(r) for r in rows]
+
+    async def create_treatment_intervention(self, intervention: dict[str, Any]) -> None:
+        """Insert a new treatment intervention.
+
+        Args:
+            intervention: Dict with keys: id, goal_id, description.
+                          Optional: frequency, status.
+        """
+        now = _now()
+        await self._exec(
+            """INSERT INTO treatment_interventions
+               (id, goal_id, description, frequency, status, created_at)
+               VALUES (:id, :goal_id, :description, :frequency, :status, :created_at)""",
+            {
+                "frequency": None,
+                "status": "active",
+                **intervention,
+                "created_at": intervention.get("created_at", now),
+            },
+        )
+
+    async def update_treatment_intervention(
+        self, intervention_id: str, updates: dict[str, Any]
+    ) -> None:
+        """Update allowed fields on a treatment intervention.
+
+        Args:
+            intervention_id: Treatment intervention UUID.
+            updates: Dict of field names to new values.
+        """
+        allowed = {"description", "frequency", "status"}
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        if not fields:
+            return
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await self._exec(
+            f"UPDATE treatment_interventions SET {set_clause} WHERE id = :id",
+            {**fields, "id": intervention_id},
+        )
+
+    # ------------------------------------------------------------------
+    # Prescribing notes (Phase 14b clinician portal)
+    # ------------------------------------------------------------------
+
+    async def create_prescribing_note(self, note: dict[str, Any]) -> None:
+        """Insert a new prescribing note.
+
+        Args:
+            note: Dict with keys: id, patient_id, clinician_id, note_type,
+                  content. medication_id is optional (None when not linked to
+                  a specific medication record). created_at defaults to now.
+        """
+        await self._exec(
+            """INSERT INTO prescribing_notes
+               (id, patient_id, clinician_id, medication_id, note_type, content, created_at)
+               VALUES (:id, :patient_id, :clinician_id, :medication_id, :note_type, :content, :created_at)""",
+            {
+                "medication_id": None,
+                **note,
+                "created_at": note.get("created_at", _now()),
+            },
+        )
+
+    async def get_prescribing_notes(self, patient_id: str) -> list[dict[str, Any]]:
+        """Return all prescribing notes for a patient, newest first.
+
+        Args:
+            patient_id: Patient UUID.
+
+        Returns:
+            List of dicts with all prescribing_notes columns.
+        """
+        rows = await self._fetchall(
+            "SELECT * FROM prescribing_notes WHERE patient_id = ? ORDER BY created_at DESC",
+            (patient_id,),
+        )
+        return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
     # Internal helpers

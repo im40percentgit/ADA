@@ -298,6 +298,8 @@ export interface CaregiverOverview {
   medications: CaregiverMedication[]
   appointments: CaregiverAppointment[]
   daily_summary: DailySummary | null
+  /** Number of active treatment plans — present when the viewer has clinician role. */
+  active_plan_count?: number
 }
 
 // -- Care Circles -------------------------------------------------------
@@ -619,4 +621,52 @@ export interface ClinicianNote {
   content: string
   created_at: string
   updated_at: string
+}
+
+// -- Treatment Plans (Phase 14b) ------------------------------------------
+
+export interface TreatmentPlan {
+  id: string
+  patient_id: string
+  clinician_id: string
+  organization_id: string | null
+  title: string
+  status: 'active' | 'completed' | 'archived'
+  goals: TreatmentGoal[]
+  created_at: string
+  updated_at: string
+}
+
+export interface TreatmentGoal {
+  id: string
+  plan_id: string
+  description: string
+  target_metric: 'phq9' | 'gad7' | 'who5' | 'cognitive' | 'custom' | null
+  target_operator: '<' | '>' | '<=' | '>='
+  target_value: number | null
+  current_value: number | null
+  status: 'active' | 'met' | 'unmet' | 'deferred'
+  due_date: string | null
+  interventions: TreatmentIntervention[]
+  created_at: string
+  updated_at: string
+}
+
+export interface TreatmentIntervention {
+  id: string
+  goal_id: string
+  description: string
+  frequency: string | null
+  status: 'active' | 'completed' | 'discontinued'
+  created_at: string
+}
+
+export interface PrescribingNote {
+  id: string
+  patient_id: string
+  clinician_id: string
+  medication_id: string | null
+  note_type: 'prescribe' | 'adjust' | 'discontinue' | 'review'
+  content: string
+  created_at: string
 }

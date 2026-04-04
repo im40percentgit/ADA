@@ -110,6 +110,9 @@ class EventTypes:
     CIRCLE_MEMBER_ADDED = "circle.member_added"
     CIRCLE_MEMBER_REMOVED = "circle.member_removed"
 
+    # Treatment plans (Phase 14b)
+    TREATMENT_GOAL_MET = "treatment.goal_met"
+
     # Shared boards (Phase 9b)
     BOARD_CREATED = "board.created"
     BOARD_ITEM_ADDED = "board.item_added"
@@ -638,6 +641,20 @@ class BoardItemApprovedEvent(BoardItemEvent):
 
     event_type: str = EventTypes.BOARD_ITEM_APPROVED
     approved_by: str = ""
+
+
+@dataclass
+class TreatmentGoalMetEvent(AdaEvent):
+    """Published when a treatment goal's current_value meets or exceeds its target."""
+
+    event_type: str = EventTypes.TREATMENT_GOAL_MET
+    goal_id: str = ""
+    plan_id: str = ""
+    patient_id: str = ""
+    description: str = ""
+    target_metric: str = ""
+    target_value: float = 0.0
+    current_value: float = 0.0
 
 
 @dataclass
