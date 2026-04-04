@@ -94,6 +94,9 @@ max_media_body_size_bytes = 10485760
 cors_allow_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
 cors_allow_headers = ["Authorization", "Content-Type", "X-Request-ID", "X-Session-ID", "Accept", "Origin"]
 
+[progress_report]
+cache_ttl_seconds = 3600
+
 [model_routing]
 default_profile = "conversational"
 

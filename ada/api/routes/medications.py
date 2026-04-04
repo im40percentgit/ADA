@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 
 from ada.api.auth import get_current_user
 from ada.models.medication import Medication, MedicationCreate, MedicationUpdate
@@ -177,19 +178,19 @@ async def update_medication(
 
 @router.delete(
     "/patients/{patient_id}/medications/{medication_id}",
-    status_code=204,
 )
 async def deactivate_medication(
     patient_id: str,
     medication_id: str,
     request: Request,
     _user: User = Depends(get_current_user),
-) -> None:
+) -> Response:
     """Deactivate (soft-delete) a medication record."""
     med = await _state(request).get_medication(medication_id)
     if not med or med.get("patient_id") != patient_id:
         raise HTTPException(status_code=404, detail="Medication not found")
     await _state(request).deactivate_medication(medication_id)
+    return Response(status_code=204)
 
 
 @router.post(

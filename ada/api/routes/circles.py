@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from ada.api.auth import get_current_user, hash_password, resolve_circle_access
@@ -237,13 +238,13 @@ async def add_circle_member(
     }
 
 
-@router.delete("/{circle_id}/members/{member_user_id}", status_code=204)
+@router.delete("/{circle_id}/members/{member_user_id}")
 async def remove_circle_member(
     circle_id: str,
     member_user_id: str,
     user: User = Depends(get_current_user),
     state: StateManager = Depends(_state),
-) -> None:
+) -> Response:
     """Remove a user from the circle. Requires primary_caregiver role."""
     await resolve_circle_access(
         user,
@@ -252,3 +253,4 @@ async def remove_circle_member(
         require_roles=["primary_caregiver"],
     )
     await state.remove_circle_member(circle_id, member_user_id)
+    return Response(status_code=204)

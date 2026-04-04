@@ -21,6 +21,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 
 from ada.api.auth import get_current_user
 from ada.core.events import AppointmentCreatedEvent
@@ -173,16 +174,16 @@ async def update_appointment(
 
 @router.delete(
     "/patients/{patient_id}/appointments/{appointment_id}",
-    status_code=204,
 )
 async def delete_appointment(
     patient_id: str,
     appointment_id: str,
     request: Request,
     _user: User = Depends(get_current_user),
-) -> None:
+) -> Response:
     """Hard-delete an appointment record."""
     appt = await _state(request).get_appointment(appointment_id)
     if not appt or appt.get("patient_id") != patient_id:
         raise HTTPException(status_code=404, detail="Appointment not found")
     await _state(request).delete_appointment(appointment_id)
+    return Response(status_code=204)

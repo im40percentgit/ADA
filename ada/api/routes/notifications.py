@@ -78,7 +78,7 @@ async def subscribe(
     return {"id": sub_id}
 
 
-@router.delete("/subscribe", status_code=204)
+@router.delete("/subscribe")
 async def unsubscribe(
     request: Request,
     user: User = Depends(get_current_user),
