@@ -390,6 +390,17 @@ export const handlers = [
   http.get('/api/patients/:patientId/cognitive-screenings/:screeningId', ({ params }) => {
     return json(makeCognitiveScreening({ id: params.screeningId as string }))
   }),
+
+  // -- Onboarding (Phase 13b) -----------------------------------------------
+
+  http.get('/api/onboarding/status', () => {
+    return json({ status: 'not_started' })
+  }),
+
+  http.put('/api/onboarding/status', async ({ request }) => {
+    const body = await request.json() as { status: string }
+    return json({ status: body.status })
+  }),
 ]
 
 // ---------------------------------------------------------------------------

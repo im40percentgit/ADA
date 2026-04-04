@@ -118,13 +118,15 @@ CREATE TABLE IF NOT EXISTS crisis_alerts (
 );
 
 CREATE TABLE IF NOT EXISTS users (
-    id              TEXT PRIMARY KEY,
-    email           TEXT NOT NULL UNIQUE,
-    hashed_password TEXT NOT NULL,
-    role            TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user','clinician','admin','caregiver')),
-    patient_id      TEXT REFERENCES patients(id),
-    created_at      TEXT NOT NULL,
-    is_active       INTEGER NOT NULL DEFAULT 1
+    id                TEXT PRIMARY KEY,
+    email             TEXT NOT NULL UNIQUE,
+    hashed_password   TEXT NOT NULL,
+    role              TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user','clinician','admin','caregiver')),
+    patient_id        TEXT REFERENCES patients(id),
+    created_at        TEXT NOT NULL,
+    is_active         INTEGER NOT NULL DEFAULT 1,
+    onboarding_status TEXT NOT NULL DEFAULT 'not_started'
+        CHECK(onboarding_status IN ('not_started', 'in_progress', 'completed'))
 );
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -2162,6 +2164,35 @@ class StateManager:
                 _now(),
                 _now(),
             ),
+        )
+
+    # ------------------------------------------------------------------
+    # Onboarding status (Phase 13b)
+    # ------------------------------------------------------------------
+
+    async def get_onboarding_status(self, user_id: str) -> str:
+        """Return the onboarding_status for a user.
+
+        Returns 'not_started' when the user does not exist, matching the
+        column DEFAULT so callers always receive a valid status string.
+        """
+        row = await self._fetchone(
+            "SELECT onboarding_status FROM users WHERE id = ?",
+            (user_id,),
+        )
+        if row is None:
+            return "not_started"
+        return row["onboarding_status"]
+
+    async def set_onboarding_status(self, user_id: str, status: str) -> None:
+        """Update the onboarding_status for a user.
+
+        Caller is responsible for validating that status is one of
+        'not_started', 'in_progress', or 'completed' before calling.
+        """
+        await self._exec(
+            "UPDATE users SET onboarding_status = ? WHERE id = ?",
+            (status, user_id),
         )
 
     # ------------------------------------------------------------------

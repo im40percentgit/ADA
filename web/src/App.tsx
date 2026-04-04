@@ -38,7 +38,7 @@
  *   parsed from the hash query string (/#/reset-password?token=...).
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Chat } from './components/Chat'
 import { MoodChart } from './components/MoodChart'
 import { Login } from './components/Login'
@@ -56,8 +56,10 @@ import { ScreeningHistory } from './components/ScreeningHistory'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { InstallBanner } from './components/InstallBanner'
 import { AppShell } from './components/AppShell'
+import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
 import { useAuth } from './hooks/useAuth'
 import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
+import { getOnboardingStatus } from './api/client'
 import './App.css'
 
 // Fallback patient ID for clinician/admin accounts in development
@@ -93,6 +95,23 @@ export default function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [selectedSummaryDate, setSelectedSummaryDate] = useState<string | null>(null)
   const [selectedScreeningId, setSelectedScreeningId] = useState<string | null>(null)
+  const [onboardingComplete, setOnboardingComplete] = useState(true)
+
+  // Check onboarding status when user becomes authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let cancelled = false
+    getOnboardingStatus()
+      .then(({ status }) => {
+        if (!cancelled && status !== 'completed') {
+          setOnboardingComplete(false)
+        }
+      })
+      .catch(() => {
+        // On error, assume onboarding is complete so the app is still usable
+      })
+    return () => { cancelled = true }
+  }, [isAuthenticated])
 
   // While token validation is in flight, show a minimal loading screen
   if (loading) {
@@ -141,6 +160,19 @@ export default function App() {
           onRegister={register}
           error={resetSuccessMsg ?? error}
           onForgotPassword={() => setAuthView('forgot-password')}
+        />
+      </>
+    )
+  }
+
+  // Onboarding gate — show wizard before main app if not completed
+  if (!onboardingComplete) {
+    return (
+      <>
+        {installBanner}
+        <OnboardingFlow
+          role={currentUser?.role === 'caregiver' ? 'caregiver' : 'user'}
+          onComplete={() => setOnboardingComplete(true)}
         />
       </>
     )
