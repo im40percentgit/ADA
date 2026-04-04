@@ -47,6 +47,10 @@ import { ForgotPassword } from './components/ForgotPassword'
 import { ResetPassword } from './components/ResetPassword'
 import { CaregiverDashboard } from './components/CaregiverDashboard'
 import { PatientDashboard } from './components/PatientDashboard'
+import { KnowledgeGraph } from './components/KnowledgeGraph'
+import { ProgressReport } from './components/ProgressReport'
+import { SessionSummary } from './components/SessionSummary'
+import { DailySummaryDetail } from './components/DailySummaryDetail'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { InstallBanner } from './components/InstallBanner'
 import { useAuth } from './hooks/useAuth'
@@ -56,7 +60,7 @@ import './App.css'
 // Fallback patient ID for clinician/admin accounts in development
 const DEMO_PATIENT_ID = 'demo-patient-001'
 
-type View = 'home' | 'chat' | 'mood'
+type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary'
 type AuthView = 'login' | 'forgot-password' | 'reset-password'
 
 /** Parse the initial auth view from the URL hash (e.g. /#/reset-password?token=...) */
@@ -83,6 +87,8 @@ export default function App() {
   const [authView, setAuthView] = useState<AuthView>(_initial.view)
   const [resetToken] = useState<string>(_initial.resetToken)
   const [resetSuccessMsg, setResetSuccessMsg] = useState<string | null>(null)
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [selectedSummaryDate, setSelectedSummaryDate] = useState<string | null>(null)
 
   // While token validation is in flight, show a minimal loading screen
   if (loading) {
@@ -138,10 +144,31 @@ export default function App() {
 
   // Caregiver role — show dedicated dashboard instead of chat/mood
   if (currentUser?.role === 'caregiver') {
+    const cgPatientId = currentUser?.patient_id ?? DEMO_PATIENT_ID
     return (
       <div className="app">
         {installBanner}
-        <CaregiverDashboard onLogout={logout} />
+        {view === 'knowledge-graph' ? (
+          <KnowledgeGraph patientId={cgPatientId} clinicalOverlay onBack={() => setView('home')} />
+        ) : view === 'progress' ? (
+          <ProgressReport patientId={cgPatientId} onBack={() => setView('home')} />
+        ) : view === 'session-summary' && selectedSessionId ? (
+          <SessionSummary sessionId={selectedSessionId} onBack={() => setView('home')} />
+        ) : view === 'daily-summary' && selectedSummaryDate ? (
+          <DailySummaryDetail
+            patientId={cgPatientId}
+            date={selectedSummaryDate}
+            onBack={() => setView('home')}
+            onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
+          />
+        ) : (
+          <CaregiverDashboard
+            onLogout={logout}
+            onNavigate={(v) => setView(v as View)}
+            onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
+            onViewDailySummary={(date) => { setSelectedSummaryDate(date); setView('daily-summary') }}
+          />
+        )}
       </div>
     )
   }
@@ -212,8 +239,21 @@ export default function App() {
 
       {/* Main content */}
       <div className="app__main">
-        {view === 'home' ? (
-          <PatientDashboard patientId={patientId} onNavigateToChat={() => setView('chat')} />
+        {view === 'knowledge-graph' ? (
+          <KnowledgeGraph patientId={patientId} clinicalOverlay={currentUser?.role !== 'user'} onBack={() => setView('home')} />
+        ) : view === 'progress' ? (
+          <ProgressReport patientId={patientId} onBack={() => setView('home')} />
+        ) : view === 'session-summary' && selectedSessionId ? (
+          <SessionSummary sessionId={selectedSessionId} onBack={() => setView('home')} />
+        ) : view === 'daily-summary' && selectedSummaryDate ? (
+          <DailySummaryDetail
+            patientId={patientId}
+            date={selectedSummaryDate}
+            onBack={() => setView('home')}
+            onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
+          />
+        ) : view === 'home' ? (
+          <PatientDashboard patientId={patientId} onNavigate={(v) => setView(v as View)} />
         ) : view === 'chat' ? (
           activeSessionId ? (
             <Chat sessionId={activeSessionId} patientId={patientId} onWsStatusChange={setChatWsStatus} />

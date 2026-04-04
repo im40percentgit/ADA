@@ -19,6 +19,8 @@ import type { CaregiverSession } from '../types'
 
 interface SessionsCardProps {
   sessions: CaregiverSession[]
+  /** When provided, each session becomes clickable and navigates to its summary. */
+  onViewSession?: (sessionId: string) => void
 }
 
 function formatDate(dateStr: string): string {
@@ -30,7 +32,7 @@ function formatDate(dateStr: string): string {
   })
 }
 
-export function SessionsCard({ sessions }: SessionsCardProps) {
+export function SessionsCard({ sessions, onViewSession }: SessionsCardProps) {
   return (
     <section className="cg-card cg-sessions" aria-label="Recent sessions">
       <h2 className="cg-card__title">Recent Sessions</h2>
@@ -40,7 +42,15 @@ export function SessionsCard({ sessions }: SessionsCardProps) {
       ) : (
         <ul className="cg-sessions__list">
           {sessions.map((s) => (
-            <li key={s.id} className="cg-sessions__item">
+            <li
+              key={s.id}
+              className={`cg-sessions__item${onViewSession ? ' cg-sessions__item--clickable' : ''}`}
+              onClick={onViewSession ? () => onViewSession(s.id) : undefined}
+              role={onViewSession ? 'button' : undefined}
+              tabIndex={onViewSession ? 0 : undefined}
+              onKeyDown={onViewSession ? (e) => e.key === 'Enter' && onViewSession(s.id) : undefined}
+              aria-label={onViewSession ? `View session summary from ${formatDate(s.started_at)}` : undefined}
+            >
               <span className="cg-sessions__date">{formatDate(s.started_at)}</span>
 
               {s.summary ? (

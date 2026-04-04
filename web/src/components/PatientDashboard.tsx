@@ -33,7 +33,8 @@ import type { Medication, Appointment, Board, CareCircleMember, MoodDataPoint } 
 
 interface PatientDashboardProps {
   patientId: string
-  onNavigateToChat: () => void
+  /** Flexible navigation callback: accepts view name strings (e.g. 'chat', 'knowledge-graph', 'progress'). */
+  onNavigate: (view: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ const TREND_LABEL: Record<'up' | 'down' | 'stable', string> = {
 // Component
 // ---------------------------------------------------------------------------
 
-export function PatientDashboard({ patientId, onNavigateToChat }: PatientDashboardProps) {
+export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProps) {
   // -- Medications ---------------------------------------------------------
   const [meds, setMeds] = useState<Medication[]>([])
   const [medsLoading, setMedsLoading] = useState(true)
@@ -242,17 +243,43 @@ export function PatientDashboard({ patientId, onNavigateToChat }: PatientDashboa
       {/* Card 1: Talk to Ada — full width */}
       <div
         className="patient-dash__card patient-dash__card--full patient-dash__card--ada"
-        onClick={onNavigateToChat}
+        onClick={() => onNavigate('chat')}
         role="button"
         tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && onNavigateToChat()}
+        onKeyDown={e => e.key === 'Enter' && onNavigate('chat')}
         aria-label="Open chat with Ada"
       >
         <h2>Talk to Ada</h2>
         <p>Start a conversation with Ada</p>
       </div>
 
-      {/* Card 2: Medications */}
+      {/* Card 2: My Journey Map */}
+      <div
+        className="patient-dash__card patient-dash__card--clickable"
+        onClick={() => onNavigate('knowledge-graph')}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => e.key === 'Enter' && onNavigate('knowledge-graph')}
+        aria-label="View your journey map"
+      >
+        <h3>My Journey Map</h3>
+        <p className="patient-dash__card-desc">Explore your wellness journey and how topics connect</p>
+      </div>
+
+      {/* Card 3: Progress Report */}
+      <div
+        className="patient-dash__card patient-dash__card--clickable"
+        onClick={() => onNavigate('progress')}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => e.key === 'Enter' && onNavigate('progress')}
+        aria-label="View your progress report"
+      >
+        <h3>Progress Report</h3>
+        <p className="patient-dash__card-desc">See how you are doing over time</p>
+      </div>
+
+      {/* Card 4: Medications */}
       <div className="patient-dash__card">
         <h3>Medications</h3>
         {medsLoading ? (
