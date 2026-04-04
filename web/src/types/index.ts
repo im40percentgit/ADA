@@ -468,3 +468,74 @@ export interface NotificationPreferences {
   daily_summary_generated: boolean
   circle_member_added: boolean
 }
+
+// -- Clinical Visualization (Phase 12a) ---------------------------------
+
+export interface KnowledgeNode {
+  id: string
+  patient_id: string
+  node_type: string
+  label: string
+  properties: Record<string, unknown>
+  mention_count: number
+  confidence: number
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeEdge {
+  id: string
+  patient_id: string
+  from_node: string
+  to_node: string
+  relation: string
+  weight: number
+  mention_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeGraphData {
+  nodes: KnowledgeNode[]
+  edges: KnowledgeEdge[]
+}
+
+export interface KnowledgeTrend {
+  node_id: string
+  label: string
+  current_count: number
+  prior_count: number
+  direction: 'improving' | 'declining' | 'stable'
+}
+
+export interface ProgressReportData {
+  narrative: string
+  who5_trend: { date: string; score: number }[]
+  session_count_by_week: { week: string; count: number }[]
+  emotion_distribution: Record<string, number>
+  medication_adherence: { taken: number; total: number; missed_dates: string[] }
+  assessment_scores: Record<string, { current: number; previous: number; severity: string }>
+  flags: string[]
+}
+
+export interface SessionSummaryData {
+  session_id: string
+  patient_id: string
+  subjective: string
+  objective: string
+  assessment: string
+  plan: string
+  key_topics: string[]
+  risk_flags: string[]
+  created_at: string
+}
+
+export interface ClinicianNote {
+  id: string
+  user_id: string
+  entity_type: string
+  entity_id: string
+  content: string
+  created_at: string
+  updated_at: string
+}

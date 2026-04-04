@@ -39,6 +39,11 @@ import {
   makeAppointment,
   makeMoodPoint,
   makeAlert,
+  makeKnowledgeNode,
+  makeKnowledgeEdge,
+  makeProgressReport,
+  makeSessionSummary,
+  makeClinicianNote,
 } from '../factories'
 
 // ---------------------------------------------------------------------------
@@ -294,6 +299,63 @@ export const handlers = [
       circle_member_added: true,
       ...body,
     })
+  }),
+
+  // -- Knowledge Graph (Phase 12a) -----------------------------------------
+
+  http.get('/api/patients/:patientId/knowledge/graph', () => {
+    return json({ nodes: [makeKnowledgeNode()], edges: [makeKnowledgeEdge()] })
+  }),
+
+  http.get('/api/patients/:patientId/knowledge/trends', () => {
+    return json([
+      { node_id: 'node-1', label: 'anxiety', current_count: 5, prior_count: 8, direction: 'improving' },
+      { node_id: 'node-2', label: 'sleep', current_count: 3, prior_count: 3, direction: 'stable' },
+    ])
+  }),
+
+  // -- Progress Report (Phase 12a) -----------------------------------------
+
+  http.get('/api/patients/:patientId/progress-report', () => {
+    return json(makeProgressReport())
+  }),
+
+  // -- Session Summary (Phase 12a) -----------------------------------------
+
+  http.get('/api/sessions/:sessionId/summary', () => {
+    return json(makeSessionSummary())
+  }),
+
+  // -- Daily Summaries (Phase 12a) -----------------------------------------
+
+  http.get('/api/patients/:patientId/daily-summaries/:date', ({ params }) => {
+    return json({
+      id: 'summary-1',
+      summary_date: params.date as string,
+      narrative: 'A stable day with mild anxiety reported.',
+      trend_alerts: [],
+      appointment_prep: [],
+      key_topics: ['anxiety', 'sleep'],
+      overall_mood: 'neutral',
+      created_at: '2026-01-15T12:00:00Z',
+    })
+  }),
+
+  // -- Clinician Notes (Phase 12a) -----------------------------------------
+
+  http.get('/api/notes', () => {
+    return json([makeClinicianNote()])
+  }),
+
+  http.put('/api/notes', async ({ request }) => {
+    const body = await request.json() as { entity_type: string; entity_id: string; content: string }
+    return json(
+      makeClinicianNote({
+        entity_type: body.entity_type,
+        entity_id: body.entity_id,
+        content: body.content,
+      }),
+    )
   }),
 ]
 
