@@ -182,6 +182,18 @@ Object.defineProperty(globalThis.navigator, 'serviceWorker', {
 })
 
 // ---------------------------------------------------------------------------
+// ResizeObserver mock — jsdom does not implement it; recharts needs it
+// ---------------------------------------------------------------------------
+
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof globalThis.ResizeObserver
+}
+
+// ---------------------------------------------------------------------------
 // scrollIntoView mock — jsdom does not implement it
 // ---------------------------------------------------------------------------
 
