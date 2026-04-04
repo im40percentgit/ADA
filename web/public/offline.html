@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#3b82f6" />
+    <title>Ada — Offline</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: system-ui, -apple-system, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100dvh;
+        text-align: center;
+        padding: 2rem;
+      }
+
+      .offline {
+        max-width: 24rem;
+      }
+
+      .offline__icon {
+        font-size: 4rem;
+        margin-bottom: 1.5rem;
+        display: block;
+        line-height: 1;
+      }
+
+      .offline__title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #f1f5f9;
+        margin-bottom: 0.75rem;
+      }
+
+      .offline__body {
+        font-size: 1rem;
+        color: #94a3b8;
+        line-height: 1.6;
+        margin-bottom: 2rem;
+      }
+
+      .offline__retry {
+        background: #3b82f6;
+        color: #fff;
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.625rem 1.5rem;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .offline__retry:hover {
+        background: #2563eb;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="offline">
+      <span class="offline__icon" aria-hidden="true">&#x26A1;</span>
+      <h1 class="offline__title">Ada is offline</h1>
+      <p class="offline__body">
+        Ada is offline. Please check your connection and try again.
+      </p>
+      <button class="offline__retry" onclick="window.location.reload()">
+        Try again
+      </button>
+    </div>
+  </body>
+</html>
