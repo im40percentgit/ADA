@@ -15,6 +15,7 @@
  *   of the graph exploration.
  */
 
+import { useEffect, useRef, useCallback } from 'react'
 import type { KnowledgeNode, KnowledgeEdge } from '../types'
 
 const NODE_COLORS: Record<string, string> = {
@@ -41,6 +42,50 @@ export function GraphDetailPanel({
   onSelectNode,
   onClose,
 }: GraphDetailPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  // Focus the close button when panel opens
+  useEffect(() => {
+    if (node) {
+      closeButtonRef.current?.focus()
+    }
+  }, [node])
+
+  // Focus trap: keep Tab within the panel
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation()
+      onClose()
+      return
+    }
+
+    if (e.key !== 'Tab') return
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    const focusableElements = panel.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusableElements.length === 0) return
+
+    const first = focusableElements[0]
+    const last = focusableElements[focusableElements.length - 1]
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+  }, [onClose])
+
   if (!node) return null
 
   // Find connected nodes
@@ -59,9 +104,12 @@ export function GraphDetailPanel({
 
   return (
     <div
+      ref={panelRef}
       className="graph-detail-panel"
-      role="complementary"
-      aria-label="Node details"
+      role="dialog"
+      aria-labelledby="graph-detail-panel-title"
+      aria-modal="true"
+      onKeyDown={handleKeyDown}
       style={{
         background: 'var(--color-bg-card)',
         border: '1px solid var(--color-border)',
@@ -72,8 +120,9 @@ export function GraphDetailPanel({
       }}
     >
       <div className="graph-detail-panel__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-        <h3 className="graph-detail-panel__title" style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{node.label}</h3>
+        <h3 id="graph-detail-panel-title" className="graph-detail-panel__title" style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{node.label}</h3>
         <button
+          ref={closeButtonRef}
           type="button"
           className="graph-detail-panel__close"
           onClick={onClose}

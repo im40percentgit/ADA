@@ -167,6 +167,7 @@ export function AppShell({
   if (isDesktop) {
     return (
       <div className="ada-shell ada-shell--desktop" style={shellDesktopStyle}>
+        <a href="#main-content" className="skip-link">Skip to main content</a>
         {/* Sidebar */}
         <aside className="ada-shell__sidebar" style={sidebarStyle}>
           <div style={sidebarBrandStyle}>
@@ -207,7 +208,7 @@ export function AppShell({
             subtitle={subtitle}
             onNotification={onNotification}
           />
-          <main className="ada-shell__content" style={desktopContentStyle}>
+          <main id="main-content" className="ada-shell__content" style={desktopContentStyle}>
             {children}
           </main>
         </div>
@@ -218,12 +219,13 @@ export function AppShell({
   // Mobile layout
   return (
     <div className="ada-shell ada-shell--mobile" style={shellMobileStyle}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <TopBar
         greeting={greeting}
         subtitle={subtitle}
         onNotification={onNotification}
       />
-      <main className="ada-shell__content" style={mainMobileStyle}>
+      <main id="main-content" className="ada-shell__content" style={mainMobileStyle}>
         {children}
       </main>
       <BottomNav tabs={DEFAULT_TABS} activeTab={activeTab} onTabChange={onTabChange} />

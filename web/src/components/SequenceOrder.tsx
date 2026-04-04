@@ -47,14 +47,25 @@ export function SequenceOrder({ items, onSubmit }: SequenceOrderProps) {
         <div
           className="sequence-order__row"
           data-testid="available-row"
+          role="listbox"
+          aria-label="Available items"
           style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', minHeight: '48px' }}
         >
           {available.map((item) => (
             <button
               key={item}
               type="button"
+              role="option"
+              aria-selected={false}
               className="sequence-order__item"
+              aria-label={`${item}, available`}
               onClick={() => selectItem(item)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  selectItem(item)
+                }
+              }}
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',
@@ -78,6 +89,8 @@ export function SequenceOrder({ items, onSubmit }: SequenceOrderProps) {
         <div
           className="sequence-order__row"
           data-testid="answer-row"
+          role="listbox"
+          aria-label="Your answer sequence"
           style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -93,8 +106,17 @@ export function SequenceOrder({ items, onSubmit }: SequenceOrderProps) {
             <button
               key={item}
               type="button"
+              role="option"
+              aria-selected={true}
               className="sequence-order__item sequence-order__item--selected"
+              aria-label={`${item}, position ${index + 1}, selected`}
               onClick={() => deselectItem(item)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  deselectItem(item)
+                }
+              }}
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',

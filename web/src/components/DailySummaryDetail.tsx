@@ -138,7 +138,7 @@ export function DailySummaryDetail({
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)', marginTop: 'var(--space-md)' }}>
-        <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>{formatDate(date)}</h2>
+        <h1 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>{formatDate(date)}</h1>
         <span
           data-testid="overall-mood"
           style={{
@@ -158,58 +158,59 @@ export function DailySummaryDetail({
 
       {/* Narrative */}
       <Card style={{ borderLeft: '4px solid var(--color-warmth)', paddingLeft: 'var(--space-md)' }}>
-        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Daily Narrative</h3>
+        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Daily Narrative</h2>
         <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>{data.narrative}</p>
       </Card>
 
       {/* Trend alerts */}
       {data.trend_alerts.length > 0 && (
         <Card style={{ marginTop: 'var(--space-md)' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Trend Alerts</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Trend Alerts</h2>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             {data.trend_alerts.map((alert, i) => {
               const dirMatch = alert.match(/^(improving|declining|stable):\s*(.+)$/i)
               const direction = dirMatch ? dirMatch[1].toLowerCase() : 'stable'
               const alertText = dirMatch ? dirMatch[2] : alert
 
               return (
-                <Card
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--space-sm)',
-                    padding: 'var(--space-sm) var(--space-md)',
-                  }}
-                >
-                  <span
-                    data-testid="trend-alert"
+                <li key={i}>
+                  <Card
                     style={{
-                      fontSize: 'var(--size-xs)',
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      color:
-                        direction === 'improving'
-                          ? 'var(--color-success)'
-                          : direction === 'declining'
-                            ? 'var(--color-danger)'
-                            : 'var(--color-text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-sm)',
+                      padding: 'var(--space-sm) var(--space-md)',
                     }}
                   >
-                    {TREND_ICONS[direction] ?? 'Stable'}
-                  </span>
-                  <span style={{ fontSize: 'var(--size-sm)', color: 'var(--color-text-secondary)' }}>{alertText}</span>
-                </Card>
+                    <span
+                      data-testid="trend-alert"
+                      style={{
+                        fontSize: 'var(--size-xs)',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        color:
+                          direction === 'improving'
+                            ? 'var(--color-success)'
+                            : direction === 'declining'
+                              ? 'var(--color-danger)'
+                              : 'var(--color-text-muted)',
+                      }}
+                    >
+                      {TREND_ICONS[direction] ?? 'Stable'}
+                    </span>
+                    <span style={{ fontSize: 'var(--size-sm)', color: 'var(--color-text-secondary)' }}>{alertText}</span>
+                  </Card>
+                </li>
               )
             })}
-          </div>
+          </ul>
         </Card>
       )}
 
       {/* Key topics */}
       {data.key_topics.length > 0 && (
         <Card style={{ marginTop: 'var(--space-md)' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Key Topics</h3>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Key Topics</h2>
           <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
             {data.key_topics.map((topic, i) => (
               <Badge key={i} variant="info">{topic}</Badge>
@@ -221,7 +222,7 @@ export function DailySummaryDetail({
       {/* Session links */}
       {sessionIds && sessionIds.length > 0 && (
         <Card style={{ marginTop: 'var(--space-md)' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Sessions</h3>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Sessions</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
             {sessionIds.map((sid) => (
               <button

@@ -20,7 +20,7 @@
  *   a full React re-render on every tick.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force'
 import { select } from 'd3-selection'
 import { useKnowledgeGraph } from '../hooks/useKnowledgeGraph'
@@ -98,6 +98,24 @@ export function KnowledgeGraph({ patientId, clinicalOverlay = false, onBack }: K
     },
     [nodes, setSelectedNode],
   )
+
+  // Escape key closes the detail panel
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && selectedNode) {
+        setSelectedNode(null)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [selectedNode, setSelectedNode])
+
+  // Build aria description for the graph
+  const graphDescription = useMemo(() => {
+    if (nodes.length === 0) return 'Empty knowledge graph'
+    const types = [...new Set(nodes.map((n) => n.node_type))]
+    return `Knowledge graph with ${nodes.length} nodes (${types.join(', ')}) and ${edges.length} connections. Click nodes for details.`
+  }, [nodes, edges])
 
   // Run d3 force simulation
   useEffect(() => {
@@ -284,8 +302,10 @@ export function KnowledgeGraph({ patientId, clinicalOverlay = false, onBack }: K
           className="knowledge-graph__svg"
           width="100%"
           height="100%"
-          aria-label="Knowledge graph visualization"
+          role="img"
+          aria-label={graphDescription}
         >
+          <title>Knowledge Graph</title>
           <g className="kg-edges" />
           <g className="kg-nodes" />
           <g className="kg-labels" />

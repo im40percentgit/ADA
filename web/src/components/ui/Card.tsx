@@ -18,7 +18,7 @@
  *   avoids introducing a CSS-in-JS runtime.
  */
 
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 
 export interface CardProps {
   children: ReactNode
@@ -50,8 +50,24 @@ export function Card({ children, className, onClick, style }: CardProps) {
     .filter(Boolean)
     .join(' ')
 
+  const handleKeyDown = isClickable
+    ? (e: KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick?.()
+        }
+      }
+    : undefined
+
   return (
-    <div className={classes} style={merged} onClick={onClick}>
+    <div
+      className={classes}
+      style={merged}
+      onClick={onClick}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onKeyDown={handleKeyDown}
+    >
       {children}
     </div>
   )

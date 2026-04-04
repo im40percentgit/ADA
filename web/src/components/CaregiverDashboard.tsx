@@ -410,14 +410,15 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
       {/* Dashboard grid */}
       <div style={gridStyle}>
         {/* Alerts Card — prominent at top if crisis alerts exist */}
-        <Card style={{
-          ...fullWidthStyle,
-          ...(hasCrisisAlerts ? {
-            border: '2px solid var(--color-danger)',
-          } : {}),
-        }}>
-          <AlertsCard alerts={data.crisis_alerts} />
-        </Card>
+        <div style={fullWidthStyle} {...(hasCrisisAlerts ? { role: 'alert' } : {})}>
+          <Card style={{
+            ...(hasCrisisAlerts ? {
+              border: '2px solid var(--color-danger)',
+            } : {}),
+          }}>
+            <AlertsCard alerts={data.crisis_alerts} />
+          </Card>
+        </div>
 
         {/* Daily Summary */}
         <DailySummaryCard summary={data.daily_summary} onViewDetail={onViewDailySummary} />
@@ -433,9 +434,11 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
         </Card>
 
         {/* Wellbeing Chart — full width */}
-        <Card style={fullWidthStyle}>
-          <WellbeingChart who5Scores={data.assessments.who5} />
-        </Card>
+        <section aria-label="Wellbeing" style={fullWidthStyle}>
+          <Card>
+            <WellbeingChart who5Scores={data.assessments.who5} />
+          </Card>
+        </section>
 
         {/* Knowledge Map */}
         {onNavigate && (

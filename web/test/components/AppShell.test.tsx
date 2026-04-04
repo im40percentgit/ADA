@@ -101,10 +101,10 @@ describe('AppShell', () => {
       </AppShell>,
     )
     const chatBtn = screen.getByLabelText('Chat')
-    expect(chatBtn.getAttribute('aria-current')).toBe('page')
+    expect(chatBtn.getAttribute('aria-selected')).toBe('true')
 
     const homeBtn = screen.getByLabelText('Home')
-    expect(homeBtn.getAttribute('aria-current')).toBeNull()
+    expect(homeBtn.getAttribute('aria-selected')).toBe('false')
   })
 
   describe('desktop layout', () => {

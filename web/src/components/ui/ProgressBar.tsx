@@ -21,6 +21,8 @@ export interface ProgressBarProps {
   value: number
   color?: string
   className?: string
+  /** Accessible label describing what this progress bar measures */
+  'aria-label'?: string
 }
 
 const outerStyle: CSSProperties = {
@@ -30,7 +32,7 @@ const outerStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
-export function ProgressBar({ value, color, className }: ProgressBarProps) {
+export function ProgressBar({ value, color, className, 'aria-label': ariaLabel }: ProgressBarProps) {
   const clamped = Math.max(0, Math.min(100, value))
 
   const innerStyle: CSSProperties = {
@@ -51,6 +53,7 @@ export function ProgressBar({ value, color, className }: ProgressBarProps) {
       aria-valuenow={clamped}
       aria-valuemin={0}
       aria-valuemax={100}
+      aria-label={ariaLabel}
     >
       <div style={innerStyle} />
     </div>

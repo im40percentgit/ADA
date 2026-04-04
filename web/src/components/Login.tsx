@@ -184,6 +184,7 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
             placeholder={mode === 'register' ? 'At least 8 characters' : '••••••••'}
             disabled={submitting}
             style={inputStyle}
+            aria-describedby={error ? 'login-error' : undefined}
           />
 
           {mode === 'register' && (
@@ -206,7 +207,7 @@ export function Login({ onLogin, onRegister, error, onForgotPassword }: LoginPro
           )}
 
           {error && (
-            <p className="login__error" role="alert" style={{ color: 'var(--color-danger)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0' }}>
+            <p className="login__error" id="login-error" role="alert" style={{ color: 'var(--color-danger)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0' }}>
               {error}
             </p>
           )}

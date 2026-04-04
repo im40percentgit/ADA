@@ -302,7 +302,8 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
       {/* Message list */}
       <main
         className="chat__messages"
-        aria-label="Conversation"
+        role="log"
+        aria-label="Chat messages"
         aria-live="polite"
         aria-relevant="additions"
         style={{ background: 'var(--color-bg-base)' }}
