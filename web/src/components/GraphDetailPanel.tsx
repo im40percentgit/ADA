@@ -58,14 +58,39 @@ export function GraphDetailPanel({
   const color = NODE_COLORS[node.node_type] ?? NODE_COLORS.other
 
   return (
-    <div className="graph-detail-panel" role="complementary" aria-label="Node details">
-      <div className="graph-detail-panel__header">
-        <h3 className="graph-detail-panel__title">{node.label}</h3>
+    <div
+      className="graph-detail-panel"
+      role="complementary"
+      aria-label="Node details"
+      style={{
+        background: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-card)',
+        padding: 'var(--space-md)',
+        boxShadow: 'var(--shadow-elevated)',
+        fontFamily: 'var(--font-body)',
+      }}
+    >
+      <div className="graph-detail-panel__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
+        <h3 className="graph-detail-panel__title" style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{node.label}</h3>
         <button
           type="button"
           className="graph-detail-panel__close"
           onClick={onClose}
           aria-label="Close detail panel"
+          style={{
+            background: 'var(--color-bg-elevated)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-button)',
+            color: 'var(--color-text-muted)',
+            cursor: 'pointer',
+            minHeight: 'var(--touch-target-min)',
+            minWidth: 'var(--touch-target-min)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'var(--font-body)',
+          }}
         >
           X
         </button>
@@ -73,33 +98,54 @@ export function GraphDetailPanel({
 
       <span
         className="graph-detail-panel__badge"
-        style={{ backgroundColor: color }}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '2px 8px',
+          borderRadius: '10px',
+          fontSize: 'var(--size-xs)',
+          fontWeight: 600,
+          backgroundColor: color,
+          color: '#fff',
+          marginBottom: 'var(--space-md)',
+        }}
       >
         {node.node_type}
       </span>
 
-      <dl className="graph-detail-panel__stats">
+      <dl className="graph-detail-panel__stats" style={{ display: 'flex', gap: 'var(--space-lg)', margin: '0 0 var(--space-md)' }}>
         <div className="graph-detail-panel__stat">
-          <dt>Mentions</dt>
-          <dd>{node.mention_count}</dd>
+          <dt style={{ fontSize: 'var(--size-xs)', color: 'var(--color-text-muted)' }}>Mentions</dt>
+          <dd style={{ margin: 0, fontWeight: 700, fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{node.mention_count}</dd>
         </div>
         <div className="graph-detail-panel__stat">
-          <dt>Confidence</dt>
-          <dd>{Math.round(node.confidence * 100)}%</dd>
+          <dt style={{ fontSize: 'var(--size-xs)', color: 'var(--color-text-muted)' }}>Confidence</dt>
+          <dd style={{ margin: 0, fontWeight: 700, fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{Math.round(node.confidence * 100)}%</dd>
         </div>
       </dl>
 
       {connectedNodes.length > 0 && (
         <div className="graph-detail-panel__connections">
-          <h4>Connected Nodes</h4>
-          <ul className="graph-detail-panel__list">
+          <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-sm)', color: 'var(--color-text-secondary)', margin: '0 0 var(--space-sm)' }}>Connected Nodes</h4>
+          <ul className="graph-detail-panel__list" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
             {connectedNodes.map((cn) => (
               <li key={cn.id}>
                 <button
                   type="button"
                   className="graph-detail-panel__link"
                   onClick={() => onSelectNode(cn.id)}
-                  style={{ color: NODE_COLORS[cn.node_type] ?? NODE_COLORS.other }}
+                  style={{
+                    color: NODE_COLORS[cn.node_type] ?? NODE_COLORS.other,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 'var(--size-sm)',
+                    padding: 'var(--space-xs) 0',
+                    minHeight: 'var(--touch-target-min)',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
                 >
                   {cn.label}
                 </button>

@@ -23,6 +23,9 @@ import { useState, useEffect } from 'react'
 import { getDailySummary } from '../api/client'
 import type { DailySummary } from '../types'
 import { ClinicianNotes } from './ClinicianNotes'
+import { Card } from './ui/Card'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
 
 interface DailySummaryDetailProps {
   patientId: string
@@ -36,11 +39,11 @@ interface DailySummaryDetailProps {
 }
 
 const MOOD_COLORS: Record<string, string> = {
-  positive: '#10b981',
-  neutral: '#6b7280',
-  negative: '#ef4444',
-  anxious: '#f59e0b',
-  depressed: '#8b5cf6',
+  positive: 'var(--color-success)',
+  neutral: 'var(--color-text-muted)',
+  negative: 'var(--color-danger)',
+  anxious: 'var(--color-warning)',
+  depressed: 'var(--color-primary-light)',
 }
 
 const TREND_ICONS: Record<string, string> = {
@@ -95,7 +98,7 @@ export function DailySummaryDetail({
 
   if (loading) {
     return (
-      <div className="patient-dash" aria-busy="true">
+      <div className="patient-dash" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
         Loading daily summary...
       </div>
     )
@@ -103,52 +106,50 @@ export function DailySummaryDetail({
 
   if (error) {
     return (
-      <div className="patient-dash" role="alert">
-        <p className="patient-dash__error">{error}</p>
-        <button type="button" className="med-card__btn med-card__btn--secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="patient-dash">
-        <p className="patient-dash__empty">No summary available for this date</p>
-        <button type="button" className="med-card__btn med-card__btn--secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__empty" style={{ color: 'var(--color-text-muted)' }}>No summary available for this date</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
 
-  const moodColor = MOOD_COLORS[data.overall_mood.toLowerCase()] ?? '#6b7280'
+  const moodColor = MOOD_COLORS[data.overall_mood.toLowerCase()] ?? 'var(--color-text-muted)'
 
   return (
-    <div className="patient-dash">
+    <div className="patient-dash" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
       {/* Back button */}
-      <button
-        type="button"
-        className="med-card__btn med-card__btn--secondary"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={onBack}
-        style={{ alignSelf: 'flex-start', marginBottom: '12px' }}
+        className="med-card__btn"
       >
         Back
-      </button>
+      </Button>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-        <h2 style={{ margin: 0 }}>{formatDate(date)}</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)', marginTop: 'var(--space-md)' }}>
+        <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>{formatDate(date)}</h2>
         <span
           data-testid="overall-mood"
           style={{
-            padding: '4px 12px',
-            borderRadius: '16px',
-            fontSize: '13px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '2px 8px',
+            borderRadius: '10px',
+            fontSize: 'var(--size-xs)',
             fontWeight: 600,
-            background: moodColor + '20',
             color: moodColor,
+            lineHeight: 1.4,
           }}
         >
           {data.overall_mood}
@@ -156,110 +157,101 @@ export function DailySummaryDetail({
       </div>
 
       {/* Narrative */}
-      <div
-        className="patient-dash__card patient-dash__card--full"
-        style={{ borderLeft: '4px solid #3b82f6', paddingLeft: '16px' }}
-      >
-        <h3>Daily Narrative</h3>
-        <p style={{ margin: 0, lineHeight: 1.6 }}>{data.narrative}</p>
-      </div>
+      <Card style={{ borderLeft: '4px solid var(--color-warmth)', paddingLeft: 'var(--space-md)' }}>
+        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Daily Narrative</h3>
+        <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>{data.narrative}</p>
+      </Card>
 
       {/* Trend alerts */}
       {data.trend_alerts.length > 0 && (
-        <div className="patient-dash__card patient-dash__card--full" style={{ marginTop: '16px' }}>
-          <h3>Trend Alerts</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <Card style={{ marginTop: 'var(--space-md)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Trend Alerts</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             {data.trend_alerts.map((alert, i) => {
-              // Try to parse direction from the alert string (e.g., "improving: sleep quality")
               const dirMatch = alert.match(/^(improving|declining|stable):\s*(.+)$/i)
               const direction = dirMatch ? dirMatch[1].toLowerCase() : 'stable'
               const alertText = dirMatch ? dirMatch[2] : alert
 
               return (
-                <div
+                <Card
                   key={i}
-                  data-testid="trend-alert"
                   style={{
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: 'var(--space-sm)',
+                    padding: 'var(--space-sm) var(--space-md)',
                   }}
                 >
                   <span
+                    data-testid="trend-alert"
                     style={{
-                      fontSize: '12px',
+                      fontSize: 'var(--size-xs)',
                       fontWeight: 600,
                       textTransform: 'uppercase',
                       color:
                         direction === 'improving'
-                          ? '#059669'
+                          ? 'var(--color-success)'
                           : direction === 'declining'
-                            ? '#dc2626'
-                            : '#6b7280',
+                            ? 'var(--color-danger)'
+                            : 'var(--color-text-muted)',
                     }}
                   >
                     {TREND_ICONS[direction] ?? 'Stable'}
                   </span>
-                  <span style={{ fontSize: '14px' }}>{alertText}</span>
-                </div>
+                  <span style={{ fontSize: 'var(--size-sm)', color: 'var(--color-text-secondary)' }}>{alertText}</span>
+                </Card>
               )
             })}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Key topics */}
       {data.key_topics.length > 0 && (
-        <div className="patient-dash__card patient-dash__card--full" style={{ marginTop: '16px' }}>
-          <h3>Key Topics</h3>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <Card style={{ marginTop: 'var(--space-md)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Key Topics</h3>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
             {data.key_topics.map((topic, i) => (
-              <span
-                key={i}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: '16px',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  background: '#ede9fe',
-                  color: '#5b21b6',
-                }}
-              >
-                {topic}
-              </span>
+              <Badge key={i} variant="info">{topic}</Badge>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Session links */}
       {sessionIds && sessionIds.length > 0 && (
-        <div className="patient-dash__card patient-dash__card--full" style={{ marginTop: '16px' }}>
-          <h3>Sessions</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <Card style={{ marginTop: 'var(--space-md)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>Sessions</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
             {sessionIds.map((sid) => (
               <button
                 key={sid}
                 type="button"
                 className="med-card__btn med-card__btn--secondary"
                 onClick={() => onViewSession(sid)}
-                style={{ textAlign: 'left' }}
+                style={{
+                  textAlign: 'left',
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-button)',
+                  padding: 'var(--space-sm) var(--space-md)',
+                  minHeight: 'var(--touch-target-min)',
+                  fontFamily: 'var(--font-body)',
+                  cursor: 'pointer',
+                }}
                 data-testid="session-link"
               >
                 View Session {sid}
               </button>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Clinician Notes */}
       {data.id && (
-        <div style={{ marginTop: '16px' }}>
+        <div style={{ marginTop: 'var(--space-md)' }}>
           <ClinicianNotes entityType="daily_summary" entityId={data.id} role={role} />
         </div>
       )}

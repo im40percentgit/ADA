@@ -39,6 +39,7 @@ import {
   makeAppointment,
   makeMoodPoint,
   makeAlert,
+  makeCompanionPreferences,
   makeKnowledgeNode,
   makeKnowledgeEdge,
   makeProgressReport,
@@ -263,6 +264,17 @@ export const handlers = [
       },
       201,
     )
+  }),
+
+  // -- Companion Preferences (Phase 13a) -----------------------------------
+
+  http.get('/api/companion/preferences', () => {
+    return json(makeCompanionPreferences())
+  }),
+
+  http.put('/api/companion/preferences', async ({ request }) => {
+    const body = await request.json() as Record<string, unknown>
+    return json(makeCompanionPreferences(body as Partial<import('../../src/types').CompanionPreferences>))
   }),
 
   // -- Notifications -------------------------------------------------------

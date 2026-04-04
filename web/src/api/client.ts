@@ -53,6 +53,7 @@ import type {
   CreateWithPatientResponse,
   MedicationLog,
   CrisisAlertFull,
+  CompanionPreferences,
   NotificationPreferences,
   KnowledgeGraphData,
   KnowledgeTrend,
@@ -333,6 +334,21 @@ export function updateAlertStatus(alertId: string, status: string): Promise<Cris
   return request<CrisisAlertFull>(`/alerts/${alertId}`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  })
+}
+
+// -- Companion Preferences (Phase 13a) ----------------------------------
+
+export function getCompanionPreferences(): Promise<CompanionPreferences> {
+  return request<CompanionPreferences>('/companion/preferences')
+}
+
+export function updateCompanionPreferences(
+  prefs: Partial<CompanionPreferences>,
+): Promise<CompanionPreferences> {
+  return request<CompanionPreferences>('/companion/preferences', {
+    method: 'PUT',
+    body: JSON.stringify(prefs),
   })
 }
 

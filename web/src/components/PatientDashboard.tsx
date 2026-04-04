@@ -1,13 +1,16 @@
 /**
  * PatientDashboard — main patient-facing view.
  *
- * Replaces the chat-first patient layout with a 6-card grid that surfaces the
- * most actionable information: a direct shortcut to Ada, medications with
- * one-tap logging, upcoming appointments with change requests, shared boards,
- * care team roster, and a mood summary.
+ * Replaces the chat-first patient layout with a card-based grid that surfaces the
+ * most actionable information: a hero shortcut to the companion, wellbeing score,
+ * medications with one-tap logging, upcoming appointments with change requests,
+ * shared boards, care team roster, cognitive screening, and a mood summary.
  *
  * All data fetching is local to each card section so failures are isolated —
  * a broken mood fetch doesn't break the medications card.
+ *
+ * Uses the design-system Card, Badge, and Button components with token-based
+ * styling from tokens.css.
  *
  * @decision DEC-FRONTEND-040
  * @title PatientDashboard co-locates card sections — no separate card files
@@ -19,6 +22,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import type { CSSProperties } from 'react'
 import {
   listMedications,
   listAppointments,
@@ -29,6 +33,10 @@ import {
   getMoodHistory,
 } from '../api/client'
 import { useCircles } from '../hooks/useCircles'
+import { useCompanionPreferences, DEFAULT_COMPANION_PREFERENCES } from '../hooks/useCompanionPreferences'
+import { Card } from './ui/Card'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
 import type { Medication, Appointment, Board, CareCircleMember, MoodDataPoint } from '../types'
 
 interface PatientDashboardProps {
@@ -66,11 +74,172 @@ const TREND_LABEL: Record<'up' | 'down' | 'stable', string> = {
   stable: '→ stable',
 }
 
+const TREND_VARIANT: Record<'up' | 'down' | 'stable', 'success' | 'danger' | 'neutral'> = {
+  up: 'success',
+  down: 'danger',
+  stable: 'neutral',
+}
+
+// ---------------------------------------------------------------------------
+// Styles (token-based)
+// ---------------------------------------------------------------------------
+
+const dashboardStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, 1fr)',
+  gap: 'var(--space-md)',
+  padding: 'var(--space-md)',
+  maxWidth: '900px',
+  margin: '0 auto',
+}
+
+const heroCardStyle: CSSProperties = {
+  gridColumn: '1 / -1',
+  background: 'linear-gradient(135deg, var(--color-primary), #6d28d9)',
+  border: 'none',
+  padding: 'var(--space-xl)',
+  cursor: 'pointer',
+}
+
+const heroTitleStyle: CSSProperties = {
+  fontFamily: 'var(--font-heading)',
+  fontSize: 'var(--size-h1)',
+  fontWeight: 700,
+  color: '#ffffff',
+  margin: '0 0 var(--space-sm) 0',
+}
+
+const heroSubStyle: CSSProperties = {
+  fontSize: 'var(--size-body)',
+  color: 'rgba(255,255,255,0.85)',
+  margin: '0 0 var(--space-md) 0',
+}
+
+const fullWidthCardStyle: CSSProperties = {
+  gridColumn: '1 / -1',
+}
+
+const moodScoreStyle: CSSProperties = {
+  fontFamily: 'var(--font-heading)',
+  fontSize: '36px',
+  fontWeight: 700,
+  color: 'var(--color-text-primary)',
+}
+
+const moodLabelStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-text-muted)',
+  marginTop: 'var(--space-xs)',
+}
+
+const sectionHeadingStyle: CSSProperties = {
+  fontFamily: 'var(--font-heading)',
+  fontSize: 'var(--size-h2)',
+  fontWeight: 600,
+  color: 'var(--color-text-primary)',
+  margin: '0 0 var(--space-sm) 0',
+}
+
+const cardDescStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-text-muted)',
+  margin: '0 0 var(--space-sm) 0',
+}
+
+const listStyle: CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--space-sm)',
+}
+
+const listItemStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: 'var(--space-sm)',
+  borderRadius: 'var(--radius-input)',
+  background: 'var(--color-bg-elevated)',
+}
+
+const listItemColStyle: CSSProperties = {
+  ...listItemStyle,
+  flexDirection: 'column',
+  alignItems: 'stretch',
+  gap: 'var(--space-sm)',
+}
+
+const itemNameStyle: CSSProperties = {
+  fontSize: 'var(--size-body)',
+  fontWeight: 600,
+  color: 'var(--color-text-primary)',
+}
+
+const itemSubStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-text-muted)',
+}
+
+const itemTagStyle: CSSProperties = {
+  fontSize: 'var(--size-xs)',
+  color: 'var(--color-text-muted)',
+}
+
+const emptyStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-text-muted)',
+}
+
+const errorStyle: CSSProperties = {
+  fontSize: 'var(--size-sm)',
+  color: 'var(--color-danger)',
+}
+
+const changeFormStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--space-sm)',
+}
+
+const changeInputStyle: CSSProperties = {
+  background: 'var(--color-bg-base)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--radius-input)',
+  padding: 'var(--space-sm)',
+  color: 'var(--color-text-primary)',
+  fontSize: 'var(--size-sm)',
+}
+
+const changeActionsStyle: CSSProperties = {
+  display: 'flex',
+  gap: 'var(--space-sm)',
+  justifyContent: 'flex-end',
+}
+
+const cardActionsStyle: CSSProperties = {
+  display: 'flex',
+  gap: 'var(--space-sm)',
+  flexWrap: 'wrap',
+}
+
+const headingRowStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 'var(--space-sm)',
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProps) {
+  // -- Companion preferences ------------------------------------------------
+  const { preferences: companionPrefs } = useCompanionPreferences()
+  const companionName = companionPrefs?.name ?? DEFAULT_COMPANION_PREFERENCES.name
+
   // -- Medications ---------------------------------------------------------
   const [meds, setMeds] = useState<Medication[]>([])
   const [medsLoading, setMedsLoading] = useState(true)
@@ -234,112 +403,163 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
     .filter(a => a.status !== 'cancelled' && new Date(a.scheduled_at) > now)
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
 
+  const pendingMedCount = meds.filter(m => !takenIds.has(m.id)).length
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
   return (
-    <div className="patient-dash">
+    <div style={dashboardStyle}>
 
-      {/* Card 1: Talk to Ada — full width */}
-      <div
-        className="patient-dash__card patient-dash__card--full patient-dash__card--ada"
+      {/* Hero Card: Talk to companion */}
+      <Card
+        style={heroCardStyle}
         onClick={() => onNavigate('chat')}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && onNavigate('chat')}
-        aria-label="Open chat with Ada"
       >
-        <h2>Talk to Ada</h2>
-        <p>Start a conversation with Ada</p>
-      </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => e.key === 'Enter' && onNavigate('chat')}
+          aria-label={`Open chat with ${companionName}`}
+        >
+          <h2 style={heroTitleStyle}>Talk to {companionName}</h2>
+          <p style={heroSubStyle}>Start a conversation with {companionName}</p>
+          <Button variant="secondary" size="md">
+            Start Session →
+          </Button>
+        </div>
+      </Card>
 
-      {/* Card 2: My Journey Map */}
-      <div
-        className="patient-dash__card patient-dash__card--clickable"
-        onClick={() => onNavigate('knowledge-graph')}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && onNavigate('knowledge-graph')}
-        aria-label="View your journey map"
-      >
-        <h3>My Journey Map</h3>
-        <p className="patient-dash__card-desc">Explore your wellness journey and how topics connect</p>
-      </div>
-
-      {/* Card 3: Progress Report */}
-      <div
-        className="patient-dash__card patient-dash__card--clickable"
-        onClick={() => onNavigate('progress')}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && onNavigate('progress')}
-        aria-label="View your progress report"
-      >
-        <h3>Progress Report</h3>
-        <p className="patient-dash__card-desc">See how you are doing over time</p>
-      </div>
-
-      {/* Card 4: Medications */}
-      <div className="patient-dash__card">
-        <h3>Medications</h3>
-        {medsLoading ? (
-          <p className="patient-dash__empty">Loading…</p>
-        ) : medError ? (
-          <p className="patient-dash__error">{medError}</p>
-        ) : meds.length === 0 ? (
-          <p className="patient-dash__empty">No medications</p>
+      {/* Wellbeing / Mood Score Card */}
+      <Card>
+        <h3 style={sectionHeadingStyle}>Mood Summary</h3>
+        {moodLoading ? (
+          <p style={emptyStyle}>Loading…</p>
+        ) : moodPoints.length === 0 ? (
+          <p style={emptyStyle}>Chat with {companionName} to track your mood</p>
         ) : (
-          <ul className="patient-dash__list">
+          <div>
+            <span style={moodScoreStyle}>
+              {moodPoints[moodPoints.length - 1].score}/10
+            </span>
+            <div style={{ marginTop: 'var(--space-xs)' }}>
+              <Badge variant={TREND_VARIANT[moodTrend(moodPoints)]}>
+                {TREND_LABEL[moodTrend(moodPoints)]}
+              </Badge>
+            </div>
+            <p style={moodLabelStyle}>
+              Most recent mood score
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {/* Quick Action: My Journey Map */}
+      <Card
+        onClick={() => onNavigate('knowledge-graph')}
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => e.key === 'Enter' && onNavigate('knowledge-graph')}
+          aria-label="View your journey map"
+        >
+          <h3 style={sectionHeadingStyle}>My Journey Map</h3>
+          <p style={cardDescStyle}>Explore your wellness journey and how topics connect</p>
+        </div>
+      </Card>
+
+      {/* Quick Action: Progress Report */}
+      <Card
+        onClick={() => onNavigate('progress')}
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => e.key === 'Enter' && onNavigate('progress')}
+          aria-label="View your progress report"
+        >
+          <h3 style={sectionHeadingStyle}>Progress Report</h3>
+          <p style={cardDescStyle}>See how you are doing over time</p>
+        </div>
+      </Card>
+
+      {/* Medications Card */}
+      <Card style={fullWidthCardStyle}>
+        <div style={headingRowStyle}>
+          <h3 style={{ ...sectionHeadingStyle, margin: 0 }}>Medications</h3>
+          {!medsLoading && !medError && meds.length > 0 && (
+            <Badge variant={pendingMedCount > 0 ? 'warning' : 'success'}>
+              {pendingMedCount > 0 ? `${pendingMedCount} pending` : 'All taken'}
+            </Badge>
+          )}
+        </div>
+        {medsLoading ? (
+          <p style={emptyStyle}>Loading…</p>
+        ) : medError ? (
+          <p style={errorStyle}>{medError}</p>
+        ) : meds.length === 0 ? (
+          <p style={emptyStyle}>No medications</p>
+        ) : (
+          <ul style={listStyle}>
             {meds.map(med => (
-              <li key={med.id} className="patient-dash__item">
-                <div className="patient-dash__item-info">
-                  <span className="patient-dash__item-name">{med.name}</span>
-                  {med.dosage && <span className="patient-dash__item-sub">{med.dosage}</span>}
-                  {med.frequency && <span className="patient-dash__item-tag">{med.frequency}</span>}
+              <li key={med.id} style={listItemStyle}>
+                <div>
+                  <span style={itemNameStyle}>{med.name}</span>
+                  {med.dosage && <span style={{ ...itemSubStyle, marginLeft: 'var(--space-sm)' }}>{med.dosage}</span>}
+                  {med.frequency && <span style={{ ...itemTagStyle, marginLeft: 'var(--space-sm)' }}>{med.frequency}</span>}
                 </div>
                 {takenIds.has(med.id) ? (
-                  <span className="patient-dash__taken-badge">Taken</span>
+                  <Badge variant="success">Taken</Badge>
                 ) : (
-                  <button
-                    type="button"
-                    className="med-card__btn"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     onClick={() => handleMarkTaken(med.id)}
-                    aria-label={`Mark ${med.name} as taken`}
                   >
-                    Mark taken
-                  </button>
+                    <span aria-label={`Mark ${med.name} as taken`}>Mark taken</span>
+                  </Button>
                 )}
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </Card>
 
-      {/* Card 3: Upcoming Appointments */}
-      <div className="patient-dash__card">
-        <h3>Upcoming Appointments</h3>
+      {/* Upcoming Appointments Card */}
+      <Card style={fullWidthCardStyle}>
+        <div style={headingRowStyle}>
+          <h3 style={{ ...sectionHeadingStyle, margin: 0 }}>Upcoming Appointments</h3>
+          {!apptLoading && !apptError && upcomingAppts.length > 0 && (
+            <Badge variant="info">
+              Next: {formatDate(upcomingAppts[0].scheduled_at)}
+            </Badge>
+          )}
+        </div>
         {apptLoading ? (
-          <p className="patient-dash__empty">Loading…</p>
+          <p style={emptyStyle}>Loading…</p>
         ) : apptError ? (
-          <p className="patient-dash__error">{apptError}</p>
+          <p style={errorStyle}>{apptError}</p>
         ) : upcomingAppts.length === 0 ? (
-          <p className="patient-dash__empty">No upcoming appointments</p>
+          <p style={emptyStyle}>No upcoming appointments</p>
         ) : (
-          <ul className="patient-dash__list">
+          <ul style={listStyle}>
             {upcomingAppts.map(appt => {
               const req = changeReqs[appt.id]
               return (
-                <li key={appt.id} className="patient-dash__item patient-dash__item--col">
-                  <div className="patient-dash__item-info">
-                    <span className="patient-dash__item-name">{appt.title}</span>
-                    <span className="patient-dash__item-sub">{formatDate(appt.scheduled_at)}</span>
+                <li key={appt.id} style={listItemColStyle}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={itemNameStyle}>{appt.title}</span>
+                      <span style={{ ...itemSubStyle, marginLeft: 'var(--space-sm)' }}>{formatDate(appt.scheduled_at)}</span>
+                    </div>
                   </div>
                   {req?.done ? (
-                    <span className="patient-dash__taken-badge">Request sent</span>
+                    <Badge variant="success">Request sent</Badge>
                   ) : req?.open ? (
-                    <div className="patient-dash__change-form">
+                    <div style={changeFormStyle}>
                       <input
-                        className="patient-dash__change-input"
+                        style={changeInputStyle}
                         type="text"
                         placeholder="Reason for change (optional)"
                         value={req.note}
@@ -353,133 +573,108 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
                         autoFocus
                         aria-label="Change request note"
                       />
-                      <div className="patient-dash__change-actions">
-                        <button
-                          type="button"
-                          className="med-card__btn med-card__btn--secondary"
+                      <div style={changeActionsStyle}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => closeChangeReq(appt.id)}
                           disabled={req.saving}
                         >
                           Cancel
-                        </button>
-                        <button
-                          type="button"
-                          className="med-card__btn"
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
                           onClick={() => submitChangeReq(appt.id)}
                           disabled={req.saving}
                         >
                           {req.saving ? 'Sending…' : 'Send'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      className="med-card__btn med-card__btn--secondary"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => openChangeReq(appt.id)}
-                      aria-label={`Request change for ${appt.title}`}
                     >
-                      Request change
-                    </button>
+                      <span aria-label={`Request change for ${appt.title}`}>Request change</span>
+                    </Button>
                   )}
                 </li>
               )
             })}
           </ul>
         )}
-      </div>
+      </Card>
 
-      {/* Card 4: My Boards */}
-      <div className="patient-dash__card">
-        <h3>My Boards</h3>
+      {/* My Boards Card */}
+      <Card>
+        <h3 style={sectionHeadingStyle}>My Boards</h3>
         {!selectedCircle ? (
-          <p className="patient-dash__empty">Not part of a care circle</p>
+          <p style={emptyStyle}>Not part of a care circle</p>
         ) : boardsLoading ? (
-          <p className="patient-dash__empty">Loading…</p>
+          <p style={emptyStyle}>Loading…</p>
         ) : boardsError ? (
-          <p className="patient-dash__error">{boardsError}</p>
+          <p style={errorStyle}>{boardsError}</p>
         ) : boards.length === 0 ? (
-          <p className="patient-dash__empty">No boards yet</p>
+          <p style={emptyStyle}>No boards yet</p>
         ) : (
-          <ul className="patient-dash__list">
+          <ul style={listStyle}>
             {boards.map(board => (
-              <li key={board.id} className="patient-dash__board-item">
-                <span className="patient-dash__item-name">{board.name}</span>
-                <span className="patient-dash__item-tag">{board.board_type}</span>
+              <li key={board.id} style={listItemStyle}>
+                <span style={itemNameStyle}>{board.name}</span>
+                <Badge variant="neutral">{board.board_type}</Badge>
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </Card>
 
-      {/* Card 5: My Care Team */}
-      <div className="patient-dash__card">
-        <h3>My Care Team</h3>
+      {/* My Care Team Card */}
+      <Card>
+        <h3 style={sectionHeadingStyle}>My Care Team</h3>
         {!selectedCircle ? (
-          <p className="patient-dash__empty">Not part of a care circle</p>
+          <p style={emptyStyle}>Not part of a care circle</p>
         ) : membersLoading ? (
-          <p className="patient-dash__empty">Loading…</p>
+          <p style={emptyStyle}>Loading…</p>
         ) : membersError ? (
-          <p className="patient-dash__error">{membersError}</p>
+          <p style={errorStyle}>{membersError}</p>
         ) : members.length === 0 ? (
-          <p className="patient-dash__empty">Not part of a care circle</p>
+          <p style={emptyStyle}>Not part of a care circle</p>
         ) : (
-          <ul className="patient-dash__list">
+          <ul style={listStyle}>
             {members.map(m => (
-              <li key={m.user_id} className="patient-dash__item">
-                <span className="patient-dash__item-name">{m.email}</span>
-                <span className="patient-dash__item-tag">{m.role}</span>
+              <li key={m.user_id} style={listItemStyle}>
+                <span style={itemNameStyle}>{m.email}</span>
+                <Badge variant="info">{m.role}</Badge>
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </Card>
 
-      {/* Card: Cognitive Screening */}
-      <div className="patient-dash__card">
-        <h3>Cognitive Screening</h3>
-        <p className="patient-dash__card-desc">Assess memory, attention, and cognitive function</p>
-        <div className="patient-dash__card-actions">
-          <button
-            type="button"
-            className="med-card__btn"
+      {/* Cognitive Screening Card */}
+      <Card style={fullWidthCardStyle}>
+        <h3 style={sectionHeadingStyle}>Cognitive Screening</h3>
+        <p style={cardDescStyle}>Assess memory, attention, and cognitive function</p>
+        <div style={cardActionsStyle}>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => onNavigate('cognitive-screening')}
-            aria-label="Start a new cognitive screening"
           >
-            Start Screening
-          </button>
-          <button
-            type="button"
-            className="med-card__btn med-card__btn--secondary"
+            <span aria-label="Start a new cognitive screening">Start Screening</span>
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => onNavigate('screening-history')}
-            aria-label="View cognitive screening history"
           >
-            View History
-          </button>
+            <span aria-label="View cognitive screening history">View History</span>
+          </Button>
         </div>
-      </div>
-
-      {/* Card 6: Mood Summary */}
-      <div className="patient-dash__card">
-        <h3>Mood Summary</h3>
-        {moodLoading ? (
-          <p className="patient-dash__empty">Loading…</p>
-        ) : moodPoints.length === 0 ? (
-          <p className="patient-dash__empty">Chat with Ada to track your mood</p>
-        ) : (
-          <div className="patient-dash__mood">
-            <span className="patient-dash__mood-score">
-              {moodPoints[moodPoints.length - 1].score}/10
-            </span>
-            <span className="patient-dash__mood-trend">
-              {TREND_LABEL[moodTrend(moodPoints)]}
-            </span>
-            <p className="patient-dash__mood-label">
-              Most recent mood score
-            </p>
-          </div>
-        )}
-      </div>
+      </Card>
 
     </div>
   )

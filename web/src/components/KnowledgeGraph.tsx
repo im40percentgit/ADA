@@ -26,6 +26,7 @@ import { select } from 'd3-selection'
 import { useKnowledgeGraph } from '../hooks/useKnowledgeGraph'
 import { GraphFilters } from './GraphFilters'
 import { GraphDetailPanel } from './GraphDetailPanel'
+import { Button } from './ui/Button'
 import type { KnowledgeNode, KnowledgeEdge, KnowledgeTrend } from '../types'
 
 const NODE_COLORS: Record<string, string> = {
@@ -247,10 +248,8 @@ export function KnowledgeGraph({ patientId, clinicalOverlay = false, onBack }: K
 
   if (loading) {
     return (
-      <div className="knowledge-graph knowledge-graph--loading" aria-busy="true">
-        <button type="button" className="knowledge-graph__back" onClick={onBack}>
-          Back
-        </button>
+      <div className="knowledge-graph knowledge-graph--loading" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
+        <Button variant="secondary" size="sm" onClick={onBack}>Back</Button>
         <p>Loading knowledge graph...</p>
       </div>
     )
@@ -258,21 +257,17 @@ export function KnowledgeGraph({ patientId, clinicalOverlay = false, onBack }: K
 
   if (error) {
     return (
-      <div className="knowledge-graph knowledge-graph--error" role="alert">
-        <button type="button" className="knowledge-graph__back" onClick={onBack}>
-          Back
-        </button>
-        <p>{error}</p>
+      <div className="knowledge-graph knowledge-graph--error" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
+        <Button variant="secondary" size="sm" onClick={onBack}>Back</Button>
+        <p style={{ color: 'var(--color-danger)' }}>{error}</p>
       </div>
     )
   }
 
   return (
-    <div className="knowledge-graph" data-testid="knowledge-graph">
-      <div className="knowledge-graph__toolbar">
-        <button type="button" className="knowledge-graph__back" onClick={onBack}>
-          Back
-        </button>
+    <div className="knowledge-graph" data-testid="knowledge-graph" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
+      <div className="knowledge-graph__toolbar" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
+        <Button variant="secondary" size="sm" onClick={onBack}>Back</Button>
         <GraphFilters
           categoryFilters={categoryFilters}
           setCategoryFilters={setCategoryFilters}

@@ -22,25 +22,33 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user'
   const isVoice = message.source === 'voice'
 
+  const bubbleStyle: React.CSSProperties = {
+    background: isUser ? 'var(--color-primary-subtle)' : 'var(--color-bg-card)',
+    borderRadius: 'var(--radius-card)',
+    padding: 'var(--space-sm) var(--space-md)',
+    maxWidth: '80%',
+  }
+
   return (
     <div
       className={`chat-message chat-message--${isUser ? 'user' : 'assistant'}${isVoice ? ' chat-message--voice' : ''}`}
       aria-label={`${isUser ? 'You' : message.agent ?? 'Ada'}${isVoice ? ' (voice)' : ''}: ${message.content}`}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}
     >
       {!isUser && (
-        <div className="chat-message__agent-label">
+        <div className="chat-message__agent-label" style={{ fontSize: 'var(--size-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-xs)' }}>
           {message.agent ?? 'Ada'}
         </div>
       )}
-      <div className="chat-message__bubble">
-        <span className="chat-message__text">
+      <div className="chat-message__bubble" style={bubbleStyle}>
+        <span className="chat-message__text" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 'var(--size-body)' }}>
           {message.content}
           {message.streaming && (
             <span className="chat-message__cursor" aria-hidden="true" />
           )}
         </span>
       </div>
-      <div className="chat-message__meta">
+      <div className="chat-message__meta" style={{ fontSize: 'var(--size-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)' }}>
         {isVoice && (
           <span
             className="chat-message__voice-icon"

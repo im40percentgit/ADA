@@ -17,6 +17,7 @@
  */
 
 import { useState, type FormEvent } from 'react'
+import type { CSSProperties } from 'react'
 import { resetPassword } from '../api/auth'
 
 interface ResetPasswordProps {
@@ -60,17 +61,63 @@ export function ResetPassword({ token, onSuccess, onBack }: ResetPasswordProps) 
     }
   }
 
+  const cardStyle: CSSProperties = {
+    background: 'var(--color-bg-card)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-card)',
+    padding: 'var(--space-xl)',
+    width: '100%',
+    maxWidth: '400px',
+    boxShadow: 'var(--shadow-elevated)',
+  }
+
+  const inputStyle: CSSProperties = {
+    width: '100%',
+    background: 'var(--color-bg-elevated)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-input)',
+    height: 'var(--touch-target-min)',
+    padding: '0 var(--space-sm)',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 'var(--size-body)',
+    boxSizing: 'border-box' as const,
+  }
+
+  const submitStyle: CSSProperties = {
+    width: '100%',
+    background: 'var(--color-primary)',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: 'var(--radius-button)',
+    minHeight: 'var(--touch-target-min)',
+    fontFamily: 'var(--font-body)',
+    fontWeight: 600,
+    fontSize: 'var(--size-body)',
+    cursor: 'pointer',
+  }
+
+  const linkBtnStyle: CSSProperties = {
+    background: 'none',
+    border: 'none',
+    color: 'var(--color-primary-light)',
+    fontSize: 'var(--size-sm)',
+    cursor: 'pointer',
+    padding: 'var(--space-sm)',
+    fontFamily: 'var(--font-body)',
+  }
+
   if (!token) {
     return (
-      <div className="login">
-        <div className="login__card">
-          <div className="login__brand">
-            <h1 className="login__brand-name">Ada</h1>
+      <div className="login" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--color-bg-base)', fontFamily: 'var(--font-body)' }}>
+        <div className="login__card" style={cardStyle}>
+          <div className="login__brand" style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
+            <h1 className="login__brand-name" style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)', color: 'var(--color-text-primary)', margin: 0 }}>Ada</h1>
           </div>
-          <p className="login__error" role="alert">
+          <p className="login__error" role="alert" style={{ color: 'var(--color-danger)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0' }}>
             Invalid or expired reset link
           </p>
-          <button className="login__link-btn" type="button" onClick={onBack}>
+          <button className="login__link-btn" type="button" onClick={onBack} style={linkBtnStyle}>
             Back to sign in
           </button>
         </div>
@@ -79,17 +126,17 @@ export function ResetPassword({ token, onSuccess, onBack }: ResetPasswordProps) 
   }
 
   return (
-    <div className="login">
-      <div className="login__card">
-        <div className="login__brand">
-          <h1 className="login__brand-name">Ada</h1>
-          <p className="login__brand-tagline">Mental Health Support</p>
+    <div className="login" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--color-bg-base)', fontFamily: 'var(--font-body)' }}>
+      <div className="login__card" style={cardStyle}>
+        <div className="login__brand" style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
+          <h1 className="login__brand-name" style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)', color: 'var(--color-text-primary)', margin: 0 }}>Ada</h1>
+          <p className="login__brand-tagline" style={{ color: 'var(--color-text-muted)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0 0' }}>Mental Health Support</p>
         </div>
 
-        <h2 className="login__section-title">Set a new password</h2>
+        <h2 className="login__section-title" style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)', margin: '0 0 var(--space-md)' }}>Set a new password</h2>
 
-        <form className="login__form" onSubmit={handleSubmit} noValidate>
-          <label className="login__label" htmlFor="reset-new-password">
+        <form className="login__form" onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <label className="login__label" htmlFor="reset-new-password" style={{ fontSize: 'var(--size-caption)', color: 'var(--color-text-muted)', marginBottom: '4px', display: 'block' }}>
             New password
           </label>
           <input
@@ -103,9 +150,10 @@ export function ResetPassword({ token, onSuccess, onBack }: ResetPasswordProps) 
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder="At least 8 characters"
             disabled={submitting}
+            style={inputStyle}
           />
 
-          <label className="login__label" htmlFor="reset-confirm-password">
+          <label className="login__label" htmlFor="reset-confirm-password" style={{ fontSize: 'var(--size-caption)', color: 'var(--color-text-muted)', marginBottom: '4px', display: 'block' }}>
             Confirm password
           </label>
           <input
@@ -119,10 +167,11 @@ export function ResetPassword({ token, onSuccess, onBack }: ResetPasswordProps) 
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Repeat your new password"
             disabled={submitting}
+            style={inputStyle}
           />
 
           {error && (
-            <p className="login__error" role="alert">
+            <p className="login__error" role="alert" style={{ color: 'var(--color-danger)', fontSize: 'var(--size-sm)', margin: 'var(--space-xs) 0' }}>
               {error}
             </p>
           )}
@@ -131,6 +180,7 @@ export function ResetPassword({ token, onSuccess, onBack }: ResetPasswordProps) 
             className="login__submit"
             type="submit"
             disabled={submitting || !newPassword || !confirmPassword}
+            style={{ ...submitStyle, opacity: (submitting || !newPassword || !confirmPassword) ? 0.5 : 1 }}
           >
             {submitting ? 'Saving…' : 'Set new password'}
           </button>
@@ -140,6 +190,7 @@ export function ResetPassword({ token, onSuccess, onBack }: ResetPasswordProps) 
             type="button"
             onClick={onBack}
             disabled={submitting}
+            style={linkBtnStyle}
           >
             Back to sign in
           </button>

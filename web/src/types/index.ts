@@ -475,6 +475,18 @@ export interface CrisisAlertFull {
   resolved_by: string | null
 }
 
+// -- Companion Preferences (Phase 13a) ----------------------------------
+
+export interface CompanionPreferences {
+  name: string
+  voice: 'male' | 'female' | 'neutral'
+  personality: {
+    warmth: string   // 'warm' | 'professional'
+    verbosity: string // 'chatty' | 'balanced' | 'concise'
+    formality: string // 'casual' | 'balanced' | 'formal'
+  }
+}
+
 // -- Notification Preferences (Phase 11b) -------------------------------
 
 export interface NotificationPreferences {

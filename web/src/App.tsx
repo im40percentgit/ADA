@@ -39,7 +39,6 @@
  */
 
 import { useState } from 'react'
-import { SessionList } from './components/SessionList'
 import { Chat } from './components/Chat'
 import { MoodChart } from './components/MoodChart'
 import { Login } from './components/Login'
@@ -56,6 +55,7 @@ import { ScreeningResults } from './components/ScreeningResults'
 import { ScreeningHistory } from './components/ScreeningHistory'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { InstallBanner } from './components/InstallBanner'
+import { AppShell } from './components/AppShell'
 import { useAuth } from './hooks/useAuth'
 import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
 import './App.css'
@@ -63,7 +63,7 @@ import './App.css'
 // Fallback patient ID for clinician/admin accounts in development
 const DEMO_PATIENT_ID = 'demo-patient-001'
 
-type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history'
+type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history' | 'settings'
 type AuthView = 'login' | 'forgot-password' | 'reset-password'
 
 /** Parse the initial auth view from the URL hash (e.g. /#/reset-password?token=...) */
@@ -197,69 +197,41 @@ export default function App() {
   // Resolve patient ID: prefer the linked patient on the user account
   const patientId = currentUser?.patient_id ?? DEMO_PATIENT_ID
 
+  // Map View state to tab IDs for AppShell navigation
+  const viewToTab: Record<string, string> = {
+    home: 'home',
+    chat: 'chat',
+    'knowledge-graph': 'journey',
+    settings: 'settings',
+  }
+  const activeTab = viewToTab[view] ?? 'home'
+
+  // Map tab ID back to View
+  const handleTabChange = (tabId: string) => {
+    const tabToView: Record<string, View> = {
+      home: 'home',
+      chat: 'chat',
+      journey: 'knowledge-graph',
+      settings: 'settings',
+    }
+    setView(tabToView[tabId] ?? 'home')
+  }
+
+  const greeting = currentUser?.email
+    ? `Hi, ${currentUser.email.split('@')[0]}`
+    : 'Welcome back'
+
   return (
     <div className="app">
       {installBanner}
       <ConnectionStatus status={chatWsStatus} />
 
-      {/* Sidebar */}
-      <div className="app__sidebar">
-        <div className="app__brand">
-          <h1 className="app__brand-name">Ada</h1>
-          <p className="app__brand-tagline">Mental Health Support</p>
-        </div>
-
-        <nav className="app__nav" aria-label="Main navigation">
-          <button
-            className={`app__nav-btn${view === 'home' ? ' app__nav-btn--active' : ''}`}
-            onClick={() => setView('home')}
-            aria-current={view === 'home' ? 'page' : undefined}
-            type="button"
-          >
-            Home
-          </button>
-          <button
-            className={`app__nav-btn${view === 'chat' ? ' app__nav-btn--active' : ''}`}
-            onClick={() => setView('chat')}
-            aria-current={view === 'chat' ? 'page' : undefined}
-            type="button"
-          >
-            Chat
-          </button>
-          <button
-            className={`app__nav-btn${view === 'mood' ? ' app__nav-btn--active' : ''}`}
-            onClick={() => setView('mood')}
-            aria-current={view === 'mood' ? 'page' : undefined}
-            type="button"
-          >
-            Mood
-          </button>
-        </nav>
-
-        <SessionList
-          patientId={patientId}
-          activeSessionId={activeSessionId}
-          onSelectSession={setActiveSessionId}
-        />
-
-        {/* User info + logout */}
-        <div className="app__user-bar">
-          <span className="app__user-email" title={currentUser?.email}>
-            {currentUser?.email}
-          </span>
-          <button
-            className="app__logout-btn"
-            onClick={logout}
-            type="button"
-            aria-label="Sign out"
-          >
-            Sign out
-          </button>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="app__main">
+      <AppShell
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        greeting={greeting}
+        subtitle="How are you today?"
+      >
         {view === 'knowledge-graph' ? (
           <KnowledgeGraph patientId={patientId} clinicalOverlay={currentUser?.role !== 'user'} onBack={() => setView('home')} />
         ) : view === 'progress' ? (
@@ -300,13 +272,18 @@ export default function App() {
               <p>Select a session or start a new one to begin.</p>
             </div>
           )
+        ) : view === 'settings' ? (
+          <div style={{ padding: 'var(--space-lg)' }}>
+            <h2 style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-heading)' }}>Settings</h2>
+            <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--space-sm)' }}>Settings coming soon</p>
+          </div>
         ) : (
           <div className="app__mood-view">
             <h2 className="app__mood-title">Your Mood History</h2>
             <MoodChart patientId={patientId} />
           </div>
         )}
-      </div>
+      </AppShell>
     </div>
   )
 }

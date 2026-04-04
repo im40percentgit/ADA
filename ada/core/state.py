@@ -449,6 +449,14 @@ CREATE TABLE IF NOT EXISTS notification_throttle_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notif_pref_user ON notification_preferences(user_id);
+
+CREATE TABLE IF NOT EXISTS companion_preferences (
+    user_id     TEXT PRIMARY KEY REFERENCES users(id),
+    name        TEXT NOT NULL DEFAULT 'Ada',
+    voice       TEXT NOT NULL DEFAULT 'female' CHECK(voice IN ('male', 'female', 'neutral')),
+    personality TEXT NOT NULL DEFAULT '{}',
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE INDEX IF NOT EXISTS idx_throttle_log_user_event ON notification_throttle_log(user_id, event_type);
 CREATE INDEX IF NOT EXISTS idx_throttle_log_dedup ON notification_throttle_log(user_id, event_type, dedup_key);
 
@@ -1974,6 +1982,73 @@ class StateManager:
             " VALUES (?, ?, ?)",
             (user_id, json.dumps(prefs), _now()),
         )
+
+    # ------------------------------------------------------------------
+    # Companion preferences (Phase 13a)
+    # ------------------------------------------------------------------
+
+    async def get_companion_preferences(self, user_id: str) -> dict[str, Any] | None:
+        """Return parsed companion preferences for a user, or None if not set.
+
+        Returns a dict with keys: name, voice, personality (dict).
+        """
+        row = await self._fetchone(
+            "SELECT name, voice, personality FROM companion_preferences WHERE user_id = ?",
+            (user_id,),
+        )
+        if row is None:
+            return None
+        return {
+            "name": row["name"],
+            "voice": row["voice"],
+            "personality": json.loads(row["personality"]),
+        }
+
+    async def set_companion_preferences(self, user_id: str, prefs: dict[str, Any]) -> None:
+        """Upsert companion preferences for a user (INSERT OR REPLACE).
+
+        Expects prefs to have keys: name, voice, personality (dict).
+        personality is JSON-encoded before storage.
+        """
+        await self._exec(
+            "INSERT OR REPLACE INTO companion_preferences"
+            " (user_id, name, voice, personality, updated_at)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (
+                user_id,
+                prefs["name"],
+                prefs["voice"],
+                json.dumps(prefs.get("personality", {})),
+                _now(),
+            ),
+        )
+
+    async def get_user_id_for_patient(self, patient_id: str) -> str | None:
+        """Return the user_id whose patient_id FK matches, or None.
+
+        The users table has a patient_id column linking user accounts to
+        patient records.  This reverse lookup is used by agents that know
+        the patient_id (from events) but need the user_id to fetch
+        user-scoped data like companion preferences.
+        """
+        row = await self._fetchone(
+            "SELECT id FROM users WHERE patient_id = ?",
+            (patient_id,),
+        )
+        return row["id"] if row else None
+
+    async def get_companion_preferences_for_patient(
+        self, patient_id: str
+    ) -> dict[str, Any] | None:
+        """Convenience: look up companion preferences via patient_id.
+
+        Resolves patient_id → user_id, then fetches companion_preferences.
+        Returns None if the patient has no linked user or no saved prefs.
+        """
+        user_id = await self.get_user_id_for_patient(patient_id)
+        if user_id is None:
+            return None
+        return await self.get_companion_preferences(user_id)
 
     # ------------------------------------------------------------------
     # Notification throttle log (Phase 11b)

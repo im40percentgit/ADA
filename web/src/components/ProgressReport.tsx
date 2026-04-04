@@ -26,6 +26,9 @@ import { SessionFrequencyChart } from './charts/SessionFrequencyChart'
 import { EmotionDistribution } from './charts/EmotionDistribution'
 import { AdherenceDonut } from './charts/AdherenceDonut'
 import { AssessmentScores } from './charts/AssessmentScores'
+import { Card } from './ui/Card'
+import { Button } from './ui/Button'
+import { Badge } from './ui/Badge'
 
 interface ProgressReportProps {
   patientId: string
@@ -45,7 +48,7 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
 
   if (loading) {
     return (
-      <div className="patient-dash" aria-busy="true">
+      <div className="patient-dash" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
         Loading progress report...
       </div>
     )
@@ -53,41 +56,37 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
 
   if (error) {
     return (
-      <div className="patient-dash" role="alert">
-        <p className="patient-dash__error">{error}</p>
-        <button type="button" className="med-card__btn med-card__btn--secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="patient-dash">
-        <p className="patient-dash__empty">No progress data available</p>
-        <button type="button" className="med-card__btn med-card__btn--secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__empty" style={{ color: 'var(--color-text-muted)' }}>No progress data available</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
 
   return (
-    <div className="patient-dash">
+    <div className="patient-dash" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
       {/* Back button */}
-      <button
-        type="button"
-        className="med-card__btn med-card__btn--secondary"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={onBack}
-        style={{ alignSelf: 'flex-start', marginBottom: '12px' }}
+        className="med-card__btn"
       >
         Back
-      </button>
+      </Button>
 
       {/* Time range pills */}
       <div
-        style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}
+        style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}
         role="group"
         aria-label="Time range selector"
       >
@@ -100,12 +99,12 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
             onKeyDown={(e) => e.key === 'Enter' && setRange(r.value)}
             style={{
               padding: '6px 14px',
-              borderRadius: '16px',
-              fontSize: '13px',
+              borderRadius: 'var(--radius-card)',
+              fontSize: 'var(--size-caption)',
               fontWeight: 600,
               cursor: 'pointer',
-              background: range === r.value ? '#6366f1' : '#f3f4f6',
-              color: range === r.value ? '#fff' : '#374151',
+              background: range === r.value ? 'var(--color-primary)' : 'var(--color-bg-elevated)',
+              color: range === r.value ? '#fff' : 'var(--color-text-muted)',
               border: 'none',
             }}
             aria-pressed={range === r.value}
@@ -115,42 +114,39 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
         ))}
       </div>
 
-      {/* AI Narrative card */}
-      <div
-        className="patient-dash__card patient-dash__card--full"
-        style={{ borderLeft: '4px solid #3b82f6', paddingLeft: '16px' }}
-      >
-        <h3>AI Narrative</h3>
-        <p style={{ margin: 0, lineHeight: 1.6 }}>{data.narrative}</p>
-      </div>
+      {/* AI Narrative card — warmth tint */}
+      <Card style={{ borderLeft: '4px solid var(--color-warmth)', paddingLeft: 'var(--space-md)' }}>
+        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-sm)' }}>AI Narrative</h3>
+        <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>{data.narrative}</p>
+      </Card>
 
       {/* 2x2 chart grid */}
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '16px',
-          marginTop: '16px',
+          gap: 'var(--space-md)',
+          marginTop: 'var(--space-md)',
         }}
       >
-        <div className="patient-dash__card">
+        <Card>
           <WellbeingTrendChart data={data.who5_trend} />
-        </div>
-        <div className="patient-dash__card">
+        </Card>
+        <Card>
           <SessionFrequencyChart data={data.session_count_by_week} />
-        </div>
-        <div className="patient-dash__card">
+        </Card>
+        <Card>
           <EmotionDistribution data={data.emotion_distribution} />
-        </div>
-        <div className="patient-dash__card">
+        </Card>
+        <Card>
           <AdherenceDonut data={data.medication_adherence} />
-        </div>
+        </Card>
       </div>
 
       {/* Assessment Scores */}
-      <div className="patient-dash__card patient-dash__card--full" style={{ marginTop: '16px' }}>
+      <Card style={{ marginTop: 'var(--space-md)' }}>
         <AssessmentScores data={data.assessment_scores} />
-      </div>
+      </Card>
     </div>
   )
 }

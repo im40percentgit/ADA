@@ -121,6 +121,10 @@ base_url = "http://localhost:8081/v1"
 max_tokens = 512
 temperature = 0.2
 
+[companion]
+default_name = "Ada"
+default_voice = "female"
+
 [notifications]
 enabled = true
 vapid_private_key_env = "ADA_VAPID_PRIVATE_KEY"

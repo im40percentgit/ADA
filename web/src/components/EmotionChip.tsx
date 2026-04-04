@@ -54,12 +54,36 @@ export function EmotionChip({ emotion }: EmotionChipProps) {
 
   const pct = Math.round(emotion.confidence * 100)
 
+  const badgeBg = emotion.valence > 0.3
+    ? '#052e16'
+    : emotion.valence < -0.3
+      ? '#450a0a'
+      : 'var(--color-bg-elevated)'
+
+  const badgeColor = emotion.valence > 0.3
+    ? 'var(--color-success)'
+    : emotion.valence < -0.3
+      ? 'var(--color-danger)'
+      : 'var(--color-text-muted)'
+
   return (
     <div
       className={`emotion-chip ${valenceClass(emotion.valence)}`}
       title={`Valence: ${emotion.valence.toFixed(2)}, Arousal: ${emotion.arousal.toFixed(2)}`}
       role="status"
       aria-label={`Detected emotion: ${emotion.emotion}, confidence ${pct}%`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 'var(--space-xs)',
+        padding: '2px 8px',
+        borderRadius: '10px',
+        fontSize: 'var(--size-xs)',
+        fontWeight: 600,
+        background: badgeBg,
+        color: badgeColor,
+        fontFamily: 'var(--font-body)',
+      }}
     >
       <span className="emotion-chip__emoji" aria-hidden="true">
         {emojiFor(emotion.emotion)}

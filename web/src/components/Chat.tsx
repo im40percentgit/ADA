@@ -40,6 +40,7 @@ import { useChat } from '../hooks/useChat'
 import { useMediaCapture } from '../hooks/useMediaCapture'
 import { useMediaWebSocket } from '../hooks/useMediaWebSocket'
 import { useSensorSimulator } from '../hooks/useSensorSimulator'
+import { useCompanionPreferences } from '../hooks/useCompanionPreferences'
 import { endSession } from '../api/client'
 import { ChatMessage } from './ChatMessage'
 import { CrisisAlert } from './CrisisAlert'
@@ -50,6 +51,9 @@ import { VitalsStrip } from './VitalsStrip'
 import { VoiceIndicator } from './VoiceIndicator'
 import { FacePreview } from './FacePreview'
 import { MediaControls } from './MediaControls'
+import { Card } from './ui/Card'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
 import type { Assessment } from '../types'
 import type { SimulatorPreset } from '../hooks/useSensorSimulator'
 import type { ReconnectingWsStatus } from '../hooks/useReconnectingWebSocket'
@@ -70,6 +74,8 @@ const WS_STATUS_LABELS: Record<string, string> = {
 
 export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
   const { queueAudio, interrupt, isSpeaking } = useAudioPlayback()
+  const { preferences: companionPrefs } = useCompanionPreferences()
+  const companionName = companionPrefs?.name ?? 'Ada'
   const [voiceEnabled, setVoiceEnabled] = useState(false)
 
   const handleAudioData = useCallback(
@@ -220,7 +226,7 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
   const canSend = inputValue.trim().length > 0 && wsStatus === 'open'
 
   return (
-    <div className="chat">
+    <div className="chat" style={{ fontFamily: 'var(--font-body)' }}>
       {/* Crisis alert — always rendered at top, non-dismissible */}
       {crisisAlert && <CrisisAlert alert={crisisAlert} />}
 
@@ -239,20 +245,33 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
         </div>
       )}
 
-      {/* Chat header — emotion chip, voice indicator, media controls */}
-      <div className="chat__header">
-        <span className="chat__header-title">Ada</span>
+      {/* Chat header — companion name, online status, emotion chip, media controls */}
+      <div className="chat__header" style={{ background: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)', padding: 'var(--space-sm) var(--space-md)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+          <span className="chat__header-title" style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{companionName}</span>
+          <span
+            aria-label={wsStatus === 'open' ? 'Online' : 'Offline'}
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: wsStatus === 'open' ? 'var(--color-success)' : 'var(--color-text-muted)',
+              display: 'inline-block',
+              flexShrink: 0,
+            }}
+          />
+        </div>
         {!sessionEnded && (
-          <button
-            className="chat__end-btn"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleEndSession}
-            type="button"
-            title="End this session"
+            className="chat__end-btn"
           >
             End Session
-          </button>
+          </Button>
         )}
-        {sessionEnded && <span className="chat__ended-badge">Session Ended</span>}
+        {sessionEnded && <Badge variant="neutral">Session Ended</Badge>}
         <div className="chat__header-media">
           <EmotionChip emotion={currentEmotion} />
           <VoiceIndicator stream={audioStream} />
@@ -286,9 +305,10 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
         aria-label="Conversation"
         aria-live="polite"
         aria-relevant="additions"
+        style={{ background: 'var(--color-bg-base)' }}
       >
         {messages.length === 0 && (
-          <div className="chat__empty-state">
+          <div className="chat__empty-state" style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)' }}>
             <p>Welcome. How are you feeling today?</p>
           </div>
         )}
@@ -296,13 +316,13 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
           msg.cognitiveTask ? (
             <div key={msg.id} className="chat-message chat-message--assistant chat-message--cognitive-task">
               <div className="chat-message__agent-label">Cognitive Screening</div>
-              <div className="chat-message__bubble">
-                <p className="chat-message__text" style={{ marginBottom: '8px' }}>
+              <Card style={{ marginTop: 'var(--space-sm)' }}>
+                <p className="chat-message__text" style={{ marginBottom: 'var(--space-sm)' }}>
                   <strong>{msg.cognitiveTask.domain}</strong> — Task {msg.cognitiveTask.task_index + 1} of {msg.cognitiveTask.total_tasks}
                 </p>
-                <p className="chat-message__text" style={{ marginBottom: '12px' }}>{msg.content}</p>
+                <p className="chat-message__text" style={{ marginBottom: 'var(--space-md)' }}>{msg.content}</p>
                 {msg.cognitiveTaskAnswered ? (
-                  <div className="screening-task__answered" aria-label="Task answered" style={{ padding: '8px 12px', backgroundColor: '#f0fdf4', borderRadius: '6px', color: '#166534', fontWeight: 600 }}>
+                  <div className="screening-task__answered" aria-label="Task answered" style={{ padding: 'var(--space-sm) var(--space-md)', backgroundColor: '#052e16', borderRadius: 'var(--radius-button)', color: 'var(--color-success)', fontWeight: 600 }}>
                     {msg.cognitiveTask.domain} — Answered
                   </div>
                 ) : (
@@ -314,7 +334,7 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
                     }}
                   />
                 )}
-              </div>
+              </Card>
             </div>
           ) : (
             <ChatMessage key={msg.id} message={msg} />
@@ -329,13 +349,14 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
         role="status"
         aria-live="polite"
         aria-atomic="true"
+        style={{ fontSize: 'var(--size-caption)', color: 'var(--color-text-muted)', padding: 'var(--space-xs) var(--space-md)' }}
       >
         <span className="chat__status-dot" aria-hidden="true" />
         {WS_STATUS_LABELS[wsStatus] ?? wsStatus}
       </div>
 
       {/* Input area */}
-      <div className="chat__input-area">
+      <div className="chat__input-area" style={{ background: 'var(--color-bg-elevated)', borderTop: '1px solid var(--color-border)', padding: 'var(--space-sm) var(--space-md)', display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-end' }}>
         <label htmlFor="chat-input" className="visually-hidden">
           Type your message
         </label>
@@ -350,6 +371,17 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
           rows={3}
           disabled={wsStatus !== 'open'}
           aria-disabled={wsStatus !== 'open'}
+          style={{
+            flex: 1,
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-input)',
+            color: 'var(--color-text-primary)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 'var(--size-body)',
+            padding: 'var(--space-sm)',
+            resize: 'none',
+          }}
         />
         <button
           className="chat__send-btn"
@@ -357,6 +389,19 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
           disabled={!canSend}
           aria-label="Send message"
           type="button"
+          style={{
+            background: 'var(--color-primary)',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: 'var(--radius-button)',
+            minHeight: 'var(--touch-target-min)',
+            padding: '0 var(--space-md)',
+            fontFamily: 'var(--font-body)',
+            fontWeight: 600,
+            fontSize: 'var(--size-body)',
+            cursor: canSend ? 'pointer' : 'default',
+            opacity: canSend ? 1 : 0.5,
+          }}
         >
           Send
         </button>

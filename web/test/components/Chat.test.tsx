@@ -60,6 +60,15 @@ vi.mock('../../src/hooks/useAudioPlayback', () => ({
   })),
 }))
 
+// @mock-exempt: useCompanionPreferences fetches from /api/companion-preferences HTTP endpoint — external API boundary mock
+vi.mock('../../src/hooks/useCompanionPreferences', () => ({
+  useCompanionPreferences: vi.fn(() => ({
+    preferences: { name: 'Ada', voice: 'female', personality: { warmth: 'warm', verbosity: 'balanced', formality: 'casual' } },
+    loading: false,
+    update: vi.fn(),
+  })),
+}))
+
 // ---------------------------------------------------------------------------
 // Import after mocks are set up
 // ---------------------------------------------------------------------------

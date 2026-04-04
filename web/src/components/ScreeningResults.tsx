@@ -24,6 +24,10 @@ import { useState, useEffect } from 'react'
 import { getCognitiveScreening } from '../api/client'
 import type { CognitiveScreening } from '../types'
 import { ClinicianNotes } from './ClinicianNotes'
+import { Card } from './ui/Card'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
+import { ProgressBar } from './ui/ProgressBar'
 
 interface ScreeningResultsProps {
   patientId: string
@@ -74,12 +78,12 @@ const SCORE_COLOR: Record<number, string> = {
 }
 
 const DOMAIN_BADGE_COLORS: Record<string, { background: string; color: string }> = {
-  memory: { background: '#ede9fe', color: '#5b21b6' },
-  attention: { background: '#dbeafe', color: '#1d4ed8' },
-  language: { background: '#d1fae5', color: '#065f46' },
-  visuospatial: { background: '#fef3c7', color: '#92400e' },
-  executive: { background: '#fee2e2', color: '#991b1b' },
-  orientation: { background: '#e0f2fe', color: '#0369a1' },
+  memory: { background: 'var(--color-primary-subtle)', color: 'var(--color-primary-light)' },
+  attention: { background: '#1e3a5f', color: '#93c5fd' },
+  language: { background: '#052e16', color: 'var(--color-success)' },
+  visuospatial: { background: '#451a03', color: 'var(--color-warning)' },
+  executive: { background: '#450a0a', color: 'var(--color-danger)' },
+  orientation: { background: '#0c4a6e', color: '#7dd3fc' },
 }
 
 function domainBadgeStyle(domain: string): { background: string; color: string } {
@@ -98,14 +102,14 @@ interface TaskRowProps {
 function TaskRow({ task, index }: TaskRowProps) {
   const [expanded, setExpanded] = useState(false)
   const badge = domainBadgeStyle(task.domain)
-  const scoreColor = SCORE_COLOR[Math.round(task.score)] ?? '#374151'
+  const scoreColor = SCORE_COLOR[Math.round(task.score)] ?? 'var(--color-text-muted)'
 
   return (
     <div
       style={{
-        borderBottom: '1px solid #e5e7eb',
-        paddingBottom: '12px',
-        marginBottom: '12px',
+        borderBottom: '1px solid var(--color-border)',
+        paddingBottom: 'var(--space-md)',
+        marginBottom: 'var(--space-md)',
       }}
     >
       {/* Row header */}
@@ -113,8 +117,9 @@ function TaskRow({ task, index }: TaskRowProps) {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
+          gap: 'var(--space-sm)',
           cursor: 'pointer',
+          minHeight: 'var(--touch-target-min)',
         }}
         role="button"
         tabIndex={0}
@@ -127,8 +132,8 @@ function TaskRow({ task, index }: TaskRowProps) {
         <span
           style={{
             padding: '2px 10px',
-            borderRadius: '12px',
-            fontSize: '12px',
+            borderRadius: '10px',
+            fontSize: 'var(--size-xs)',
             fontWeight: 600,
             whiteSpace: 'nowrap',
             background: badge.background,
@@ -140,13 +145,13 @@ function TaskRow({ task, index }: TaskRowProps) {
         </span>
 
         {/* Prompt */}
-        <span style={{ flex: 1, fontSize: '14px', color: '#374151' }}>{task.prompt}</span>
+        <span style={{ flex: 1, fontSize: 'var(--size-sm)', color: 'var(--color-text-secondary)' }}>{task.prompt}</span>
 
         {/* Score */}
         <span
           style={{
             fontWeight: 700,
-            fontSize: '15px',
+            fontSize: 'var(--size-body)',
             color: scoreColor,
             minWidth: '28px',
             textAlign: 'right',
@@ -157,22 +162,22 @@ function TaskRow({ task, index }: TaskRowProps) {
         </span>
 
         {/* Expand toggle */}
-        <span style={{ color: '#9ca3af', fontSize: '12px' }}>{expanded ? '▲' : '▼'}</span>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--size-xs)' }}>{expanded ? '\u25B2' : '\u25BC'}</span>
       </div>
 
       {/* Expanded detail */}
       {expanded && (
         <div
           style={{
-            marginTop: '10px',
-            paddingLeft: '16px',
-            borderLeft: '3px solid #e5e7eb',
+            marginTop: 'var(--space-sm)',
+            paddingLeft: 'var(--space-md)',
+            borderLeft: '3px solid var(--color-border)',
           }}
         >
-          <p style={{ margin: '0 0 6px', fontSize: '13px', color: '#6b7280' }}>
+          <p style={{ margin: '0 0 6px', fontSize: 'var(--size-caption)', color: 'var(--color-text-muted)' }}>
             <strong>Response:</strong> {task.response}
           </p>
-          <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>
+          <p style={{ margin: 0, fontSize: 'var(--size-caption)', color: 'var(--color-text-muted)' }}>
             <strong>Rationale:</strong> {task.rationale}
           </p>
         </div>
@@ -215,7 +220,7 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
 
   if (loading) {
     return (
-      <div className="patient-dash" aria-busy="true">
+      <div className="patient-dash" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
         Loading screening results...
       </div>
     )
@@ -223,22 +228,18 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
 
   if (error) {
     return (
-      <div className="patient-dash" role="alert">
-        <p className="patient-dash__error">{error}</p>
-        <button type="button" className="med-card__btn med-card__btn--secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="patient-dash">
-        <p className="patient-dash__empty">No screening data available</p>
-        <button type="button" className="med-card__btn med-card__btn--secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="patient-dash__empty" style={{ color: 'var(--color-text-muted)' }}>No screening data available</p>
+        <Button variant="secondary" onClick={onBack}>Back</Button>
       </div>
     )
   }
@@ -247,35 +248,35 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
   const domainEntries = Object.entries(data.domains)
 
   return (
-    <div className="patient-dash">
+    <div className="patient-dash" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
       {/* Back button */}
-      <button
-        type="button"
-        className="med-card__btn med-card__btn--secondary"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={onBack}
-        style={{ alignSelf: 'flex-start', marginBottom: '12px' }}
+        className="med-card__btn"
       >
         Back
-      </button>
+      </Button>
 
       {/* Header card */}
-      <div className="patient-dash__card patient-dash__card--full">
+      <Card style={{ marginTop: 'var(--space-md)' }}>
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '12px',
+            gap: 'var(--space-md)',
           }}
         >
           {/* Date + meta */}
           <div>
-            <h2 style={{ margin: '0 0 4px' }}>Cognitive Screening</h2>
-            <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
+            <h2 style={{ margin: '0 0 4px', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>Cognitive Screening</h2>
+            <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--size-sm)' }}>
               {formatDate(data.started_at)}
             </p>
-            <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: '13px' }}>
+            <p style={{ margin: '4px 0 0', color: 'var(--color-text-muted)', fontSize: 'var(--size-caption)' }}>
               {data.tasks.length} tasks &middot; {formatDuration(data.started_at, data.completed_at)}
             </p>
           </div>
@@ -292,24 +293,24 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
                   fontWeight: 800,
                   lineHeight: 1,
                   color:
-                    overallPct >= 70 ? '#16a34a' : overallPct >= 40 ? '#d97706' : '#dc2626',
+                    overallPct >= 70 ? 'var(--color-success)' : overallPct >= 40 ? 'var(--color-warning)' : 'var(--color-danger)',
                 }}
               >
                 {overallPct}
               </div>
-              <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--size-caption)', color: 'var(--color-text-muted)', marginTop: '4px' }}>
                 Overall Score
               </div>
             </div>
           )}
         </div>
-      </div>
+      </Card>
 
       {/* Domain scores */}
       {domainEntries.length > 0 && (
-        <div className="patient-dash__card patient-dash__card--full" style={{ marginTop: '16px' }}>
-          <h3>Domain Scores</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <Card style={{ marginTop: 'var(--space-md)' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-md)' }}>Domain Scores</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             {domainEntries.map(([domain, info]) => {
               const barPct = (info.avg_score / 2) * 100
               return (
@@ -319,32 +320,18 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
                       display: 'flex',
                       justifyContent: 'space-between',
                       marginBottom: '4px',
-                      fontSize: '13px',
+                      fontSize: 'var(--size-caption)',
                     }}
                   >
                     <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{domain}</span>
-                    <span style={{ color: '#6b7280' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>
                       {barPct.toFixed(0)}% ({info.task_count} tasks)
                     </span>
                   </div>
-                  <div
-                    style={{
-                      background: '#f3f4f6',
-                      borderRadius: '6px',
-                      height: '10px',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: domainBarWidth(info.avg_score),
-                        height: '100%',
-                        background: domainBarColor(info.avg_score),
-                        borderRadius: '6px',
-                        transition: 'width 0.3s ease',
-                      }}
-                    />
-                  </div>
+                  <ProgressBar
+                    value={barPct}
+                    color={domainBarColor(info.avg_score)}
+                  />
                 </div>
               )
             })}
@@ -354,40 +341,41 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
           <div
             style={{
               display: 'flex',
-              gap: '16px',
-              marginTop: '12px',
-              fontSize: '12px',
-              color: '#6b7280',
+              gap: 'var(--space-md)',
+              marginTop: 'var(--space-md)',
+              fontSize: 'var(--size-xs)',
+              color: 'var(--color-text-muted)',
             }}
           >
             <span>
-              <span style={{ color: '#16a34a', fontWeight: 700 }}>&#9632;</span> Strong (≥70%)
+              <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>&#9632;</span> Strong ({'\u2265'}70%)
             </span>
             <span>
-              <span style={{ color: '#d97706', fontWeight: 700 }}>&#9632;</span> Moderate (40–69%)
+              <span style={{ color: 'var(--color-warning)', fontWeight: 700 }}>&#9632;</span> Moderate (40{'\u2013'}69%)
             </span>
             <span>
-              <span style={{ color: '#dc2626', fontWeight: 700 }}>&#9632;</span> Concern (&lt;40%)
+              <span style={{ color: 'var(--color-danger)', fontWeight: 700 }}>&#9632;</span> Concern (&lt;40%)
             </span>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Clinical concerns */}
       {data.concerns.length > 0 && (
         <div
-          className="patient-dash__card patient-dash__card--full"
           style={{
-            marginTop: '16px',
-            border: '1px solid #fbbf24',
-            background: '#fffbeb',
+            marginTop: 'var(--space-md)',
+            border: '1px solid var(--color-warning)',
+            background: '#451a03',
+            borderRadius: 'var(--radius-card)',
+            padding: 'var(--space-md)',
           }}
           data-testid="concerns-card"
         >
-          <h3 style={{ color: '#92400e', margin: '0 0 10px' }}>Clinical Concerns</h3>
-          <ul style={{ margin: 0, paddingLeft: '20px', color: '#92400e' }}>
+          <h3 style={{ color: 'var(--color-warning)', margin: '0 0 var(--space-sm)', fontFamily: 'var(--font-heading)' }}>Clinical Concerns</h3>
+          <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--color-warning)' }}>
             {data.concerns.map((concern, i) => (
-              <li key={i} style={{ marginBottom: '4px', fontSize: '14px' }}>
+              <li key={i} style={{ marginBottom: '4px', fontSize: 'var(--size-sm)' }}>
                 {concern}
               </li>
             ))}
@@ -396,15 +384,15 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
       )}
 
       {/* Task breakdown */}
-      <div className="patient-dash__card patient-dash__card--full" style={{ marginTop: '16px' }}>
-        <h3>Task Breakdown</h3>
+      <Card style={{ marginTop: 'var(--space-md)' }}>
+        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', margin: '0 0 var(--space-md)' }}>Task Breakdown</h3>
         {data.tasks.map((task, i) => (
           <TaskRow key={i} task={task} index={i} />
         ))}
-      </div>
+      </Card>
 
       {/* Clinician Notes */}
-      <div style={{ marginTop: '16px' }}>
+      <div style={{ marginTop: 'var(--space-md)' }}>
         <ClinicianNotes entityType="cognitive_screening" entityId={screeningId} />
       </div>
     </div>

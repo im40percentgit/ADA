@@ -30,6 +30,7 @@ import type {
   MoodDataPoint,
   CaregiverOverview,
   CrisisAlertFull,
+  CompanionPreferences,
   KnowledgeNode,
   KnowledgeEdge,
   ProgressReportData,
@@ -244,6 +245,36 @@ export function makeAlert(overrides: Partial<CrisisAlertFull> = {}): CrisisAlert
 // ---------------------------------------------------------------------------
 // Caregiver overview (aggregated)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Companion Preferences (Phase 13a)
+// ---------------------------------------------------------------------------
+
+export function makeCompanionPreferences(
+  overrides: Partial<CompanionPreferences> = {},
+): CompanionPreferences {
+  return {
+    name: 'Ada',
+    voice: 'female',
+    personality: {
+      warmth: 'warm',
+      verbosity: 'balanced',
+      formality: 'casual',
+    },
+    ...overrides,
+    // Deep-merge personality if overrides include partial personality
+    ...(overrides.personality
+      ? {
+          personality: {
+            warmth: 'warm',
+            verbosity: 'balanced',
+            formality: 'casual',
+            ...overrides.personality,
+          },
+        }
+      : {}),
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Knowledge Node (Phase 12a)
