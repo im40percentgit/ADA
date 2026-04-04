@@ -49,6 +49,10 @@ import {
   makeCognitiveTaskPresented,
   makeOrganization,
   makeOrgMember,
+  makeTreatmentPlan,
+  makeGoal,
+  makeIntervention,
+  makePrescribingNote,
 } from '../factories'
 
 // ---------------------------------------------------------------------------
@@ -434,6 +438,69 @@ export const handlers = [
 
   http.delete('/api/organizations/:orgId/members/:userId', () => {
     return new HttpResponse(null, { status: 204 })
+  }),
+
+  // -- Treatment Plans (Phase 14b) ------------------------------------------
+
+  http.get('/api/patients/:patientId/treatment-plans', () => {
+    return json([makeTreatmentPlan()])
+  }),
+
+  http.get('/api/treatment-plans/:planId', ({ params }) => {
+    return json(makeTreatmentPlan({ id: params.planId as string }))
+  }),
+
+  http.post('/api/patients/:patientId/treatment-plans', async ({ request, params }) => {
+    const body = await request.json() as { title: string }
+    return json(
+      makeTreatmentPlan({
+        patient_id: params.patientId as string,
+        title: body.title,
+      }),
+      201,
+    )
+  }),
+
+  http.patch('/api/treatment-plans/:planId', async ({ request, params }) => {
+    const body = await request.json() as Record<string, unknown>
+    return json(makeTreatmentPlan({ id: params.planId as string, ...body as Partial<import('../../src/types').TreatmentPlan> }))
+  }),
+
+  http.post('/api/treatment-plans/:planId/goals', async ({ request }) => {
+    const body = await request.json() as Record<string, unknown>
+    return json(makeGoal(body as Partial<import('../../src/types').TreatmentGoal>), 201)
+  }),
+
+  http.patch('/api/treatment-goals/:goalId', async ({ request, params }) => {
+    const body = await request.json() as Record<string, unknown>
+    return json(makeGoal({ id: params.goalId as string, ...body as Partial<import('../../src/types').TreatmentGoal> }))
+  }),
+
+  http.post('/api/treatment-goals/:goalId/interventions', async ({ request }) => {
+    const body = await request.json() as Record<string, unknown>
+    return json(makeIntervention(body as Partial<import('../../src/types').TreatmentIntervention>), 201)
+  }),
+
+  http.patch('/api/treatment-interventions/:interventionId', async ({ request, params }) => {
+    const body = await request.json() as Record<string, unknown>
+    return json(makeIntervention({ id: params.interventionId as string, ...body as Partial<import('../../src/types').TreatmentIntervention> }))
+  }),
+
+  // -- Prescribing Notes (Phase 14b) ----------------------------------------
+
+  http.get('/api/patients/:patientId/prescribing-notes', () => {
+    return json([makePrescribingNote()])
+  }),
+
+  http.post('/api/patients/:patientId/prescribing-notes', async ({ request, params }) => {
+    const body = await request.json() as Record<string, unknown>
+    return json(
+      makePrescribingNote({
+        patient_id: params.patientId as string,
+        ...body as Partial<import('../../src/types').PrescribingNote>,
+      }),
+      201,
+    )
   }),
 ]
 

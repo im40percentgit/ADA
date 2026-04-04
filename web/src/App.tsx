@@ -49,6 +49,8 @@ import { PatientDashboard } from './components/PatientDashboard'
 import { KnowledgeGraph } from './components/KnowledgeGraph'
 import { ProgressReport } from './components/ProgressReport'
 import { SessionSummary } from './components/SessionSummary'
+import { TreatmentPlan } from './components/TreatmentPlan'
+import { PrescribingNotes } from './components/PrescribingNotes'
 import { DailySummaryDetail } from './components/DailySummaryDetail'
 import { CognitiveScreening } from './components/CognitiveScreening'
 import { ScreeningResults } from './components/ScreeningResults'
@@ -65,7 +67,7 @@ import './App.css'
 // Fallback patient ID for clinician/admin accounts in development
 const DEMO_PATIENT_ID = 'demo-patient-001'
 
-type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history' | 'settings'
+type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history' | 'settings' | 'treatment-plan' | 'prescribing-notes'
 type AuthView = 'login' | 'forgot-password' | 'reset-password'
 
 /** Parse the initial auth view from the URL hash (e.g. /#/reset-password?token=...) */
@@ -95,6 +97,7 @@ export default function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [selectedSummaryDate, setSelectedSummaryDate] = useState<string | null>(null)
   const [selectedScreeningId, setSelectedScreeningId] = useState<string | null>(null)
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const [onboardingComplete, setOnboardingComplete] = useState(true)
 
   // Check onboarding status when user becomes authenticated
@@ -213,6 +216,17 @@ export default function App() {
           <ScreeningHistory
             patientId={cgPatientId}
             onViewScreening={(id) => { setSelectedScreeningId(id); setView('screening-results') }}
+          />
+        ) : view === 'treatment-plan' ? (
+          <TreatmentPlan
+            patientId={cgPatientId}
+            planId={selectedPlanId ?? undefined}
+            onBack={() => setView('home')}
+          />
+        ) : view === 'prescribing-notes' ? (
+          <PrescribingNotes
+            patientId={cgPatientId}
+            onBack={() => setView('home')}
           />
         ) : (
           <CaregiverDashboard

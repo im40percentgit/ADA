@@ -40,6 +40,10 @@ import type {
   CognitiveScreening,
   Organization,
   OrganizationMember,
+  TreatmentPlan,
+  TreatmentGoal,
+  TreatmentIntervention,
+  PrescribingNote,
 } from '../src/types'
 import type { UserProfile } from '../src/api/auth'
 
@@ -61,6 +65,10 @@ let noteCount = 0
 let screeningCount = 0
 let orgCount = 0
 let orgMemberCount = 0
+let planCount = 0
+let goalCount = 0
+let interventionCount = 0
+let prescribingNoteCount = 0
 
 // ---------------------------------------------------------------------------
 // User / Auth
@@ -462,6 +470,84 @@ export function makeOrgMember(overrides: Partial<OrganizationMember> = {}): Orga
     email: `member${n}@example.com`,
     name: `Member ${n}`,
     created_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Treatment Intervention (Phase 14b)
+// ---------------------------------------------------------------------------
+
+export function makeIntervention(overrides: Partial<TreatmentIntervention> = {}): TreatmentIntervention {
+  const n = ++interventionCount
+  return {
+    id: `intervention-${n}`,
+    goal_id: 'goal-1',
+    description: `Intervention ${n}`,
+    frequency: 'weekly',
+    status: 'active',
+    created_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Treatment Goal (Phase 14b)
+// ---------------------------------------------------------------------------
+
+export function makeGoal(overrides: Partial<TreatmentGoal> = {}): TreatmentGoal {
+  const n = ++goalCount
+  return {
+    id: `goal-${n}`,
+    plan_id: 'plan-1',
+    description: `Goal ${n}`,
+    target_metric: 'phq9',
+    target_operator: '<',
+    target_value: 10,
+    current_value: 14,
+    status: 'active',
+    due_date: null,
+    interventions: [makeIntervention({ goal_id: `goal-${n}` })],
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Treatment Plan (Phase 14b)
+// ---------------------------------------------------------------------------
+
+export function makeTreatmentPlan(overrides: Partial<TreatmentPlan> = {}): TreatmentPlan {
+  const n = ++planCount
+  return {
+    id: `plan-${n}`,
+    patient_id: 'patient-1',
+    clinician_id: 'user-1',
+    organization_id: null,
+    title: `Treatment Plan ${n}`,
+    status: 'active',
+    goals: [makeGoal({ plan_id: `plan-${n}` })],
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Prescribing Note (Phase 14b)
+// ---------------------------------------------------------------------------
+
+export function makePrescribingNote(overrides: Partial<PrescribingNote> = {}): PrescribingNote {
+  const n = ++prescribingNoteCount
+  return {
+    id: `prescribing-note-${n}`,
+    patient_id: 'patient-1',
+    clinician_id: 'user-1',
+    medication_id: 'med-1',
+    note_type: 'prescribe',
+    content: `Prescribing note ${n}`,
+    created_at: '2026-01-15T10:00:00Z',
     ...overrides,
   }
 }

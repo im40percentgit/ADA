@@ -65,6 +65,10 @@ import type {
   OnboardingStatus,
   Organization,
   OrganizationMember,
+  TreatmentPlan,
+  TreatmentGoal,
+  TreatmentIntervention,
+  PrescribingNote,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -489,6 +493,89 @@ export function removeOrgMember(orgId: string, userId: string): Promise<void> {
     `/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}`,
     { method: 'DELETE' },
   )
+}
+
+// -- Treatment Plans (Phase 14b) -------------------------------------------
+
+export function listTreatmentPlans(patientId: string): Promise<TreatmentPlan[]> {
+  return request<TreatmentPlan[]>(`/patients/${encodeURIComponent(patientId)}/treatment-plans`)
+}
+
+export function getTreatmentPlan(planId: string): Promise<TreatmentPlan> {
+  return request<TreatmentPlan>(`/treatment-plans/${encodeURIComponent(planId)}`)
+}
+
+export function createTreatmentPlan(patientId: string, title: string): Promise<TreatmentPlan> {
+  return request<TreatmentPlan>(`/patients/${encodeURIComponent(patientId)}/treatment-plans`, {
+    method: 'POST',
+    body: JSON.stringify({ title }),
+  })
+}
+
+export function updateTreatmentPlan(
+  planId: string,
+  updates: Partial<Pick<TreatmentPlan, 'title' | 'status'>>,
+): Promise<TreatmentPlan> {
+  return request<TreatmentPlan>(`/treatment-plans/${encodeURIComponent(planId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+}
+
+export function addTreatmentGoal(
+  planId: string,
+  goal: Omit<TreatmentGoal, 'id' | 'plan_id' | 'interventions' | 'created_at' | 'updated_at'>,
+): Promise<TreatmentGoal> {
+  return request<TreatmentGoal>(`/treatment-plans/${encodeURIComponent(planId)}/goals`, {
+    method: 'POST',
+    body: JSON.stringify(goal),
+  })
+}
+
+export function updateTreatmentGoal(
+  goalId: string,
+  updates: Partial<Pick<TreatmentGoal, 'description' | 'status' | 'target_value' | 'current_value' | 'due_date'>>,
+): Promise<TreatmentGoal> {
+  return request<TreatmentGoal>(`/treatment-goals/${encodeURIComponent(goalId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+}
+
+export function addIntervention(
+  goalId: string,
+  intervention: Omit<TreatmentIntervention, 'id' | 'goal_id' | 'created_at'>,
+): Promise<TreatmentIntervention> {
+  return request<TreatmentIntervention>(`/treatment-goals/${encodeURIComponent(goalId)}/interventions`, {
+    method: 'POST',
+    body: JSON.stringify(intervention),
+  })
+}
+
+export function updateIntervention(
+  interventionId: string,
+  updates: Partial<Pick<TreatmentIntervention, 'description' | 'frequency' | 'status'>>,
+): Promise<TreatmentIntervention> {
+  return request<TreatmentIntervention>(`/treatment-interventions/${encodeURIComponent(interventionId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+}
+
+// -- Prescribing Notes (Phase 14b) ----------------------------------------
+
+export function listPrescribingNotes(patientId: string): Promise<PrescribingNote[]> {
+  return request<PrescribingNote[]>(`/patients/${encodeURIComponent(patientId)}/prescribing-notes`)
+}
+
+export function createPrescribingNote(
+  patientId: string,
+  note: Omit<PrescribingNote, 'id' | 'patient_id' | 'clinician_id' | 'created_at'>,
+): Promise<PrescribingNote> {
+  return request<PrescribingNote>(`/patients/${encodeURIComponent(patientId)}/prescribing-notes`, {
+    method: 'POST',
+    body: JSON.stringify(note),
+  })
 }
 
 // ---------------------------------------------------------------------------
