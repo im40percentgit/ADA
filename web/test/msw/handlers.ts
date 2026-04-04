@@ -47,6 +47,8 @@ import {
   makeClinicianNote,
   makeCognitiveScreening,
   makeCognitiveTaskPresented,
+  makeOrganization,
+  makeOrgMember,
 } from '../factories'
 
 // ---------------------------------------------------------------------------
@@ -400,6 +402,38 @@ export const handlers = [
   http.put('/api/onboarding/status', async ({ request }) => {
     const body = await request.json() as { status: string }
     return json({ status: body.status })
+  }),
+
+  // -- Organizations (Phase 14a) -------------------------------------------
+
+  http.get('/api/organizations/me', () => {
+    // Default: user has no organization (solo mode)
+    return json(null)
+  }),
+
+  http.post('/api/organizations', async ({ request }) => {
+    const body = await request.json() as { name: string; slug: string }
+    return json(makeOrganization({ name: body.name, slug: body.slug }), 201)
+  }),
+
+  http.get('/api/organizations/:orgId', ({ params }) => {
+    return json(makeOrganization({ id: params.orgId as string }))
+  }),
+
+  http.get('/api/organizations/:orgId/members', () => {
+    return json([
+      makeOrgMember({ role: 'owner', email: 'owner@example.com', name: 'Owner' }),
+      makeOrgMember({ role: 'member', email: 'member@example.com', name: 'Member' }),
+    ])
+  }),
+
+  http.post('/api/organizations/:orgId/invite', async ({ request }) => {
+    const _body = await request.json() as { email: string; role: string }
+    return json({ status: 'invited' }, 201)
+  }),
+
+  http.delete('/api/organizations/:orgId/members/:userId', () => {
+    return new HttpResponse(null, { status: 204 })
   }),
 ]
 

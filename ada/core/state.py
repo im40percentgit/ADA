@@ -66,6 +66,16 @@ _SCHEMA = """
 PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
 
+CREATE TABLE IF NOT EXISTS organizations (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    slug        TEXT NOT NULL UNIQUE,
+    plan        TEXT NOT NULL DEFAULT 'free' CHECK(plan IN ('free', 'pro', 'enterprise')),
+    settings    TEXT NOT NULL DEFAULT '{}',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS patients (
     id              TEXT PRIMARY KEY,
     name            TEXT NOT NULL,
@@ -73,6 +83,7 @@ CREATE TABLE IF NOT EXISTS patients (
     preferences     TEXT NOT NULL DEFAULT '{}',
     emergency_contact TEXT,
     caregiver_id    TEXT,
+    organization_id TEXT REFERENCES organizations(id),
     created_at      TEXT NOT NULL
 );
 
@@ -123,10 +134,20 @@ CREATE TABLE IF NOT EXISTS users (
     hashed_password   TEXT NOT NULL,
     role              TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user','clinician','admin','caregiver')),
     patient_id        TEXT REFERENCES patients(id),
+    organization_id   TEXT REFERENCES organizations(id),
     created_at        TEXT NOT NULL,
     is_active         INTEGER NOT NULL DEFAULT 1,
     onboarding_status TEXT NOT NULL DEFAULT 'not_started'
         CHECK(onboarding_status IN ('not_started', 'in_progress', 'completed'))
+);
+
+CREATE TABLE IF NOT EXISTS organization_members (
+    id              TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL REFERENCES organizations(id),
+    user_id         TEXT NOT NULL REFERENCES users(id),
+    role            TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(organization_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -490,6 +511,9 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_nodes_patient ON knowledge_nodes(patien
 CREATE INDEX IF NOT EXISTS idx_knowledge_edges_patient ON knowledge_edges(patient_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_snapshots_patient ON knowledge_snapshots(patient_id);
 CREATE INDEX IF NOT EXISTS idx_medications_patient ON medications(patient_id);
+CREATE INDEX IF NOT EXISTS idx_organizations_slug ON organizations(slug);
+CREATE INDEX IF NOT EXISTS idx_org_members_org ON organization_members(organization_id);
+CREATE INDEX IF NOT EXISTS idx_org_members_user ON organization_members(user_id);
 """
 
 
@@ -545,6 +569,18 @@ class StateManager:
             except Exception:
                 pass  # Column already exists
 
+        # Phase 14a migrations — organization_id on patients and users
+        _org_migrations = [
+            "ALTER TABLE patients ADD COLUMN organization_id TEXT REFERENCES organizations(id)",
+            "ALTER TABLE users ADD COLUMN organization_id TEXT REFERENCES organizations(id)",
+        ]
+        for stmt in _org_migrations:
+            try:
+                await self._conn.execute(stmt)
+            except Exception:
+                pass  # Column already exists
+        await self._conn.commit()
+
         await self._migrate_caregiver_to_circles()
         logger.info("StateManager: initialized at %s", self._db_path)
 
@@ -593,9 +629,10 @@ class StateManager:
 
     async def create_patient(self, patient: dict[str, Any]) -> None:
         await self._exec(
-            """INSERT INTO patients (id, name, dob, preferences, emergency_contact, caregiver_id, created_at)
-               VALUES (:id, :name, :dob, :preferences, :emergency_contact, :caregiver_id, :created_at)""",
+            """INSERT INTO patients (id, name, dob, preferences, emergency_contact, caregiver_id, organization_id, created_at)
+               VALUES (:id, :name, :dob, :preferences, :emergency_contact, :caregiver_id, :organization_id, :created_at)""",
             {
+                "organization_id": None,
                 **patient,
                 "preferences": json.dumps(patient.get("preferences", {})),
                 "created_at": patient.get("created_at", _now()),
@@ -2196,6 +2233,139 @@ class StateManager:
         )
 
     # ------------------------------------------------------------------
+    # Organizations (Phase 14a multi-tenancy)
+    # ------------------------------------------------------------------
+
+    async def create_organization(self, org: dict[str, Any]) -> None:
+        """Insert a new organization record.
+
+        Args:
+            org: Dict with keys: id, name, slug, plan (optional), settings (optional).
+                 created_at and updated_at default to now if omitted.
+        """
+        now = _now()
+        await self._exec(
+            """INSERT INTO organizations (id, name, slug, plan, settings, created_at, updated_at)
+               VALUES (:id, :name, :slug, :plan, :settings, :created_at, :updated_at)""",
+            {
+                "plan": "free",
+                **org,
+                "settings": json.dumps(org.get("settings", {})),
+                "created_at": org.get("created_at", now),
+                "updated_at": org.get("updated_at", now),
+            },
+        )
+
+    async def get_organization(self, org_id: str) -> dict[str, Any] | None:
+        """Return an organization by ID, or None if not found."""
+        row = await self._fetchone(
+            "SELECT * FROM organizations WHERE id = ?", (org_id,)
+        )
+        return _organization_row(row) if row else None
+
+    async def update_organization(self, org_id: str, updates: dict[str, Any]) -> None:
+        """Update allowed fields on an organization record.
+
+        Args:
+            org_id: Organization UUID.
+            updates: Dict of field names to new values. Only name, slug, plan,
+                     and settings are updateable.
+        """
+        allowed = {"name", "slug", "plan", "settings"}
+        fields = {k: v for k, v in updates.items() if k in allowed}
+        if "settings" in fields and not isinstance(fields["settings"], str):
+            fields["settings"] = json.dumps(fields["settings"])
+        if not fields:
+            return
+        fields["updated_at"] = _now()
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await self._exec(
+            f"UPDATE organizations SET {set_clause} WHERE id = :id",
+            {**fields, "id": org_id},
+        )
+
+    async def list_organization_members(self, org_id: str) -> list[dict[str, Any]]:
+        """Return all members of an organization with their email addresses."""
+        rows = await self._fetchall(
+            """SELECT om.id, om.organization_id, om.user_id, om.role,
+                      om.created_at, u.email
+               FROM organization_members om
+               LEFT JOIN users u ON u.id = om.user_id
+               WHERE om.organization_id = ?
+               ORDER BY om.created_at""",
+            (org_id,),
+        )
+        return [dict(r) for r in rows]
+
+    async def add_organization_member(
+        self, org_id: str, user_id: str, role: str = "member"
+    ) -> None:
+        """Add a user to an organization with a given role.
+
+        Raises IntegrityError on duplicate (organization_id, user_id).
+
+        Args:
+            org_id: Organization UUID.
+            user_id: User UUID.
+            role: One of 'owner', 'admin', 'member'.
+        """
+        import uuid as _uuid
+        await self._exec(
+            """INSERT INTO organization_members (id, organization_id, user_id, role, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (str(_uuid.uuid4()), org_id, user_id, role, _now()),
+        )
+
+    async def update_member_role(
+        self, org_id: str, user_id: str, role: str
+    ) -> None:
+        """Change the role of an existing organization member.
+
+        Args:
+            org_id: Organization UUID.
+            user_id: User UUID.
+            role: New role — one of 'owner', 'admin', 'member'.
+        """
+        await self._exec(
+            "UPDATE organization_members SET role = ? WHERE organization_id = ? AND user_id = ?",
+            (role, org_id, user_id),
+        )
+
+    async def remove_organization_member(self, org_id: str, user_id: str) -> None:
+        """Remove a user from an organization."""
+        await self._exec(
+            "DELETE FROM organization_members WHERE organization_id = ? AND user_id = ?",
+            (org_id, user_id),
+        )
+
+    async def get_user_organization(self, user_id: str) -> dict[str, Any] | None:
+        """Return the organization a user belongs to (via organization_members), or None.
+
+        If the user belongs to multiple organizations, returns the first one
+        (by membership created_at). In practice the UNIQUE constraint means
+        a user has at most one membership per org, but they could be in
+        multiple orgs — this returns the earliest.
+        """
+        row = await self._fetchone(
+            """SELECT o.*
+               FROM organizations o
+               JOIN organization_members om ON om.organization_id = o.id
+               WHERE om.user_id = ?
+               ORDER BY om.created_at ASC
+               LIMIT 1""",
+            (user_id,),
+        )
+        return _organization_row(row) if row else None
+
+    async def get_patients_for_organization(self, org_id: str) -> list[dict[str, Any]]:
+        """Return all patients scoped to an organization."""
+        rows = await self._fetchall(
+            "SELECT * FROM patients WHERE organization_id = ? ORDER BY created_at DESC",
+            (org_id,),
+        )
+        return [_patient_row(r) for r in rows]
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -2218,6 +2388,13 @@ class StateManager:
 # ---------------------------------------------------------------------------
 # Row deserializers
 # ---------------------------------------------------------------------------
+
+def _organization_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize an organizations row — JSON-decode settings."""
+    d = dict(row)
+    d["settings"] = json.loads(d.get("settings") or "{}")
+    return d
+
 
 def _patient_row(row: aiosqlite.Row) -> dict[str, Any]:
     d = dict(row)

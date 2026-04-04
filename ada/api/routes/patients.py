@@ -18,6 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ada.api.auth import get_current_user
+from ada.api.tenant import TenantContext, get_tenant_context
 from ada.models.patient import Patient, PatientCreate, PatientUpdate
 from ada.models.user import User
 
@@ -54,10 +55,18 @@ async def create_patient(
 @router.get("/patients", response_model=list[Patient])
 async def list_patients(
     request: Request,
-    _user: User = Depends(get_current_user),
+    tenant: TenantContext = Depends(get_tenant_context),
 ) -> list[dict[str, Any]]:
-    """List all patients."""
-    return await _state(request).list_patients()
+    """List patients scoped to the caller's tenant.
+
+    Tenant mode (user belongs to an org): returns patients linked to the org.
+    Solo mode: returns all patients (legacy behavior — typically the user's
+    own connected patients via care circles).
+    """
+    state = _state(request)
+    if tenant.is_tenant_mode:
+        return await state.get_patients_for_organization(tenant.organization_id)
+    return await state.list_patients()
 
 
 @router.get("/patients/{patient_id}", response_model=Patient)

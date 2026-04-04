@@ -63,6 +63,8 @@ import type {
   ClinicianNote,
   CognitiveScreening,
   OnboardingStatus,
+  Organization,
+  OrganizationMember,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -452,6 +454,41 @@ export function setOnboardingStatus(status: OnboardingStatus): Promise<void> {
     method: 'PUT',
     body: JSON.stringify({ status }),
   })
+}
+
+// -- Organizations (Phase 14a) --------------------------------------------
+
+export function getMyOrganization(): Promise<Organization | null> {
+  return request<Organization | null>('/organizations/me')
+}
+
+export function createOrganization(name: string, slug: string): Promise<Organization> {
+  return request<Organization>('/organizations', {
+    method: 'POST',
+    body: JSON.stringify({ name, slug }),
+  })
+}
+
+export function getOrganization(orgId: string): Promise<Organization> {
+  return request<Organization>(`/organizations/${encodeURIComponent(orgId)}`)
+}
+
+export function listOrgMembers(orgId: string): Promise<OrganizationMember[]> {
+  return request<OrganizationMember[]>(`/organizations/${encodeURIComponent(orgId)}/members`)
+}
+
+export function inviteOrgMember(orgId: string, email: string, role: string): Promise<void> {
+  return request<void>(`/organizations/${encodeURIComponent(orgId)}/invite`, {
+    method: 'POST',
+    body: JSON.stringify({ email, role }),
+  })
+}
+
+export function removeOrgMember(orgId: string, userId: string): Promise<void> {
+  return request<void>(
+    `/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}`,
+    { method: 'DELETE' },
+  )
 }
 
 // ---------------------------------------------------------------------------

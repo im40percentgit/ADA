@@ -38,6 +38,8 @@ import type {
   ClinicianNote,
   CognitiveTaskPresented,
   CognitiveScreening,
+  Organization,
+  OrganizationMember,
 } from '../src/types'
 import type { UserProfile } from '../src/api/auth'
 
@@ -57,6 +59,8 @@ let nodeCount = 0
 let edgeCount = 0
 let noteCount = 0
 let screeningCount = 0
+let orgCount = 0
+let orgMemberCount = 0
 
 // ---------------------------------------------------------------------------
 // User / Auth
@@ -422,6 +426,42 @@ export function makeCognitiveScreening(overrides: Partial<CognitiveScreening> = 
     started_at: '2026-01-15T10:00:00Z',
     completed_at: '2026-01-15T10:15:00Z',
     created_at: '2026-01-15T10:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Organization (Phase 14a)
+// ---------------------------------------------------------------------------
+
+export function makeOrganization(overrides: Partial<Organization> = {}): Organization {
+  const n = ++orgCount
+  return {
+    id: `org-${n}`,
+    name: `Test Organization ${n}`,
+    slug: `test-org-${n}`,
+    plan: 'free',
+    settings: {},
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Organization Member (Phase 14a)
+// ---------------------------------------------------------------------------
+
+export function makeOrgMember(overrides: Partial<OrganizationMember> = {}): OrganizationMember {
+  const n = ++orgMemberCount
+  return {
+    id: `orgmem-${n}`,
+    organization_id: 'org-1',
+    user_id: `user-${n}`,
+    role: 'member',
+    email: `member${n}@example.com`,
+    name: `Member ${n}`,
+    created_at: '2026-01-01T00:00:00Z',
     ...overrides,
   }
 }

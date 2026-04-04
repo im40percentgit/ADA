@@ -479,6 +479,28 @@ export interface CrisisAlertFull {
 
 export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed'
 
+// -- Organization (Phase 14a) -------------------------------------------
+
+export interface Organization {
+  id: string
+  name: string
+  slug: string
+  plan: 'free' | 'pro' | 'enterprise'
+  settings: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface OrganizationMember {
+  id: string
+  organization_id: string
+  user_id: string
+  role: 'owner' | 'admin' | 'member'
+  email?: string
+  name?: string
+  created_at: string
+}
+
 // -- Companion Preferences (Phase 13a) ----------------------------------
 
 export interface CompanionPreferences {
