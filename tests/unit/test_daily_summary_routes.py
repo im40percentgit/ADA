@@ -57,13 +57,17 @@ _TEST_USER = User(
 # Client factory
 # ---------------------------------------------------------------------------
 
-def _make_client(state: StateManager, user: User = _TEST_USER) -> TestClient:
+from contextlib import contextmanager
+
+@contextmanager
+def _make_client(state: StateManager, user: User = _TEST_USER):
     config = AdaConfig()
     bus = EventBus()
     registry = AgentRegistry(bus, config, state, make_null_router())
     app = create_app(config, bus, state, registry)
     app.dependency_overrides[get_current_user] = lambda: user
-    return TestClient(app, raise_server_exceptions=True)
+    with TestClient(app, raise_server_exceptions=True) as client:
+        yield client
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +100,7 @@ async def state() -> StateManager:
         "dob": "1990-01-01",
         "preferences": {},
         "emergency_contact": None,
+        "caregiver_id": None,
     })
     yield sm
     await sm.close()
@@ -115,43 +120,43 @@ async def state_with_summary(state: StateManager) -> StateManager:
 @pytest.mark.asyncio
 async def test_get_daily_summary_found(state_with_summary: StateManager):
     """GET /api/patients/{id}/daily-summaries/{date} returns 200 when found."""
-    client = _make_client(state_with_summary)
-    resp = client.get(f"/api/patients/{_PATIENT_ID}/daily-summaries/{_SUMMARY_DATE}")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["id"] == _SUMMARY_ID
-    assert data["patient_id"] == _PATIENT_ID
-    assert data["summary_date"] == _SUMMARY_DATE
+    with _make_client(state_with_summary) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_ID}/daily-summaries/{_SUMMARY_DATE}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == _SUMMARY_ID
+        assert data["patient_id"] == _PATIENT_ID
+        assert data["summary_date"] == _SUMMARY_DATE
 
 
 @pytest.mark.asyncio
 async def test_get_daily_summary_not_found(state: StateManager):
     """GET /api/patients/{id}/daily-summaries/{date} returns 404 when missing."""
-    client = _make_client(state)
-    resp = client.get(f"/api/patients/{_PATIENT_ID}/daily-summaries/1999-01-01")
-    assert resp.status_code == 404
-    assert "1999-01-01" in resp.json()["detail"]
+    with _make_client(state) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_ID}/daily-summaries/1999-01-01")
+        assert resp.status_code == 404
+        assert "1999-01-01" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
 async def test_get_daily_summary_all_fields(state_with_summary: StateManager):
     """Response includes all expected fields with correct types."""
-    client = _make_client(state_with_summary)
-    resp = client.get(f"/api/patients/{_PATIENT_ID}/daily-summaries/{_SUMMARY_DATE}")
-    assert resp.status_code == 200
-    data = resp.json()
+    with _make_client(state_with_summary) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_ID}/daily-summaries/{_SUMMARY_DATE}")
+        assert resp.status_code == 200
+        data = resp.json()
 
-    # Scalar fields
-    assert data["narrative"] == _SAMPLE_SUMMARY["narrative"]
-    assert data["overall_mood"] == _SAMPLE_SUMMARY["overall_mood"]
-    assert data["created_at"] is not None
+        # Scalar fields
+        assert data["narrative"] == _SAMPLE_SUMMARY["narrative"]
+        assert data["overall_mood"] == _SAMPLE_SUMMARY["overall_mood"]
+        assert data["created_at"] is not None
 
-    # JSON-decoded list fields
-    assert isinstance(data["trend_alerts"], list)
-    assert data["trend_alerts"] == _SAMPLE_SUMMARY["trend_alerts"]
+        # JSON-decoded list fields
+        assert isinstance(data["trend_alerts"], list)
+        assert data["trend_alerts"] == _SAMPLE_SUMMARY["trend_alerts"]
 
-    assert isinstance(data["appointment_prep"], list)
-    assert data["appointment_prep"] == _SAMPLE_SUMMARY["appointment_prep"]
+        assert isinstance(data["appointment_prep"], list)
+        assert data["appointment_prep"] == _SAMPLE_SUMMARY["appointment_prep"]
 
-    assert isinstance(data["key_topics"], list)
-    assert data["key_topics"] == _SAMPLE_SUMMARY["key_topics"]
+        assert isinstance(data["key_topics"], list)
+        assert data["key_topics"] == _SAMPLE_SUMMARY["key_topics"]
