@@ -62,6 +62,7 @@ import type {
   DailySummary,
   ClinicianNote,
   CognitiveScreening,
+  OnboardingStatus,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -438,6 +439,19 @@ export function getCognitiveScreening(patientId: string, screeningId: string): P
   return request<CognitiveScreening>(
     `/patients/${encodeURIComponent(patientId)}/cognitive-screenings/${encodeURIComponent(screeningId)}`,
   )
+}
+
+// -- Onboarding (Phase 13b) ------------------------------------------------
+
+export function getOnboardingStatus(): Promise<{ status: OnboardingStatus }> {
+  return request<{ status: OnboardingStatus }>('/onboarding/status')
+}
+
+export function setOnboardingStatus(status: OnboardingStatus): Promise<void> {
+  return request<void>('/onboarding/status', {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -475,6 +475,10 @@ export interface CrisisAlertFull {
   resolved_by: string | null
 }
 
+// -- Onboarding (Phase 13b) ---------------------------------------------
+
+export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed'
+
 // -- Companion Preferences (Phase 13a) ----------------------------------
 
 export interface CompanionPreferences {
