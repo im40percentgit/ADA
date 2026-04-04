@@ -51,6 +51,9 @@ import { KnowledgeGraph } from './components/KnowledgeGraph'
 import { ProgressReport } from './components/ProgressReport'
 import { SessionSummary } from './components/SessionSummary'
 import { DailySummaryDetail } from './components/DailySummaryDetail'
+import { CognitiveScreening } from './components/CognitiveScreening'
+import { ScreeningResults } from './components/ScreeningResults'
+import { ScreeningHistory } from './components/ScreeningHistory'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { InstallBanner } from './components/InstallBanner'
 import { useAuth } from './hooks/useAuth'
@@ -60,7 +63,7 @@ import './App.css'
 // Fallback patient ID for clinician/admin accounts in development
 const DEMO_PATIENT_ID = 'demo-patient-001'
 
-type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary'
+type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history'
 type AuthView = 'login' | 'forgot-password' | 'reset-password'
 
 /** Parse the initial auth view from the URL hash (e.g. /#/reset-password?token=...) */
@@ -89,6 +92,7 @@ export default function App() {
   const [resetSuccessMsg, setResetSuccessMsg] = useState<string | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [selectedSummaryDate, setSelectedSummaryDate] = useState<string | null>(null)
+  const [selectedScreeningId, setSelectedScreeningId] = useState<string | null>(null)
 
   // While token validation is in flight, show a minimal loading screen
   if (loading) {
@@ -160,6 +164,23 @@ export default function App() {
             date={selectedSummaryDate}
             onBack={() => setView('home')}
             onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
+          />
+        ) : view === 'cognitive-screening' ? (
+          <CognitiveScreening
+            patientId={cgPatientId}
+            onBack={() => setView('home')}
+            onComplete={(id) => { setSelectedScreeningId(id); setView('screening-results') }}
+          />
+        ) : view === 'screening-results' ? (
+          <ScreeningResults
+            patientId={cgPatientId}
+            screeningId={selectedScreeningId!}
+            onBack={() => setView('screening-history')}
+          />
+        ) : view === 'screening-history' ? (
+          <ScreeningHistory
+            patientId={cgPatientId}
+            onViewScreening={(id) => { setSelectedScreeningId(id); setView('screening-results') }}
           />
         ) : (
           <CaregiverDashboard
@@ -251,6 +272,23 @@ export default function App() {
             date={selectedSummaryDate}
             onBack={() => setView('home')}
             onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
+          />
+        ) : view === 'cognitive-screening' ? (
+          <CognitiveScreening
+            patientId={patientId}
+            onBack={() => setView('home')}
+            onComplete={(id) => { setSelectedScreeningId(id); setView('screening-results') }}
+          />
+        ) : view === 'screening-results' ? (
+          <ScreeningResults
+            patientId={patientId}
+            screeningId={selectedScreeningId!}
+            onBack={() => setView('screening-history')}
+          />
+        ) : view === 'screening-history' ? (
+          <ScreeningHistory
+            patientId={patientId}
+            onViewScreening={(id) => { setSelectedScreeningId(id); setView('screening-results') }}
           />
         ) : view === 'home' ? (
           <PatientDashboard patientId={patientId} onNavigate={(v) => setView(v as View)} />

@@ -272,6 +272,22 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
           </section>
         )}
 
+        {/* Cognitive Screenings */}
+        {onNavigate && (
+          <section className="cg-card" aria-label="Cognitive Screenings">
+            <h2 className="cg-card__title">Cognitive Screenings</h2>
+            <p className="cg-card__desc">Track memory, attention, and cognitive function over time</p>
+            <button
+              type="button"
+              className="cg-daily__view-detail"
+              onClick={() => onNavigate('screening-history')}
+              aria-label="View cognitive screening history"
+            >
+              View Screening History &rarr;
+            </button>
+          </section>
+        )}
+
         {/* Care Team */}
         {selectedCircle && (
           <section className="cg-card" aria-label="Care Team">

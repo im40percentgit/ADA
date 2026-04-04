@@ -60,6 +60,7 @@ import type {
   SessionSummaryData,
   DailySummary,
   ClinicianNote,
+  CognitiveScreening,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -389,6 +390,38 @@ export function upsertClinicianNote(entityType: string, entityId: string, conten
     method: 'PUT',
     body: JSON.stringify({ entity_type: entityType, entity_id: entityId, content }),
   })
+}
+
+// -- Cognitive Screenings (Phase 12b) -------------------------------------------
+
+export function startScreening(patientId: string): Promise<{ screening_id: string }> {
+  return request<{ screening_id: string }>(
+    `/patients/${encodeURIComponent(patientId)}/screenings/start`,
+    { method: 'POST' },
+  )
+}
+
+export function submitScreeningResponse(
+  screeningId: string,
+  taskIndex: number,
+  response: string | Record<string, unknown>,
+): Promise<void> {
+  return request<void>(`/screenings/${encodeURIComponent(screeningId)}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ task_index: taskIndex, response }),
+  })
+}
+
+export function listCognitiveScreenings(patientId: string): Promise<CognitiveScreening[]> {
+  return request<CognitiveScreening[]>(
+    `/patients/${encodeURIComponent(patientId)}/cognitive-screenings`,
+  )
+}
+
+export function getCognitiveScreening(patientId: string, screeningId: string): Promise<CognitiveScreening> {
+  return request<CognitiveScreening>(
+    `/patients/${encodeURIComponent(patientId)}/cognitive-screenings/${encodeURIComponent(screeningId)}`,
+  )
 }
 
 // ---------------------------------------------------------------------------

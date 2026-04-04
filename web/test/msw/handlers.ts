@@ -44,6 +44,8 @@ import {
   makeProgressReport,
   makeSessionSummary,
   makeClinicianNote,
+  makeCognitiveScreening,
+  makeCognitiveTaskPresented,
 } from '../factories'
 
 // ---------------------------------------------------------------------------
@@ -356,6 +358,25 @@ export const handlers = [
         content: body.content,
       }),
     )
+  }),
+
+  // -- Cognitive Screenings (Phase 12b) ------------------------------------
+
+  http.post('/api/patients/:patientId/screenings/start', ({ params }) => {
+    return json({ screening_id: `screening-1` }, 201)
+  }),
+
+  http.post('/api/screenings/:screeningId/respond', async ({ params }) => {
+    const task = makeCognitiveTaskPresented({ screening_id: params.screeningId as string })
+    return json(task)
+  }),
+
+  http.get('/api/patients/:patientId/cognitive-screenings', () => {
+    return json([makeCognitiveScreening()])
+  }),
+
+  http.get('/api/patients/:patientId/cognitive-screenings/:screeningId', ({ params }) => {
+    return json(makeCognitiveScreening({ id: params.screeningId as string }))
   }),
 ]
 

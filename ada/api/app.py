@@ -40,7 +40,7 @@ from fastapi.responses import JSONResponse
 from ada.api.middleware.logging import StructlogRequestMiddleware
 from ada.api.middleware.rate_limit import RateLimitMiddleware
 from ada.api.middleware.security_headers import SecurityHeadersMiddleware
-from ada.api.routes import alerts, appointments, assessments, auth, boards, caregiver, chat, circles, clinician_notes, cognitive, daily_summaries, knowledge, media, medications, notifications, password_reset, patients, progress_report, sessions, simulator
+from ada.api.routes import alerts, appointments, assessments, auth, boards, caregiver, chat, circles, clinician_notes, cognitive, daily_summaries, knowledge, media, medications, notifications, password_reset, patients, progress_report, screening_interact, sessions, simulator
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
@@ -125,6 +125,7 @@ def create_app(
     app.include_router(knowledge.router, prefix="/api")
     app.include_router(medications.router, prefix="/api")
     app.include_router(cognitive.router, prefix="/api")
+    app.include_router(screening_interact.router, prefix="/api")  # /api/patients/*/screenings/start, /api/screenings/*/respond
     app.include_router(appointments.router, prefix="/api")
     app.include_router(simulator.router)   # /api/sessions/*/simulator/start|stop
     app.include_router(caregiver.router, prefix="/api")  # /api/caregiver/*

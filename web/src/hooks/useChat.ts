@@ -44,7 +44,7 @@ import type {
   WsEmotionUpdate,
   WsVitalsUpdate,
   WsTranscription,
-
+  WsCognitiveTask,
   WsAudioResponse,
 } from '../types'
 
@@ -73,6 +73,10 @@ export interface UseChatReturn {
   currentVitals: CurrentVitals
   sendVoiceMode: (enabled: boolean) => void
   pendingTranscription: { text: string; interim: boolean } | null
+  /** Phase 12b: send a cognitive screening task response via the chat WS */
+  sendCognitiveResponse: (screeningId: string, taskIndex: number, response: string | Record<string, unknown>) => void
+  /** Phase 12b: mark an inline cognitive task message as answered */
+  markCognitiveTaskAnswered: (messageId: string) => void
 }
 
 export function useChat(
@@ -230,6 +234,33 @@ export function useChat(
       }
 
 
+      case 'cognitive_task': {
+        // Phase 12b: add an inline cognitive task card to the chat messages
+        const ct = msg as WsCognitiveTask
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId(),
+            role: 'assistant',
+            content: ct.prompt,
+            agent: 'cognitive_assessor',
+            streaming: false,
+            timestamp: new Date(),
+            cognitiveTask: {
+              screening_id: ct.screening_id,
+              task_index: ct.task_index,
+              total_tasks: ct.total_tasks,
+              domain: ct.domain,
+              task_type: ct.task_type,
+              prompt: ct.prompt,
+              task_data: ct.task_data,
+            },
+            cognitiveTaskAnswered: false,
+          },
+        ])
+        break
+      }
+
       case 'audio_response': {
         // Buffer metadata — the next binary frame is the WAV data
         pendingAudioRef.current = msg as WsAudioResponse
@@ -292,6 +323,24 @@ export function useChat(
     [sendJson],
   )
 
+  const sendCognitiveResponse = useCallback(
+    (screeningId: string, taskIndex: number, response: string | Record<string, unknown>) => {
+      sendJson({ type: 'cognitive_response', screening_id: screeningId, task_index: taskIndex, response })
+    },
+    [sendJson],
+  )
+
+  const markCognitiveTaskAnswered = useCallback(
+    (messageId: string) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, cognitiveTaskAnswered: true } : m,
+        ),
+      )
+    },
+    [],
+  )
+
   const clearAssessmentPrompt = useCallback(() => setAssessmentPrompt(null), [])
 
   return {
@@ -306,5 +355,7 @@ export function useChat(
     currentVitals,
     sendVoiceMode,
     pendingTranscription,
+    sendCognitiveResponse,
+    markCognitiveTaskAnswered,
   }
 }

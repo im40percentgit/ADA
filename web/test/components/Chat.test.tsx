@@ -83,6 +83,8 @@ function makeChatHookReturn(overrides = {}) {
     currentVitals: { hr: null, gsr: null, spo2: null },
     sendVoiceMode: vi.fn(),
     pendingTranscription: null,
+    sendCognitiveResponse: vi.fn(),
+    markCognitiveTaskAnswered: vi.fn(),
     ...overrides,
   }
 }
@@ -187,5 +189,66 @@ describe('Chat', () => {
     (useChat as Mock).mockReturnValue(makeChatHookReturn({ wsStatus: 'closed' }))
     render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
     expect(screen.getByRole('status')).toHaveTextContent('Disconnected')
+  })
+
+  // @mock-exempt: cognitive task tests use same mock pattern as above (useChat is an external boundary — WebSocket transport)
+  it('renders cognitive task inline when message has cognitiveTask data', () => {
+    (useChat as Mock).mockReturnValue(makeChatHookReturn({
+      messages: [
+        {
+          id: 'msg-cog-1',
+          role: 'assistant',
+          content: 'Remember this pattern',
+          agent: 'cognitive_assessor',
+          streaming: false,
+          timestamp: new Date(),
+          cognitiveTask: {
+            screening_id: 'scr-001',
+            task_index: 0,
+            total_tasks: 12,
+            domain: 'memory',
+            task_type: 'text',
+            prompt: 'Remember this pattern',
+            task_data: { type: 'free_text' },
+          },
+          cognitiveTaskAnswered: false,
+        },
+      ],
+    }))
+
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    expect(screen.getByText('Cognitive Screening')).toBeInTheDocument()
+    expect(screen.getByText(/memory/i)).toBeInTheDocument()
+    expect(screen.getByText(/Task 1 of 12/)).toBeInTheDocument()
+    expect(screen.getByText('Remember this pattern')).toBeInTheDocument()
+  })
+
+  it('renders answered state for cognitive task after submission', () => {
+    (useChat as Mock).mockReturnValue(makeChatHookReturn({
+      messages: [
+        {
+          id: 'msg-cog-2',
+          role: 'assistant',
+          content: 'What time is shown?',
+          agent: 'cognitive_assessor',
+          streaming: false,
+          timestamp: new Date(),
+          cognitiveTask: {
+            screening_id: 'scr-002',
+            task_index: 1,
+            total_tasks: 6,
+            domain: 'attention',
+            task_type: 'clock_reading',
+            prompt: 'What time is shown?',
+            task_data: { hour: 3, minute: 15, options: ['3:15', '3:45', '9:15'] },
+          },
+          cognitiveTaskAnswered: true,
+        },
+      ],
+    }))
+
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    expect(screen.getByLabelText('Task answered')).toBeInTheDocument()
+    expect(screen.getByText(/attention — Answered/i)).toBeInTheDocument()
   })
 })
