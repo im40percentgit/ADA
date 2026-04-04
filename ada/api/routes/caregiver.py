@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from starlette.requests import Request
 
 from ada.api.auth import get_current_user, _resolve_caregiver_patient
+from ada.api.tenant import TenantContext, get_tenant_context
 from ada.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,13 @@ async def caregiver_overview(
     request: Request,
     patient_id: str | None = None,
     current_user: User = Depends(get_current_user),
+    tenant: TenantContext = Depends(get_tenant_context),
 ) -> dict[str, Any]:
-    """Aggregated dashboard data for a caregiver's linked patient."""
+    """Aggregated dashboard data for a caregiver's linked patient.
+
+    In tenant mode, the requested patient_id must belong to the user's
+    organization. In solo mode, the existing care-circle resolution applies.
+    """
     if current_user.role not in ("caregiver", "clinician"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -44,7 +50,32 @@ async def caregiver_overview(
         )
 
     state = request.app.state.state_manager
-    patient_id = await _resolve_caregiver_patient(current_user, state, patient_id)
+
+    if tenant.is_tenant_mode and patient_id:
+        # Verify the patient belongs to the caller's organization
+        org_patients = await state.get_patients_for_organization(
+            tenant.organization_id,
+        )
+        org_patient_ids = {p["id"] for p in org_patients}
+        if patient_id not in org_patient_ids:
+            raise HTTPException(
+                status_code=404,
+                detail="Patient not found in organization",
+            )
+    elif tenant.is_tenant_mode and not patient_id:
+        # Default to first org patient when no patient_id specified
+        org_patients = await state.get_patients_for_organization(
+            tenant.organization_id,
+        )
+        if not org_patients:
+            raise HTTPException(
+                status_code=404,
+                detail="No patients in organization",
+            )
+        patient_id = org_patients[0]["id"]
+    else:
+        # Solo mode — existing circle-based resolution
+        patient_id = await _resolve_caregiver_patient(current_user, state, patient_id)
 
     patient = await state.get_patient(patient_id)
     if not patient:

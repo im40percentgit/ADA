@@ -1,15 +1,20 @@
 /**
- * SettingsPage — companion personalization and account management.
+ * SettingsPage — companion personalization, account, and organization management.
  *
- * Renders two Card sections:
+ * Renders three Card sections:
  *   1. Companion — name input, voice selection, personality toggles (warmth,
  *      verbosity, formality). Changes are batched and submitted via the Save
  *      button, which calls useCompanionPreferences().update().
  *   2. Account — read-only email display and a logout button.
+ *   3. Organization — create or manage an organization with member invites.
  *
  * Local form state mirrors the remote CompanionPreferences so the user can
  * edit freely before committing. On initial load the local state is seeded
  * from the fetched preferences. While loading, inputs are disabled.
+ *
+ * The Organization section fetches from GET /organizations/me on mount. When
+ * null (solo mode), it renders a creation form. When an org exists (org mode),
+ * it renders the org name, plan badge, member list, invite form, and leave button.
  *
  * @decision DEC-UI-013
  * @title SettingsPage uses local form state, not live-bound hook state
@@ -20,12 +25,20 @@
  *   settings-form UX and keeps the MSW handler count deterministic in tests.
  */
 
-import { type CSSProperties, useEffect, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useState } from 'react'
+import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { Input } from './ui/Input'
 import { useCompanionPreferences } from '../hooks/useCompanionPreferences'
-import type { CompanionPreferences } from '../types'
+import type { CompanionPreferences, Organization, OrganizationMember } from '../types'
+import {
+  getMyOrganization,
+  createOrganization,
+  listOrgMembers,
+  inviteOrgMember,
+  removeOrgMember,
+} from '../api/client'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,6 +118,69 @@ const emailStyle: CSSProperties = {
   fontFamily: 'var(--font-body)',
   fontSize: 'var(--size-body)',
   color: 'var(--color-text-muted)',
+}
+
+const orgDescriptionStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: 'var(--size-body)',
+  color: 'var(--color-text-muted)',
+  margin: '0 0 var(--space-md) 0',
+}
+
+const orgHeaderRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-sm)',
+  marginBottom: 'var(--space-md)',
+}
+
+const memberRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: 'var(--space-sm) 0',
+  borderBottom: '1px solid var(--color-border)',
+}
+
+const memberInfoStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '2px',
+}
+
+const memberNameStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: 'var(--size-body)',
+  color: 'var(--color-text-primary)',
+}
+
+const memberEmailStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: 'var(--size-caption)',
+  color: 'var(--color-text-muted)',
+}
+
+const memberActionsStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-sm)',
+}
+
+const inviteRowStyle: CSSProperties = {
+  display: 'flex',
+  gap: 'var(--space-sm)',
+  alignItems: 'flex-end',
+}
+
+const selectStyle: CSSProperties = {
+  height: 'var(--touch-target-min)',
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--radius-input)',
+  padding: '0 var(--space-sm)',
+  color: 'var(--color-text-primary)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 'var(--size-body)',
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +300,73 @@ export function SettingsPage({ onLogout, email }: SettingsPageProps) {
   const [verbosity, setVerbosity] = useState('balanced')
   const [formality, setFormality] = useState('casual')
 
+  // ── Organization state ──────────────────────────────────────────────────
+  const [org, setOrg] = useState<Organization | null>(null)
+  const [orgLoading, setOrgLoading] = useState(true)
+  const [orgMembers, setOrgMembers] = useState<OrganizationMember[]>([])
+  const [orgName, setOrgName] = useState('')
+  const [orgSlug, setOrgSlug] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'member' | 'admin'>('member')
+
+  const fetchOrg = useCallback(async () => {
+    setOrgLoading(true)
+    try {
+      const result = await getMyOrganization()
+      setOrg(result)
+      if (result) {
+        const members = await listOrgMembers(result.id)
+        setOrgMembers(members)
+      }
+    } catch {
+      // No org or error — stay in solo mode
+      setOrg(null)
+    } finally {
+      setOrgLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchOrg()
+  }, [fetchOrg])
+
+  const handleCreateOrg = async () => {
+    if (!orgName.trim() || !orgSlug.trim()) return
+    try {
+      const created = await createOrganization(orgName.trim(), orgSlug.trim())
+      setOrg(created)
+      const members = await listOrgMembers(created.id)
+      setOrgMembers(members)
+      setOrgName('')
+      setOrgSlug('')
+    } catch {
+      // creation failed — user can retry
+    }
+  }
+
+  const handleInvite = async () => {
+    if (!org || !inviteEmail.trim()) return
+    try {
+      await inviteOrgMember(org.id, inviteEmail.trim(), inviteRole)
+      setInviteEmail('')
+      // Refresh members list
+      const members = await listOrgMembers(org.id)
+      setOrgMembers(members)
+    } catch {
+      // invite failed — user can retry
+    }
+  }
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!org) return
+    try {
+      await removeOrgMember(org.id, userId)
+      setOrgMembers((prev) => prev.filter((m) => m.user_id !== userId))
+    } catch {
+      // removal failed
+    }
+  }
+
   // Seed local state once preferences load
   useEffect(() => {
     if (preferences) {
@@ -241,6 +384,14 @@ export function SettingsPage({ onLogout, email }: SettingsPageProps) {
       voice,
       personality: { warmth, verbosity, formality },
     })
+  }
+
+  const planBadgeVariant = (plan: Organization['plan']) => {
+    switch (plan) {
+      case 'enterprise': return 'info' as const
+      case 'pro': return 'success' as const
+      default: return 'neutral' as const
+    }
   }
 
   return (
@@ -367,6 +518,121 @@ export function SettingsPage({ onLogout, email }: SettingsPageProps) {
             Log out
           </Button>
         </div>
+      </Card>
+
+      {/* ── Organization Section ──────────────────────────────── */}
+      <Card>
+        <h2 style={sectionHeadingStyle}>Organization</h2>
+
+        {orgLoading ? (
+          <p style={orgDescriptionStyle}>Loading...</p>
+        ) : org === null ? (
+          /* Solo mode — no org yet */
+          <div style={fieldGroupStyle} data-testid="org-create-form">
+            <p style={orgDescriptionStyle}>
+              Create an organization to manage patients and staff under one account.
+            </p>
+            <Input
+              label="Organization Name"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              data-testid="org-name-input"
+            />
+            <Input
+              label="Slug"
+              value={orgSlug}
+              onChange={(e) => setOrgSlug(e.target.value)}
+              data-testid="org-slug-input"
+            />
+            <Button
+              variant="primary"
+              onClick={handleCreateOrg}
+              disabled={!orgName.trim() || !orgSlug.trim()}
+            >
+              Create Organization
+            </Button>
+          </div>
+        ) : (
+          /* Org mode — manage existing org */
+          <div style={fieldGroupStyle} data-testid="org-manage-section">
+            <div style={orgHeaderRowStyle}>
+              <span style={{ ...sectionHeadingStyle, margin: 0, fontSize: 'var(--size-body)' }}>
+                {org.name}
+              </span>
+              <Badge variant={planBadgeVariant(org.plan)}>{org.plan}</Badge>
+            </div>
+
+            {/* Members list */}
+            <div>
+              <span style={fieldLabelStyle}>Members</span>
+              {orgMembers.map((member) => (
+                <div key={member.id} style={memberRowStyle} data-testid="org-member-row">
+                  <div style={memberInfoStyle}>
+                    <span style={memberNameStyle}>{member.name || member.email || member.user_id}</span>
+                    {member.email && member.name && (
+                      <span style={memberEmailStyle}>{member.email}</span>
+                    )}
+                  </div>
+                  <div style={memberActionsStyle}>
+                    <Badge variant={member.role === 'owner' ? 'warning' : member.role === 'admin' ? 'info' : 'neutral'}>
+                      {member.role}
+                    </Badge>
+                    {member.role !== 'owner' && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleRemoveMember(member.user_id)}
+                        aria-label={`Remove ${member.name || member.email}`}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Invite section */}
+            <div>
+              <span style={fieldLabelStyle}>Invite Member</span>
+              <div style={inviteRowStyle}>
+                <Input
+                  label="Email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  data-testid="org-invite-email"
+                />
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as 'member' | 'admin')}
+                  style={selectStyle}
+                  aria-label="Invite role"
+                  data-testid="org-invite-role"
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <Button
+                  variant="primary"
+                  onClick={handleInvite}
+                  disabled={!inviteEmail.trim()}
+                >
+                  Invite
+                </Button>
+              </div>
+            </div>
+
+            {/* Leave organization (non-owners) */}
+            <Button
+              variant="ghost"
+              onClick={() => {
+                /* Leave org — to be wired to backend */
+              }}
+              data-testid="org-leave-button"
+            >
+              Leave Organization
+            </Button>
+          </div>
+        )}
       </Card>
 
     </div>
