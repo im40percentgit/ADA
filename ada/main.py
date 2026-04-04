@@ -44,6 +44,7 @@ from ada.agents.daily_summary_generator import DailySummaryGenerator
 from ada.agents.board_suggestion import BoardSuggestionAgent
 from ada.notifications.dispatcher import NotificationDispatcher
 from ada.agents.session_summarizer import SessionSummarizer
+from ada.agents.treatment_progress import TreatmentProgressTracker
 from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.agents.transcription import TranscriptionAgent
 
@@ -219,6 +220,9 @@ async def run(config: AdaConfig) -> None:
     # Infrastructure subscribers (not registry-managed)
     summarizer = SessionSummarizer(bus, state, router.get_provider("session_summarizer"))
     log.info("SessionSummarizer instantiated")
+
+    treatment_progress_tracker = TreatmentProgressTracker(bus, state)
+    log.info("TreatmentProgressTracker instantiated")
 
     daily_summary_generator: DailySummaryGenerator | None = None
     if config.agents.daily_summary.enabled:
