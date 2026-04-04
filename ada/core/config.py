@@ -280,6 +280,27 @@ class SecurityConfig(BaseModel):
     ]
 
 
+class NetworkConfig(BaseModel):
+    """LAN and network binding configuration (Phase 11b PWA).
+
+    Separates network-layer concerns (bind address, CORS allowlist) from
+    general API config so the LAN dev script can override bind_host and
+    cors_origins without touching the API host/port used by uvicorn.
+
+    @decision DEC-PWA-003
+    @title Separate NetworkConfig for LAN bind/CORS override
+    @status accepted
+    @rationale The existing APIConfig.host controls the uvicorn bind address.
+        Adding a dedicated NetworkConfig lets the LAN dev script set
+        ADA_NETWORK__BIND_HOST=0.0.0.0 and inject LAN origins into CORS
+        without ambiguity. app.py reads network.cors_origins and merges them
+        with api.cors_origins so localhost and LAN origins coexist.
+    """
+
+    bind_host: str = "127.0.0.1"
+    cors_origins: list[str] = ["http://localhost:5173"]
+
+
 class APIConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
@@ -348,6 +369,7 @@ class AdaConfig(BaseSettings):
     llm: LLMConfig = LLMConfig()
     agents: AgentsConfig = AgentsConfig()
     api: APIConfig = APIConfig()
+    network: NetworkConfig = NetworkConfig()
     auth: AuthConfig = AuthConfig()
     database: DatabaseConfig = DatabaseConfig()
     logging: LoggingConfig = LoggingConfig()

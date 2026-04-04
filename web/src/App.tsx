@@ -48,6 +48,7 @@ import { ResetPassword } from './components/ResetPassword'
 import { CaregiverDashboard } from './components/CaregiverDashboard'
 import { PatientDashboard } from './components/PatientDashboard'
 import { ConnectionStatus } from './components/ConnectionStatus'
+import { InstallBanner } from './components/InstallBanner'
 import { useAuth } from './hooks/useAuth'
 import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
 import './App.css'
@@ -92,33 +93,46 @@ export default function App() {
     )
   }
 
+  // InstallBanner is rendered as a portal-like overlay before the main tree
+  // so it appears regardless of auth state or current view.
+  const installBanner = <InstallBanner />
+
   // Unauthenticated — show login/register/forgot-password/reset-password
   if (!isAuthenticated) {
     if (authView === 'forgot-password') {
       return (
-        <ForgotPassword onBack={() => setAuthView('login')} />
+        <>
+          {installBanner}
+          <ForgotPassword onBack={() => setAuthView('login')} />
+        </>
       )
     }
     if (authView === 'reset-password') {
       return (
-        <ResetPassword
-          token={resetToken}
-          onSuccess={() => {
-            setResetSuccessMsg('Password updated. Please sign in with your new password.')
-            window.location.hash = ''
-            setAuthView('login')
-          }}
-          onBack={() => setAuthView('login')}
-        />
+        <>
+          {installBanner}
+          <ResetPassword
+            token={resetToken}
+            onSuccess={() => {
+              setResetSuccessMsg('Password updated. Please sign in with your new password.')
+              window.location.hash = ''
+              setAuthView('login')
+            }}
+            onBack={() => setAuthView('login')}
+          />
+        </>
       )
     }
     return (
-      <Login
-        onLogin={login}
-        onRegister={register}
-        error={resetSuccessMsg ?? error}
-        onForgotPassword={() => setAuthView('forgot-password')}
-      />
+      <>
+        {installBanner}
+        <Login
+          onLogin={login}
+          onRegister={register}
+          error={resetSuccessMsg ?? error}
+          onForgotPassword={() => setAuthView('forgot-password')}
+        />
+      </>
     )
   }
 
@@ -126,6 +140,7 @@ export default function App() {
   if (currentUser?.role === 'caregiver') {
     return (
       <div className="app">
+        {installBanner}
         <CaregiverDashboard onLogout={logout} />
       </div>
     )
@@ -136,6 +151,7 @@ export default function App() {
 
   return (
     <div className="app">
+      {installBanner}
       <ConnectionStatus status={chatWsStatus} />
 
       {/* Sidebar */}

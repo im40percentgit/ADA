@@ -100,10 +100,14 @@ def create_app(
     # Security headers + body size enforcement
     app.add_middleware(SecurityHeadersMiddleware, security_config=config.security)
 
-    # Outermost: CORS — strict allow-lists from config (no wildcards)
+    # Outermost: CORS — strict allow-lists from config (no wildcards).
+    # Merge api.cors_origins with network.cors_origins so the LAN dev script
+    # can add extra origins (e.g. http://192.168.1.x:5173) without losing
+    # the default localhost origin.
+    _cors_origins = list({*config.api.cors_origins, *config.network.cors_origins})
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=config.api.cors_origins,
+        allow_origins=_cors_origins,
         allow_credentials=True,
         allow_methods=config.security.cors_allow_methods,
         allow_headers=config.security.cors_allow_headers,
