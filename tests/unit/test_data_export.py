@@ -1,5 +1,5 @@
 """
-Unit tests for CSV data export endpoints (Phase 14c, Task 1).
+Unit tests for CSV data export endpoints (Phase 14c, Task 1 + T1b).
 
 Tests use a real in-memory SQLite StateManager and FastAPI TestClient with
 dependency_overrides to inject authenticated users without real JWTs —
@@ -8,8 +8,9 @@ the same pattern as test_organization_routes.py and test_treatment_plans.py.
 Coverage:
   GET /api/patients/{id}/export/assessments
   GET /api/patients/{id}/export/mood
-  GET /api/patients/{id}/export/medications
+  GET /api/patients/{id}/export/medications  (adherence logs, not medication list)
   GET /api/patients/{id}/export/sessions
+  GET /api/patients/{id}/export/wellbeing    (WHO-5 assessments only)
 
 For each endpoint:
   - 200 with valid CSV body (parseable via csv.reader)
@@ -83,6 +84,9 @@ _PATIENT_B_ID = "patient-b-001"
 _SESSION_ID = "session-001"
 _MEDICATION_ID = "medication-001"
 _ASSESSMENT_ID = "assessment-001"
+_WHO5_ASSESSMENT_ID = "assessment-who5-001"
+_MED_LOG_ID_1 = "medlog-001"
+_MED_LOG_ID_2 = "medlog-002"
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +118,11 @@ async def state() -> StateManager:
     In-memory StateManager with:
       - 2 orgs (A, B)
       - 2 users (A in org A, B in org B)
-      - patient A in org A with session, assessment, medication
+      - patient A in org A with:
+          - 1 session (with mood data)
+          - 1 PHQ-9 assessment
+          - 1 WHO-5 assessment
+          - 1 medication with 2 adherence log entries
       - patient B in org B with no data (for empty + isolation tests)
     """
     sm = StateManager(":memory:")
@@ -175,11 +183,30 @@ async def state() -> StateManager:
         "total_score": 5, "severity": "mild", "timestamp": "2025-01-15T10:30:00",
     })
 
+    # WHO-5 assessment for patient A (separate from the PHQ-9 above)
+    await sm.save_assessment({
+        "id": _WHO5_ASSESSMENT_ID, "patient_id": _PATIENT_A_ID,
+        "instrument": "who5", "item_scores": [3, 2, 3, 2, 3],
+        "total_score": 52, "severity": "below_threshold", "timestamp": "2025-01-20T14:00:00",
+    })
+
     # Medication for patient A
     await sm.create_medication({
         "id": _MEDICATION_ID, "patient_id": _PATIENT_A_ID,
         "name": "Sertraline 50mg", "active": 1,
         "created_at": "2025-01-10T09:00:00", "updated_at": "2025-01-10T09:00:00",
+    })
+
+    # Adherence logs for the medication (two entries: taken then skipped)
+    await sm.create_medication_log({
+        "id": _MED_LOG_ID_1, "medication_id": _MEDICATION_ID, "patient_id": _PATIENT_A_ID,
+        "taken_at": "2025-01-15T08:00:00", "status": "taken",
+        "created_at": "2025-01-15T08:00:00",
+    })
+    await sm.create_medication_log({
+        "id": _MED_LOG_ID_2, "medication_id": _MEDICATION_ID, "patient_id": _PATIENT_A_ID,
+        "taken_at": "2025-01-14T08:00:00", "status": "skipped",
+        "created_at": "2025-01-14T08:00:00",
     })
 
     yield sm
@@ -228,15 +255,22 @@ def _assert_csv_response(resp, expected_headers: list[str], export_type: str, pa
 # ===========================================================================
 
 def test_export_assessments_200(state):
-    """Returns 200 with valid CSV, correct headers, and one data row."""
+    """Returns 200 with valid CSV, correct headers, and one row per assessment.
+
+    Fixture seeds 2 assessments for patient A: a WHO-5 (2025-01-20) and a
+    PHQ-9 (2025-01-15). Both appear in the all-instruments export, newest first.
+    """
     with _client(state, _USER_A) as client:
         resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/assessments")
     rows = _assert_csv_response(resp, ["date", "instrument", "scores", "total", "severity"], "assessments", _PATIENT_A_ID)
-    assert len(rows) == 2, f"Expected header + 1 data row, got {len(rows)}: {rows}"
-    assert rows[1][0] == "2025-01-15"
-    assert rows[1][1] == "phq9"
-    assert rows[1][3] == "5"
-    assert rows[1][4] == "mild"
+    assert len(rows) == 3, f"Expected header + 2 data rows, got {len(rows)}: {rows}"
+    # Newest first: WHO-5 at row 1, PHQ-9 at row 2
+    assert rows[1][0] == "2025-01-20"
+    assert rows[1][1] == "who5"
+    assert rows[2][0] == "2025-01-15"
+    assert rows[2][1] == "phq9"
+    assert rows[2][3] == "5"
+    assert rows[2][4] == "mild"
 
 
 def test_export_assessments_no_auth(state):
@@ -306,18 +340,27 @@ def test_export_mood_empty(state):
 
 
 # ===========================================================================
-# Medications export
+# Medications export  (adherence logs — one row per log event)
 # ===========================================================================
 
 def test_export_medications_200(state):
-    """Returns 200 with valid CSV, correct headers, and one data row."""
+    """Returns 200 with valid CSV, correct headers, and one row per adherence log.
+
+    Fixture seeds 2 logs for Sertraline 50mg (taken 2025-01-15, skipped 2025-01-14).
+    Rows should arrive newest-first: taken row before skipped row.
+    """
     with _client(state, _USER_A) as client:
         resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/medications")
     rows = _assert_csv_response(resp, ["date", "medication", "status"], "medications", _PATIENT_A_ID)
-    assert len(rows) == 2, f"Expected header + 1 data row, got {len(rows)}"
-    assert rows[1][0] == "2025-01-10"
+    assert len(rows) == 3, f"Expected header + 2 log rows, got {len(rows)}: {rows}"
+    # Newest first (2025-01-15 taken)
+    assert rows[1][0] == "2025-01-15T08:00:00"
     assert rows[1][1] == "Sertraline 50mg"
-    assert rows[1][2] == "active"
+    assert rows[1][2] == "taken"
+    # Older entry (2025-01-14 skipped)
+    assert rows[2][0] == "2025-01-14T08:00:00"
+    assert rows[2][1] == "Sertraline 50mg"
+    assert rows[2][2] == "skipped"
 
 
 def test_export_medications_no_auth(state):
@@ -334,12 +377,15 @@ def test_export_medications_tenant_isolation(state):
     assert resp.status_code == 404
 
 
-def test_export_medications_empty(state):
-    """Patient with no medications returns header-only CSV."""
+def test_export_medications_no_logs(state):
+    """Patient with medications but no adherence logs returns header-only CSV.
+
+    Patient B has no medications at all, so no logs either.
+    """
     with _client(state, _USER_B) as client:
         resp = client.get(f"/api/patients/{_PATIENT_B_ID}/export/medications")
     rows = _assert_csv_response(resp, ["date", "medication", "status"], "medications", _PATIENT_B_ID)
-    assert len(rows) == 1
+    assert len(rows) == 1, f"Expected header-only CSV, got {len(rows)} rows"
 
 
 # ===========================================================================
@@ -407,4 +453,70 @@ def test_content_disposition_filename_sessions(state):
         resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/sessions")
     disposition = resp.headers.get("content-disposition", "")
     assert f"sessions_{_PATIENT_A_ID}_" in disposition
+    assert ".csv" in disposition
+
+
+# ===========================================================================
+# Wellbeing export  (WHO-5 assessments only)
+# ===========================================================================
+
+def test_export_wellbeing_200(state):
+    """Returns 200 with valid CSV, correct headers, and one WHO-5 row."""
+    with _client(state, _USER_A) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/wellbeing")
+    rows = _assert_csv_response(resp, ["date", "score", "severity"], "wellbeing", _PATIENT_A_ID)
+    assert len(rows) == 2, f"Expected header + 1 data row, got {len(rows)}: {rows}"
+    assert rows[1][0] == "2025-01-20"
+    assert rows[1][1] == "52"
+    assert rows[1][2] == "below_threshold"
+
+
+def test_export_wellbeing_no_auth(state):
+    """Returns 401 when no auth token is provided."""
+    with _client(state, None) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/wellbeing")
+    assert resp.status_code == 401
+
+
+def test_export_wellbeing_tenant_isolation(state):
+    """User from org B cannot export org A patient wellbeing — returns 404."""
+    with _client(state, _USER_B) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/wellbeing")
+    assert resp.status_code == 404
+
+
+def test_export_wellbeing_patient_not_found(state):
+    """Nonexistent patient returns 404."""
+    with _client(state, _USER_A) as client:
+        resp = client.get("/api/patients/no-such-patient/export/wellbeing")
+    assert resp.status_code == 404
+
+
+def test_export_wellbeing_empty(state):
+    """Patient with no WHO-5 assessments returns header-only CSV."""
+    with _client(state, _USER_B) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_B_ID}/export/wellbeing")
+    rows = _assert_csv_response(resp, ["date", "score", "severity"], "wellbeing", _PATIENT_B_ID)
+    assert len(rows) == 1, f"Expected header-only CSV, got {len(rows)} rows"
+
+
+def test_export_wellbeing_filters_non_who5(state):
+    """Only WHO-5 assessments appear — PHQ-9 row from same patient is excluded.
+
+    Fixture seeds one PHQ-9 (assessment-001) and one WHO-5 (assessment-who5-001)
+    for patient A. Wellbeing export must return only the WHO-5 row.
+    """
+    with _client(state, _USER_A) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/wellbeing")
+    rows = _assert_csv_response(resp, ["date", "score", "severity"], "wellbeing", _PATIENT_A_ID)
+    assert len(rows) == 2, f"Expected header + 1 WHO-5 row only, got {len(rows)}: {rows}"
+    assert rows[1][0] == "2025-01-20"   # WHO-5 date, not PHQ-9 date (2025-01-15)
+
+
+def test_export_wellbeing_filename_format(state):
+    """Filename follows pattern: wellbeing_{patient_id}_{date}.csv"""
+    with _client(state, _USER_A) as client:
+        resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/wellbeing")
+    disposition = resp.headers.get("content-disposition", "")
+    assert f"wellbeing_{_PATIENT_A_ID}_" in disposition
     assert ".csv" in disposition

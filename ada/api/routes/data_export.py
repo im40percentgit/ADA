@@ -1,11 +1,12 @@
 """
 CSV data export endpoints for patient data.
 
-Provides four endpoints that return patient data as downloadable CSV files:
+Provides five endpoints that return patient data as downloadable CSV files:
   GET /api/patients/{id}/export/assessments
   GET /api/patients/{id}/export/mood
   GET /api/patients/{id}/export/medications
   GET /api/patients/{id}/export/sessions
+  GET /api/patients/{id}/export/wellbeing
 
 Each endpoint:
   - Requires authentication via get_current_user
@@ -13,15 +14,21 @@ Each endpoint:
   - Queries existing StateManager methods — no new state methods needed
   - Returns StreamingResponse with text/csv content type and attachment disposition
 
+mood vs wellbeing distinction:
+  /export/mood   — session check-ins (mood_start / mood_end on Session records)
+  /export/wellbeing — formal WHO-5 instrument scores (assessment_results table)
+  Both endpoints coexist by design: mood = quick per-session ratings,
+  wellbeing = clinician-administered WHO-5 assessment timeline.
+
 @decision DEC-EXPORT-001
 @title CSV formatting is inline per-endpoint, not a shared helper
 @status accepted
-@rationale There are exactly 4 export endpoints with 4 distinct schemas.
+@rationale There are exactly 5 export endpoints with 5 distinct schemas.
     Extracting a shared CSV helper would require parameterising headers,
     row-building callables, and streaming logic — adding abstraction for
-    4 call sites that share no meaningful common logic beyond the stdlib
+    5 call sites that share no meaningful common logic beyond the stdlib
     csv.writer/io.StringIO primitives. Each endpoint is self-contained and
-    readable as written. If a fifth or sixth export type is added (e.g.
+    readable as written. If further export types are added (e.g.
     care circle activity, cognitive screenings), a shared helper can be
     introduced with genuine reuse at that point.
 
@@ -29,11 +36,11 @@ Each endpoint:
 @title Endpoints query existing StateManager methods without adding new ones
 @status accepted
 @rationale Task 1 scope is limited to exposing existing data as CSV. Adding
-    new StateManager methods (e.g. get_mood_history) would require new SQL,
-    new tests for those methods, and a broader diff — all out of scope here.
-    All four data types (assessments, mood-via-sessions, medications,
-    sessions) are fully queryable with existing methods. This keeps the diff
-    minimal and the risk contained.
+    new StateManager methods would require new SQL, new tests for those
+    methods, and a broader diff — all out of scope here. All five data types
+    (assessments, mood-via-sessions, medication-adherence-logs,
+    sessions, WHO-5-wellbeing) are fully queryable with existing methods.
+    This keeps the diff minimal and the risk contained.
 """
 
 from __future__ import annotations
@@ -202,34 +209,34 @@ async def export_medications(
     tenant: TenantContext = Depends(get_tenant_context),
     state: StateManager = Depends(_state),
 ) -> StreamingResponse:
-    """Export medication list as CSV.
+    """Export medication adherence logs as CSV.
 
     Columns: date, medication, status
 
-    date = created_at (when the medication was prescribed/recorded).
-    status = active or inactive (derived from the active flag).
-    All medications (active and inactive) are included so the export
-    represents the full medication history.
+    Each row represents one adherence log event — taken, skipped, or missed —
+    rather than one row per medication. This matches the spec: "Medication Logs
+    → CSV: date, medication, status (taken/skipped/missed)".
+
+    All medications (active and inactive) are included so no adherence history
+    is omitted. Rows are sorted by date descending (newest first), which requires
+    a merge-sort across medications because logs are ordered per-medication.
     """
     await _resolve_patient(patient_id, state, tenant)
     medications = await state.list_medications(patient_id, active_only=False)
 
     rows: list[list[Any]] = []
     for m in medications:
-        active_flag = m.get("active")
-        # active may be stored as 1/0 (SQLite integer) or True/False
-        if isinstance(active_flag, int):
-            status_str = "active" if active_flag else "inactive"
-        elif isinstance(active_flag, bool):
-            status_str = "active" if active_flag else "inactive"
-        else:
-            status_str = "unknown"
+        logs = await state.get_medication_logs(m["id"])
+        for log in logs:
+            rows.append([
+                log.get("taken_at", ""),
+                m.get("name", ""),
+                log.get("status", ""),
+            ])
 
-        rows.append([
-            (m.get("created_at") or "")[:10],
-            m.get("name", ""),
-            status_str,
-        ])
+    # Re-sort after merging logs across multiple medications (each medication's
+    # logs arrive ordered DESC individually, but the merged list needs global sort).
+    rows.sort(key=lambda r: r[0] or "", reverse=True)
 
     filename = f"medications_{patient_id}_{_today()}.csv"
     return _csv_response(rows, ["date", "medication", "status"], filename)
@@ -287,3 +294,44 @@ async def export_sessions(
 
     filename = f"sessions_{patient_id}_{_today()}.csv"
     return _csv_response(rows, ["date", "duration", "mood_start", "mood_end", "summary_excerpt"], filename)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/patients/{patient_id}/export/wellbeing
+# ---------------------------------------------------------------------------
+
+@router.get("/patients/{patient_id}/export/wellbeing")
+async def export_wellbeing(
+    patient_id: str,
+    request: Request,
+    _user: User = Depends(get_current_user),
+    tenant: TenantContext = Depends(get_tenant_context),
+    state: StateManager = Depends(_state),
+) -> StreamingResponse:
+    """Export WHO-5 wellbeing assessment timeline as CSV.
+
+    Columns: date, score, severity
+
+    Only WHO-5 assessments are included (instrument = "who5"). This endpoint
+    is distinct from /export/mood, which exports per-session mood check-ins
+    (mood_start / mood_end on Session records). The two endpoints coexist:
+      - /export/mood    — quick session-level mood ratings (1 row per session)
+      - /export/wellbeing — formal WHO-5 instrument scores (1 row per assessment)
+
+    date is the date portion of the assessment timestamp (ISO 8601, UTC).
+    score is the WHO-5 total_score (0–100 scale after × 4 conversion).
+    severity is the categorical label stored alongside the score.
+    """
+    await _resolve_patient(patient_id, state, tenant)
+    assessments = await state.get_assessments(patient_id, instrument="who5")
+
+    rows: list[list[Any]] = []
+    for a in assessments:
+        rows.append([
+            (a.get("timestamp") or "")[:10],   # date portion of ISO timestamp
+            a.get("total_score", ""),
+            a.get("severity", ""),
+        ])
+
+    filename = f"wellbeing_{patient_id}_{_today()}.csv"
+    return _csv_response(rows, ["date", "score", "severity"], filename)
