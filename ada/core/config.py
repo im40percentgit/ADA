@@ -366,6 +366,26 @@ class ModelRoutingConfig(BaseModel):
     default_profile: str = "conversational"
 
 
+class RetentionConfig(BaseModel):
+    """Data retention policy configuration (Phase 14c).
+
+    Controls how long different categories of data are retained before they
+    become eligible for cleanup via the admin retention endpoint.
+
+    session_data_days: retain session records, messages, and related
+        analytics (assessments, medications) for this many days.
+    audit_log_days: retain audit log entries for this many days. Typically
+        longer than session data to satisfy compliance requirements.
+    export_temp_days: retain temporary export artefacts for this many days.
+        Defined here for future use by a scheduled cleanup job; not yet
+        consumed by the retention cleanup endpoint.
+    """
+
+    session_data_days: int = 365
+    audit_log_days: int = 730
+    export_temp_days: int = 7
+
+
 # ---------------------------------------------------------------------------
 # Root config
 # ---------------------------------------------------------------------------
@@ -401,6 +421,7 @@ class AdaConfig(BaseSettings):
     progress_report: ProgressReportConfig = ProgressReportConfig()
     companion: CompanionConfig = CompanionConfig()
     model_routing: ModelRoutingConfig | None = None
+    retention: RetentionConfig = RetentionConfig()
 
     @classmethod
     def from_toml(cls, *paths: str | Path) -> "AdaConfig":

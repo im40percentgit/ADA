@@ -568,6 +568,31 @@ CREATE TABLE IF NOT EXISTS treatment_interventions (
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_treatment_interventions_goal ON treatment_interventions(goal_id);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    action      TEXT NOT NULL,
+    resource    TEXT NOT NULL,
+    resource_id TEXT,
+    details     TEXT NOT NULL DEFAULT '{}',
+    ip_address  TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_resource ON audit_log(resource, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+
+CREATE TABLE IF NOT EXISTS consent_records (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL REFERENCES users(id),
+    consent_type    TEXT NOT NULL,
+    granted         INTEGER NOT NULL DEFAULT 1,
+    version         TEXT NOT NULL DEFAULT '1.0',
+    granted_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    revoked_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_consent_user ON consent_records(user_id);
 """
 
 
@@ -2645,6 +2670,247 @@ class StateManager:
         return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
+    # Consent records (Phase 14c)
+    # ------------------------------------------------------------------
+
+    async def get_user_consents(self, user_id: str) -> list[dict[str, Any]]:
+        """Return all consent records for a user.
+
+        Args:
+            user_id: User UUID.
+
+        Returns:
+            List of dicts with all consent_records columns, with ``granted``
+            converted from INTEGER to bool.
+        """
+        rows = await self._fetchall(
+            "SELECT * FROM consent_records WHERE user_id = ? ORDER BY consent_type",
+            (user_id,),
+        )
+        return [_consent_row(r) for r in rows]
+
+    async def set_consent(
+        self,
+        user_id: str,
+        consent_type: str,
+        granted: bool,
+        version: str = "1.0",
+    ) -> None:
+        """Upsert a consent record.
+
+        If *granted* is True, sets granted=1, granted_at=now, revoked_at=NULL.
+        If *granted* is False, sets granted=0, revoked_at=now (granted_at preserved).
+
+        Uses INSERT ... ON CONFLICT to upsert by (user_id, consent_type).
+        Since the table has no UNIQUE on (user_id, consent_type), we first
+        check for an existing row and update or insert accordingly.
+        """
+        import uuid as _uuid
+
+        now = _now()
+        existing = await self._fetchone(
+            "SELECT id FROM consent_records WHERE user_id = ? AND consent_type = ?",
+            (user_id, consent_type),
+        )
+        if existing is not None:
+            if granted:
+                await self._exec(
+                    "UPDATE consent_records SET granted = 1, version = ?, granted_at = ?, revoked_at = NULL WHERE id = ?",
+                    (version, now, existing["id"]),
+                )
+            else:
+                await self._exec(
+                    "UPDATE consent_records SET granted = 0, version = ?, revoked_at = ? WHERE id = ?",
+                    (version, now, existing["id"]),
+                )
+        else:
+            record_id = str(_uuid.uuid4())
+            if granted:
+                await self._exec(
+                    "INSERT INTO consent_records (id, user_id, consent_type, granted, version, granted_at, revoked_at) VALUES (?, ?, ?, 1, ?, ?, NULL)",
+                    (record_id, user_id, consent_type, version, now),
+                )
+            else:
+                await self._exec(
+                    "INSERT INTO consent_records (id, user_id, consent_type, granted, version, granted_at, revoked_at) VALUES (?, ?, ?, 0, ?, ?, ?)",
+                    (record_id, user_id, consent_type, version, now, now),
+                )
+
+    # ------------------------------------------------------------------
+    # Audit log (Phase 14c export-compliance)
+    # ------------------------------------------------------------------
+
+    async def create_audit_entry(self, entry: dict[str, Any]) -> None:
+        """Insert an append-only audit log entry.
+
+        Args:
+            entry: Dict with keys: id, user_id, action, resource.
+                   Optional: resource_id, details (dict or JSON str), ip_address.
+                   created_at defaults to now if omitted.
+        """
+        details = entry.get("details", {})
+        if not isinstance(details, str):
+            details = json.dumps(details)
+        await self._exec(
+            """INSERT INTO audit_log
+               (id, user_id, action, resource, resource_id, details, ip_address, created_at)
+               VALUES (:id, :user_id, :action, :resource, :resource_id, :details, :ip_address, :created_at)""",
+            {
+                "resource_id": None,
+                "ip_address": None,
+                **entry,
+                "details": details,
+                "created_at": entry.get("created_at", _now()),
+            },
+        )
+
+    async def query_audit_log(
+        self,
+        *,
+        user_id: str | None = None,
+        action: str | None = None,
+        resource: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Query audit log entries with optional filters.
+
+        All filters are optional and combined with AND. Results are ordered
+        newest-first, capped at *limit*.
+
+        Args:
+            user_id: Filter by acting user.
+            action: Filter by action name (e.g. 'export', 'login').
+            resource: Filter by resource type (e.g. 'patient', 'session').
+            from_date: ISO datetime lower bound (inclusive).
+            to_date: ISO datetime upper bound (inclusive).
+            limit: Maximum rows to return (default 100).
+
+        Returns:
+            List of audit log dicts with details JSON-decoded.
+        """
+        clauses: list[str] = []
+        params: dict[str, Any] = {}
+
+        if user_id is not None:
+            clauses.append("user_id = :user_id")
+            params["user_id"] = user_id
+        if action is not None:
+            clauses.append("action = :action")
+            params["action"] = action
+        if resource is not None:
+            clauses.append("resource = :resource")
+            params["resource"] = resource
+        if from_date is not None:
+            clauses.append("created_at >= :from_date")
+            params["from_date"] = from_date
+        if to_date is not None:
+            clauses.append("created_at <= :to_date")
+            params["to_date"] = to_date
+
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        params["limit"] = limit
+
+        rows = await self._fetchall(
+            f"SELECT * FROM audit_log{where} ORDER BY created_at DESC LIMIT :limit",
+            params,
+        )
+        return [_audit_log_row(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Data retention (Phase 14c)
+    # ------------------------------------------------------------------
+
+    async def count_records_for_retention(
+        self,
+        session_data_days: int = 365,
+        audit_log_days: int = 730,
+    ) -> dict[str, int]:
+        """Count records older than the configured retention windows.
+
+        Returns a dict with counts per category. No data is deleted.
+        Uses SQLite datetime functions for threshold calculation
+        so the comparison is consistent with SQLite internal datetime handling.
+
+        Args:
+            session_data_days: Sessions (and linked messages) older than this
+                many days are counted.
+            audit_log_days: Audit log entries older than this many days.
+
+        Returns:
+            Dict mapping category name to count of eligible records.
+        """
+        assert self._conn is not None, "StateManager not initialized"
+
+        async def _count(sql: str, params: dict) -> int:
+            async with self._conn.execute(sql, params) as cur:
+                row = await cur.fetchone()
+                return row[0] if row else 0
+
+        sessions_count = await _count(
+            "SELECT COUNT(*) FROM sessions WHERE started_at < datetime('now', :delta)",
+            {"delta": f"-{session_data_days} days"},
+        )
+        audit_count = await _count(
+            "SELECT COUNT(*) FROM audit_log WHERE created_at < datetime('now', :delta)",
+            {"delta": f"-{audit_log_days} days"},
+        )
+
+        return {
+            "sessions": sessions_count,
+            "audit_log": audit_count,
+        }
+
+    async def delete_records_for_retention(
+        self,
+        session_data_days: int = 365,
+        audit_log_days: int = 730,
+    ) -> dict[str, int]:
+        """Delete records older than the configured retention windows.
+
+        Deletes sessions (and their linked messages) and audit log entries.
+        Returns a dict with the count of deleted rows per category.
+
+        Args:
+            session_data_days: Delete sessions older than this many days.
+            audit_log_days: Delete audit log entries older than this many days.
+
+        Returns:
+            Dict mapping category name to count of deleted records.
+        """
+        assert self._conn is not None, "StateManager not initialized"
+
+        # Count first so we can report accurate deleted counts
+        counts = await self.count_records_for_retention(
+            session_data_days=session_data_days,
+            audit_log_days=audit_log_days,
+        )
+
+        # Delete messages for sessions that will be removed (FK may not cascade)
+        await self._conn.execute(
+            """DELETE FROM messages WHERE session_id IN (
+               SELECT id FROM sessions
+               WHERE started_at < datetime('now', :delta)
+            )""",
+            {"delta": f"-{session_data_days} days"},
+        )
+
+        await self._conn.execute(
+            "DELETE FROM sessions WHERE started_at < datetime('now', :delta)",
+            {"delta": f"-{session_data_days} days"},
+        )
+
+        await self._conn.execute(
+            "DELETE FROM audit_log WHERE created_at < datetime('now', :delta)",
+            {"delta": f"-{audit_log_days} days"},
+        )
+
+        await self._conn.commit()
+
+        return counts
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -2753,6 +3019,20 @@ def _board_item_row(row) -> dict[str, Any] | None:
     d["checked"] = bool(d.get("checked", 0))
     d["suggested_by_ada"] = bool(d.get("suggested_by_ada", 0))
     d["approved"] = bool(d.get("approved", 1))
+    return d
+
+
+def _consent_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize a consent_records row — convert granted INTEGER to bool."""
+    d = dict(row)
+    d["granted"] = bool(d.get("granted", 0))
+    return d
+
+
+def _audit_log_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize an audit_log row — JSON-decode details."""
+    d = dict(row)
+    d["details"] = json.loads(d.get("details") or "{}")
     return d
 
 

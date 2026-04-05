@@ -144,3 +144,8 @@ cognitive_assessor = "reasoning"
 medication_manager = "reasoning"
 knowledge = "lightweight"
 session_summarizer = "conversational"
+
+[retention]
+session_data_days = 365
+audit_log_days = 730
+export_temp_days = 7

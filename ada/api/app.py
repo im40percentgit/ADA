@@ -40,7 +40,7 @@ from fastapi.responses import JSONResponse
 from ada.api.middleware.logging import StructlogRequestMiddleware
 from ada.api.middleware.rate_limit import RateLimitMiddleware
 from ada.api.middleware.security_headers import SecurityHeadersMiddleware
-from ada.api.routes import alerts, appointments, assessments, auth, boards, caregiver, chat, circles, clinician_notes, cognitive, companion, daily_summaries, data_export, knowledge, media, medications, notifications, onboarding, organizations, password_reset, patients, prescribing_notes, progress_report, screening_interact, sessions, simulator, treatment_plans
+from ada.api.routes import alerts, appointments, assessments, audit_log, auth, boards, caregiver, chat, circles, clinician_notes, cognitive, companion, consent, daily_summaries, data_export, knowledge, media, medications, notifications, onboarding, organizations, password_reset, patients, prescribing_notes, progress_report, retention, screening_interact, sessions, simulator, treatment_plans
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
@@ -142,7 +142,10 @@ def create_app(
     app.include_router(organizations.router, prefix="/api")      # /api/organizations/*
     app.include_router(prescribing_notes.router, prefix="/api") # /api/patients/*/prescribing-notes
     app.include_router(treatment_plans.router, prefix="/api")  # /api/treatment-plans/*, /api/patients/*/treatment-plans
-    app.include_router(data_export.router, prefix="/api")    # /api/patients/*/export/*
+    app.include_router(data_export.router, prefix="/api")     # /api/patients/*/export/*
+    app.include_router(consent.router, prefix="/api")         # /api/consent
+    app.include_router(audit_log.router, prefix="/api")       # /api/audit-log
+    app.include_router(retention.router, prefix="/api")       # /api/admin/retention
 
     @app.get("/health")
     async def health() -> dict:
