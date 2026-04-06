@@ -31,6 +31,8 @@ import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { Input } from './ui/Input'
 import { useCompanionPreferences } from '../hooks/useCompanionPreferences'
+import { ExportDataSection } from './ExportDataSection'
+import { ConsentManager } from './ConsentManager'
 import type { CompanionPreferences, Organization, OrganizationMember } from '../types'
 import {
   getMyOrganization,
@@ -49,6 +51,8 @@ export interface SettingsPageProps {
   onLogout: () => void
   /** Email address to display in the Account section. */
   email?: string
+  /** Patient ID for CSV export section (optional — hidden when absent). */
+  patientId?: string
 }
 
 type Voice = CompanionPreferences['voice']
@@ -290,7 +294,7 @@ function VoiceButton({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function SettingsPage({ onLogout, email }: SettingsPageProps) {
+export function SettingsPage({ onLogout, email, patientId }: SettingsPageProps) {
   const { preferences, loading, update } = useCompanionPreferences()
 
   // Local form state — seeded from fetched preferences
@@ -634,6 +638,12 @@ export function SettingsPage({ onLogout, email }: SettingsPageProps) {
           </div>
         )}
       </Card>
+
+      {/* ── Export Section ──────────────────────────────────────── */}
+      {patientId && <ExportDataSection patientId={patientId} />}
+
+      {/* ── Privacy & Consent Section ────────────────────────── */}
+      <ConsentManager />
 
     </div>
   )

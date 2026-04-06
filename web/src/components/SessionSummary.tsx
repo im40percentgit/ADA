@@ -18,6 +18,7 @@
 
 import { useState, useEffect } from 'react'
 import { getSessionSummary } from '../api/client'
+import { usePdfExport } from '../hooks/usePdfExport'
 import type { SessionSummaryData } from '../types'
 import { ClinicianNotes } from './ClinicianNotes'
 import { Card } from './ui/Card'
@@ -60,6 +61,7 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
   const [data, setData] = useState<SessionSummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { exportToPdf, exporting } = usePdfExport()
 
   useEffect(() => {
     let cancelled = false
@@ -119,16 +121,27 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
 
   return (
     <div className="patient-dash" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
-      {/* Back button */}
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={onBack}
-        className="med-card__btn"
-      >
-        Back
-      </Button>
+      {/* Back button + PDF export */}
+      <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onBack}
+          className="med-card__btn"
+        >
+          Back
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => exportToPdf('export-session-summary', `session-summary-${sessionId}.pdf`)}
+          disabled={exporting}
+        >
+          {exporting ? 'Exporting...' : 'Download PDF'}
+        </Button>
+      </div>
 
+      <div id="export-session-summary">
       {/* Header */}
       <h1 style={{ margin: 'var(--space-md) 0', fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h1)' }}>
         Session — {formatDate(data.created_at)}
@@ -201,6 +214,7 @@ export function SessionSummary({ sessionId, onBack, role }: SessionSummaryProps)
       {/* Clinician Notes */}
       <div style={{ marginTop: 'var(--space-md)' }}>
         <ClinicianNotes entityType="session_summary" entityId={sessionId} role={role} />
+      </div>
       </div>
     </div>
   )

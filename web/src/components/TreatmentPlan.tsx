@@ -34,6 +34,7 @@ import {
   addIntervention,
 } from '../api/client'
 import type { TreatmentPlan as TreatmentPlanType, TreatmentGoal, TreatmentIntervention } from '../types'
+import { usePdfExport } from '../hooks/usePdfExport'
 
 export interface TreatmentPlanProps {
   patientId: string
@@ -191,9 +192,11 @@ function GoalCard({
           </div>
         </div>
       ) : (
-        <Button size="sm" variant="ghost" onClick={() => setShowForm(true)} style={{ marginTop: '8px' }}>
-          + Add Intervention
-        </Button>
+        <div style={{ marginTop: '8px' }}>
+          <Button size="sm" variant="ghost" onClick={() => setShowForm(true)}>
+            + Add Intervention
+          </Button>
+        </div>
       )}
     </Card>
   )
@@ -204,6 +207,7 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
   const [selectedPlan, setSelectedPlan] = useState<TreatmentPlanType | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { exportToPdf, exporting } = usePdfExport()
 
   // Add goal form state
   const [showGoalForm, setShowGoalForm] = useState(false)
@@ -353,6 +357,14 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
           <Button variant="ghost" size="sm" onClick={handleBackToList}>
             Back
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => exportToPdf('export-treatment-plan', `treatment-plan-${selectedPlan.id}.pdf`)}
+            disabled={exporting}
+          >
+            {exporting ? 'Exporting...' : 'Download PDF'}
+          </Button>
           <h2 style={{ margin: 0, fontSize: 'var(--size-h2)' }} data-testid="plan-title">
             {selectedPlan.title}
           </h2>
@@ -360,6 +372,8 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
             {selectedPlan.status}
           </Badge>
         </div>
+
+        <div id="export-treatment-plan">
 
         {selectedPlan.goals.length === 0 && (
           <p style={{ color: 'var(--color-text-muted)' }}>No goals yet.</p>
@@ -459,10 +473,14 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
             </div>
           </Card>
         ) : (
-          <Button onClick={() => setShowGoalForm(true)} style={{ marginTop: 'var(--space-md)' }}>
-            + Add Goal
-          </Button>
+          <div style={{ marginTop: 'var(--space-md)' }}>
+            <Button onClick={() => setShowGoalForm(true)}>
+              + Add Goal
+            </Button>
+          </div>
         )}
+
+        </div>
       </section>
     )
   }

@@ -670,3 +670,17 @@ export interface PrescribingNote {
   content: string
   created_at: string
 }
+
+// -- Consent Records (Phase 14c) -------------------------------------------
+
+export type ConsentType = 'data_collection' | 'ai_analysis' | 'data_sharing' | 'research'
+
+export interface ConsentRecord {
+  id: string
+  user_id: string
+  consent_type: ConsentType
+  granted: boolean
+  version: string
+  granted_at: string
+  revoked_at: string | null
+}

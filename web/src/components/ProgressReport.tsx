@@ -21,6 +21,7 @@
  */
 
 import { useProgressReport, type TimeRange } from '../hooks/useProgressReport'
+import { usePdfExport } from '../hooks/usePdfExport'
 import { WellbeingTrendChart } from './charts/WellbeingTrendChart'
 import { SessionFrequencyChart } from './charts/SessionFrequencyChart'
 import { EmotionDistribution } from './charts/EmotionDistribution'
@@ -45,6 +46,7 @@ const RANGES: { label: string; value: TimeRange }[] = [
 
 export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
   const { data, loading, error, range, setRange } = useProgressReport(patientId)
+  const { exportToPdf, exporting } = usePdfExport()
 
   if (loading) {
     return (
@@ -74,16 +76,27 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
 
   return (
     <div className="patient-dash" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
-      {/* Back button */}
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={onBack}
-        className="med-card__btn"
-      >
-        Back
-      </Button>
+      {/* Back button + PDF export */}
+      <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onBack}
+          className="med-card__btn"
+        >
+          Back
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => exportToPdf('export-progress-report', `progress-report-${range}.pdf`)}
+          disabled={exporting}
+        >
+          {exporting ? 'Exporting...' : 'Download PDF'}
+        </Button>
+      </div>
 
+      <div id="export-progress-report">
       <h1 className="sr-only">Progress Report</h1>
 
       {/* Time range pills */}
@@ -161,6 +174,7 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
         <AssessmentScores data={data.assessment_scores} />
       </Card>
       </section>
+      </div>
     </div>
   )
 }
