@@ -22,6 +22,7 @@
 
 import { useState, useEffect } from 'react'
 import { getCognitiveScreening } from '../api/client'
+import { usePdfExport } from '../hooks/usePdfExport'
 import type { CognitiveScreening } from '../types'
 import { ClinicianNotes } from './ClinicianNotes'
 import { Card } from './ui/Card'
@@ -194,6 +195,7 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
   const [data, setData] = useState<CognitiveScreening | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { exportToPdf, exporting } = usePdfExport()
 
   useEffect(() => {
     let cancelled = false
@@ -249,16 +251,27 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
 
   return (
     <div className="patient-dash" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
-      {/* Back button */}
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={onBack}
-        className="med-card__btn"
-      >
-        Back
-      </Button>
+      {/* Back button + PDF export */}
+      <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onBack}
+          className="med-card__btn"
+        >
+          Back
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => exportToPdf('export-screening-results', `screening-${screeningId}.pdf`)}
+          disabled={exporting}
+        >
+          {exporting ? 'Exporting...' : 'Download PDF'}
+        </Button>
+      </div>
 
+      <div id="export-screening-results">
       {/* Header card */}
       <Card style={{ marginTop: 'var(--space-md)' }}>
         <div
@@ -398,6 +411,7 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
       {/* Clinician Notes */}
       <div style={{ marginTop: 'var(--space-md)' }}>
         <ClinicianNotes entityType="cognitive_screening" entityId={screeningId} />
+      </div>
       </div>
     </div>
   )

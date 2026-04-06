@@ -502,6 +502,30 @@ export const handlers = [
       201,
     )
   }),
+
+  // -- Consent Records (Phase 14c) -------------------------------------------
+
+  http.get('/api/consent', () => {
+    return json([
+      { id: 'consent-1', user_id: 'user-1', consent_type: 'data_collection', granted: true, version: '1.0', granted_at: '2026-01-01T00:00:00Z', revoked_at: null },
+      { id: 'consent-2', user_id: 'user-1', consent_type: 'ai_analysis', granted: true, version: '1.0', granted_at: '2026-01-01T00:00:00Z', revoked_at: null },
+      { id: 'consent-3', user_id: 'user-1', consent_type: 'data_sharing', granted: false, version: '1.0', granted_at: '2026-01-01T00:00:00Z', revoked_at: '2026-02-01T00:00:00Z' },
+      { id: 'consent-4', user_id: 'user-1', consent_type: 'research', granted: false, version: '1.0', granted_at: '2026-01-01T00:00:00Z', revoked_at: '2026-02-01T00:00:00Z' },
+    ])
+  }),
+
+  http.put('/api/consent', async ({ request }) => {
+    const body = await request.json() as { consent_type: string; granted: boolean }
+    return json({
+      id: `consent-${body.consent_type}`,
+      user_id: 'user-1',
+      consent_type: body.consent_type,
+      granted: body.granted,
+      version: '1.0',
+      granted_at: new Date().toISOString(),
+      revoked_at: body.granted ? null : new Date().toISOString(),
+    })
+  }),
 ]
 
 // ---------------------------------------------------------------------------

@@ -69,6 +69,8 @@ import type {
   TreatmentGoal,
   TreatmentIntervention,
   PrescribingNote,
+  ConsentRecord,
+  ConsentType,
 } from '../types'
 import { getAccessToken, refresh as refreshToken } from './auth'
 
@@ -576,6 +578,25 @@ export function createPrescribingNote(
     method: 'POST',
     body: JSON.stringify(note),
   })
+}
+
+// -- Consent Records (Phase 14c) ----------------------------------------------
+
+export function getUserConsents(): Promise<ConsentRecord[]> {
+  return request<ConsentRecord[]>('/consent')
+}
+
+export function setConsent(consentType: ConsentType, granted: boolean): Promise<ConsentRecord> {
+  return request<ConsentRecord>('/consent', {
+    method: 'PUT',
+    body: JSON.stringify({ consent_type: consentType, granted }),
+  })
+}
+
+// -- CSV Export (Phase 14c) ---------------------------------------------------
+
+export function downloadExportCsv(patientId: string, exportType: string): void {
+  window.open(`/api/patients/${encodeURIComponent(patientId)}/export/${exportType}`)
 }
 
 // ---------------------------------------------------------------------------
