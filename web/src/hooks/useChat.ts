@@ -295,6 +295,10 @@ export function useChat(
     onMessage: handleMessage,
     onBinaryMessage: handleBinaryMessage,
     onStatusChange: handleStatusChange,
+    onOpen: (ws) => {
+      const token = localStorage.getItem('ADA_ACCESS_TOKEN')
+      ws.send(JSON.stringify({ type: 'auth', token: token ?? '' }))
+    },
   })
 
   const sendMessage = useCallback(
