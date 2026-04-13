@@ -404,6 +404,26 @@ class AdaConfig(BaseSettings):
         extra="ignore",
     )
 
+    # @decision DEC-CORE-003
+    # @title Env vars override init kwargs (TOML values)
+    # @status accepted
+    # @rationale pydantic-settings defaults init-kwargs > env-vars. from_toml
+    #   passes merged TOML as init kwargs, which silently defeated env-var
+    #   overrides despite the class docstring promising the opposite
+    #   ("overridden by environment variables"). Swapping env_settings before
+    #   init_settings here makes env vars win, restoring documented behavior
+    #   and unblocking LAN-dev-mode overrides like ADA_API__HOST=0.0.0.0.
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        return (env_settings, init_settings, dotenv_settings, file_secret_settings)
+
     llm: LLMConfig = LLMConfig()
     agents: AgentsConfig = AgentsConfig()
     api: APIConfig = APIConfig()
