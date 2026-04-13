@@ -58,6 +58,7 @@ import { ScreeningHistory } from './components/ScreeningHistory'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { InstallBanner } from './components/InstallBanner'
 import { AppShell } from './components/AppShell'
+import { SessionList } from './components/SessionList'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
 import { useAuth } from './hooks/useAuth'
 import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
@@ -314,9 +315,11 @@ export default function App() {
           activeSessionId ? (
             <Chat sessionId={activeSessionId} patientId={patientId} onWsStatusChange={setChatWsStatus} />
           ) : (
-            <div className="app__no-session">
-              <p>Select a session or start a new one to begin.</p>
-            </div>
+            <SessionList
+              patientId={patientId}
+              activeSessionId={activeSessionId}
+              onSelectSession={setActiveSessionId}
+            />
           )
         ) : view === 'settings' ? (
           <div style={{ padding: 'var(--space-lg)' }}>
