@@ -8,17 +8,24 @@
 #   var overrides rather than editing config files, so the default config
 #   stays localhost-only and LAN mode is an opt-in runtime flag. Vite's
 #   --host 0.0.0.0 is the standard way to expose the dev server on all
-#   interfaces. mkcert is optional — the script works over HTTP if not
-#   installed. qrencode is optional — the LAN URL is printed regardless.
+#   interfaces. HTTPS certs are passed to Vite via VITE_HTTPS_CERT and
+#   VITE_HTTPS_KEY env vars (read by web/vite.config.ts) because Vite 6
+#   removed the --https CLI flag. Backend is launched via `uv run python`
+#   to match the Makefile and ensure the project venv is used. LAN IP
+#   detection prefers 192.168.x.x physical-LAN addresses over VPN/tunnel
+#   interfaces; override with LAN_IP env var. mkcert is optional — the
+#   script works over HTTP if not installed. qrencode is optional — the
+#   LAN URL is printed regardless.
 #
 # Usage:
 #   ./scripts/lan-dev.sh
+#   LAN_IP=192.168.1.74 ./scripts/lan-dev.sh   # override auto-detection
 #
 # What it does:
-#   1. Detects the local LAN IP address
+#   1. Detects the local LAN IP address (or accepts LAN_IP override)
 #   2. Optionally generates mkcert TLS certs if mkcert is available
 #   3. Starts the Ada backend bound to 0.0.0.0 with LAN CORS origins
-#   4. Starts Vite with --host 0.0.0.0 (and --https if certs exist)
+#   4. Starts Vite with --host 0.0.0.0 (HTTPS via env vars if certs exist)
 #   5. Prints the LAN access URL (and QR code if qrencode is available)
 #
 # Cleanup:
@@ -34,8 +41,16 @@ CERTS_DIR="${REPO_ROOT}/tmp/lan-certs"
 # ---------------------------------------------------------------------------
 
 detect_lan_ip() {
-  # Try ip route first (Linux), fall back to hostname -I, then ifconfig
+  # Prefer 192.168.x.x (typical home Wi-Fi) to avoid VPN/tunnel interfaces
+  # like Tailscale (100.64-127.x), wireguard (10.x.x.x), etc. Fall back to
+  # the default-route source IP, then hostname -I / ifconfig.
   local ip
+  for ip in $(hostname -I 2>/dev/null || true); do
+    if [[ "$ip" =~ ^192\.168\. ]]; then
+      echo "$ip"
+      return
+    fi
+  done
   ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
   if [[ -z "$ip" ]]; then
     ip=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -46,7 +61,8 @@ detect_lan_ip() {
   echo "${ip:-127.0.0.1}"
 }
 
-LAN_IP=$(detect_lan_ip)
+# LAN_IP env var overrides auto-detection.
+LAN_IP="${LAN_IP:-$(detect_lan_ip)}"
 FRONTEND_PORT="${VITE_PORT:-5173}"
 BACKEND_PORT="${ADA_API_PORT:-8000}"
 
@@ -104,7 +120,9 @@ export ADA_NETWORK__CORS_ORIGINS="[\"http://localhost:${FRONTEND_PORT}\",\"${LAN
 export ADA_API__HOST="0.0.0.0"
 export ADA_API__PORT="${BACKEND_PORT}"
 
-(cd "${REPO_ROOT}" && python -m ada) &
+# Use `uv run python` to match the Makefile and ensure the project venv is used.
+# Plain `python` is not always on PATH (the user may only have `python3` or `uv`).
+(cd "${REPO_ROOT}" && uv run python -m ada) &
 BACKEND_PID=$!
 
 # ---------------------------------------------------------------------------
@@ -113,13 +131,15 @@ BACKEND_PID=$!
 
 echo "Starting Vite frontend on 0.0.0.0:${FRONTEND_PORT} ..."
 
-VITE_CMD="npx vite --host 0.0.0.0 --port ${FRONTEND_PORT}"
-
+# Vite 6 removed the --https CLI flag. We hand cert/key paths to vite.config.ts
+# via env vars, which reads them and populates server.https. Unset env vars
+# mean plain HTTP (default dev flow unaffected).
 if [[ "$USE_HTTPS" == "true" ]]; then
-  VITE_CMD="${VITE_CMD} --https --cert ${CERT_FILE} --key ${KEY_FILE}"
+  export VITE_HTTPS_CERT="${CERT_FILE}"
+  export VITE_HTTPS_KEY="${KEY_FILE}"
 fi
 
-(cd "${REPO_ROOT}/web" && eval "${VITE_CMD}") &
+(cd "${REPO_ROOT}/web" && npx vite --host 0.0.0.0 --port "${FRONTEND_PORT}") &
 FRONTEND_PID=$!
 
 # ---------------------------------------------------------------------------
