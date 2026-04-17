@@ -8,6 +8,7 @@
  *   - 'granted'     → renders a toggle button (On/Off) driven by subscribed state
  *                     + a "Preferences" button when subscribed
  *                     + an inline preferences panel when preferences button clicked
+ *                     + EmptyState when granted but not yet subscribed (DEC-SETTINGS-STATES-001)
  *
  * We control permission state by overwriting globalThis.Notification.permission
  * before each test and restoring it after. The serviceWorker mock in setup.ts
@@ -229,5 +230,40 @@ describe('NotificationBell', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Notify me about:/i)).not.toBeInTheDocument()
     })
+  })
+
+  // ── EmptyState when granted but not subscribed (DEC-SETTINGS-STATES-001) ──
+
+  it('renders EmptyState with title "No notifications yet" when not subscribed', async () => {
+    setPermission('granted')
+    setSubscribed(false)
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(screen.getByText('No notifications yet')).toBeInTheDocument()
+    })
+  })
+
+  it('renders EmptyState description when not subscribed', async () => {
+    setPermission('granted')
+    setSubscribed(false)
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/We'll let you know when something needs your attention/i),
+      ).toBeInTheDocument()
+    })
+  })
+
+  it('does not render EmptyState when subscribed', async () => {
+    setPermission('granted')
+    setSubscribed(true)
+    render(<NotificationBell />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Notifications On/i })).toBeInTheDocument()
+    })
+    expect(screen.queryByText('No notifications yet')).not.toBeInTheDocument()
   })
 })
