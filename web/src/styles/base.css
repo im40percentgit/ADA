@@ -217,6 +217,46 @@ a {
   transition: left var(--motion-duration-quick) var(--motion-ease-standard);
 }
 
+/*
+ * @decision DEC-MOTION-004
+ * @title Dialog entrance/exit uses opacity + translateY(12px), duration-base, ease-out/ease-in
+ * @status accepted
+ * @rationale Dialog panels are visually heavyweight UI — a brief directional entrance
+ *   (translateY 12px → 0, opacity 0 → 1) provides spatial context for where the panel
+ *   originates, communicates hierarchy, and reduces cognitive load vs. instant pop-in.
+ *   Exit is the reverse with ease-in so the panel accelerates out of frame rather than
+ *   decelerate, which feels snappy. Duration is --motion-duration-base (240ms) — the same
+ *   token used for card entrances — to maintain visual rhythm consistency.
+ *
+ *   Mount/unmount coordination: GraphDetailPanel keeps the element in the DOM during exit
+ *   via a `isVisible` state flag that remains true until the 240ms exit transition
+ *   completes (coordinated by a setTimeout matching the token value). Escape triggers
+ *   onClose immediately so keyboard users don't wait; the animation plays over the
+ *   already-closing element and the element unmounts when the timeout fires.
+ *
+ *   The blanket prefers-reduced-motion override below (DEC-MOTION-002) automatically
+ *   zeroes these durations — no per-rule override needed here.
+ */
+
+/* Dialog — default state (closed/exiting): invisible and offset */
+.ada-dialog {
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-in),
+    transform var(--motion-duration-base) var(--motion-ease-in);
+  will-change: transform, opacity;
+}
+
+/* Dialog — open state: fully visible, no offset, ease-out for entrance */
+.ada-dialog--open {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-out),
+    transform var(--motion-duration-base) var(--motion-ease-out);
+}
+
 /* ── Reduced motion ────────────────────────────────────────────────── */
 /* @decision DEC-MOTION-002
  * @title Blanket prefers-reduced-motion override zeroes all motion durations
