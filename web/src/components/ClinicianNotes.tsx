@@ -116,7 +116,7 @@ export function ClinicianNotes({ entityType, entityId, role }: ClinicianNotesPro
         <EmptyState
           icon="📝"
           title="No notes yet"
-          description="Add a note below to annotate this record."
+          description="Add your first note below."
           tone="neutral"
         />
       )}

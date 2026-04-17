@@ -19,6 +19,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { listAppointments, createAppointment, updateAppointment } from '../api/client'
 import type { Appointment, AppointmentCreate } from '../types'
+import { SkeletonCard } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
 
 interface Props {
   patientId: string
@@ -237,9 +239,9 @@ export function AppointmentCard({ patientId }: Props) {
       {showAdd && renderForm(handleAdd, 'Schedule')}
 
       {loading ? (
-        <p className="med-card__empty">Loading…</p>
+        <SkeletonCard lines={2} />
       ) : upcoming.length === 0 && !showAdd ? (
-        <p className="med-card__empty">No upcoming appointments</p>
+        <EmptyState icon="📅" title="No upcoming appointments" description="Your schedule is clear." tone="neutral" />
       ) : (
         <ul className="med-card__list">
           {upcoming.map(appt => (

@@ -24,6 +24,8 @@ import {
   deactivateMedication,
 } from '../api/client'
 import type { Medication, MedicationCreate } from '../types'
+import { SkeletonCard } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
 
 const FREQUENCY_OPTIONS = ['daily', 'twice daily', 'weekly', 'as needed'] as const
 
@@ -227,9 +229,9 @@ export function MedicationCard({ patientId }: Props) {
       {showAdd && renderForm(handleAdd, 'Add Medication')}
 
       {loading ? (
-        <p className="med-card__empty">Loading…</p>
+        <SkeletonCard lines={2} />
       ) : activeMeds.length === 0 && !showAdd ? (
-        <p className="med-card__empty">No active medications</p>
+        <EmptyState icon="💊" title="No medications added yet" description="Add a medication to start tracking adherence." tone="neutral" />
       ) : (
         <ul className="med-card__list">
           {activeMeds.map(med => (

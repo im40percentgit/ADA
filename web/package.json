@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "lint:empty-states": "bash scripts/lint-empty-states.sh",
+    "test": "vitest run && bash scripts/lint-empty-states.sh"
   },
   "dependencies": {
     "@types/d3-force": "^3.0.10",

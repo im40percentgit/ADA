@@ -127,7 +127,7 @@ describe('PrescribingNotes', () => {
 
     // Wait for initial data load — EmptyState title (no trailing period or "yet")
     await waitFor(() => {
-      expect(screen.getByText('No prescribing notes')).toBeInTheDocument()
+      expect(screen.getByText('No notes added yet')).toBeInTheDocument()
     })
 
     // Open form
@@ -165,8 +165,8 @@ describe('PrescribingNotes', () => {
     renderNotes()
 
     await waitFor(() => {
-      // EmptyState title: "No prescribing notes" (no trailing period/yet)
-      expect(screen.getByText('No prescribing notes')).toBeInTheDocument()
+      // EmptyState title: "No notes added yet" (no trailing period/yet)
+      expect(screen.getByText('No notes added yet')).toBeInTheDocument()
     })
   })
 

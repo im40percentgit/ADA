@@ -264,8 +264,8 @@ export function PrescribingNotes({ patientId, onBack }: PrescribingNotesProps) {
       {notes.length === 0 && !error && (
         <EmptyState
           icon="💊"
-          title="No prescribing notes"
-          description="Prescribing activity for this patient will appear here."
+          title="No notes added yet"
+          description="Notes you add will appear here."
           tone="neutral"
         />
       )}

@@ -384,8 +384,8 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
         {selectedPlan.goals.length === 0 && (
           <EmptyState
             icon="🎯"
-            title="No goals yet"
-            description="Add a goal to begin tracking progress."
+            title="No goals added yet"
+            description="Add a goal to start tracking this plan."
             tone="info"
           />
         )}
@@ -530,7 +530,7 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
         <EmptyState
           icon="🎯"
           title="No treatment plans yet"
-          description="Create a plan to begin tracking treatment goals and interventions."
+          description="Create your first plan to start tracking goals."
           tone="info"
         />
       )}

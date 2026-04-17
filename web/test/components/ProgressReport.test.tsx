@@ -193,7 +193,7 @@ describe('ProgressReport', () => {
     )
     renderReport()
     await waitFor(() => {
-      expect(screen.getByText('No progress data yet')).toBeInTheDocument()
+      expect(screen.getByText('Nothing to report yet')).toBeInTheDocument()
     })
   })
 })

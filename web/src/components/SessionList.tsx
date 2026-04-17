@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react'
 import { listSessions, createSession } from '../api/client'
 import type { Session } from '../types'
 import { EmptyState } from './ui/EmptyState'
+import { SkeletonList } from './ui/Skeleton'
 
 interface SessionListProps {
   patientId: string
@@ -100,9 +101,7 @@ export function SessionList({
       )}
 
       {loading ? (
-        <p className="session-list__loading" aria-busy="true">
-          Loading…
-        </p>
+        <SkeletonList count={3} />
       ) : sessions.length === 0 ? (
         <EmptyState
           tone="warm"
