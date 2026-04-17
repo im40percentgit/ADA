@@ -52,7 +52,7 @@ ada/
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
 | Sensor simulator | `ada/sensors/` | SensorSimulator presets |
-| Tests | `tests/` | 939 backend unit+integration + 266 frontend (Vitest/RTL/MSW) |
+| Tests | `tests/` | 939 backend unit+integration + 532 frontend (Vitest/RTL/MSW) |
 
 ---
 
@@ -790,7 +790,7 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | `web/test/factories.ts` — Test data factories for all domain types | Done | |
 | `web/package.json` — add vitest, RTL, MSW, user-event, jsdom | Done | |
 | Initial component suites (Login, Chat, Dashboards, BoardView, NotificationBell) | Done | 59 tests landed |
-| Later phase suites added on top (Phase 12 clinical, Phase 13 onboarding, Phase 14c export) | Done | Grown to 266 tests across 29 files |
+| Later phase suites added on top (Phase 12 clinical, Phase 13 onboarding + states, Phase 14c export) | Done | Grown to 532 frontend tests across 39 files (Phase 13e roughly doubled component coverage via per-view async-state tests) |
 | `web/test/hooks/useReconnectingWebSocket.test.tsx` | Done | Added 2026-04-16 (commit `2287a8f`) |
 | Frontend tests total: 266/266 passing | Done | 0 regressions |
 
@@ -892,8 +892,8 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 ---
 
 ### Phase 13 — UX Leap
-**Status:** `in_progress` — 13a/13b/13c shipped, 13d/13e still planned (pending DESIGN.md)
-**Note:** 13a–13c shipped autonomously on 2026-04-04 before a formal design consultation. User plans `/design-consultation` to produce `DESIGN.md`; subsequent sub-phases (13d accessibility polish, 13e micro-interactions) may be reorganized or renumbered once the formal design system lands.
+**Status:** `completed` (started 2026-04-04, completed 2026-04-17) — all 5 sub-phases (13a/13b/13c/13d/13e) shipped
+**Note:** 13a–13c shipped autonomously on 2026-04-04 before a formal design consultation. 13d (motion) and 13e (async states) were scope-locked against the existing 13a design system (`tokens.css` / `base.css`) rather than gated on a separate `DESIGN.md`. No formal design consultation was ultimately required — the 13a spec served as source of truth for all subsequent UX work.
 
 #### Phase 13a — Design System + Responsive Layout + Companion Personalization
 **Status:** `completed`
@@ -966,8 +966,9 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 **Parallelization:** 13d-01 is a blocker for 02–06. 02 / 03 / 04 / 05 / 06 can run in parallel worktrees after 01 merges.
 
 #### Phase 13e — Loading / Empty / Error States
-**Status:** `planned`
-**Scope locked:** 2026-04-16 — audit shipped as part of this plan. Today every list has bespoke "No X yet" text, most views use inline `"Loading…"`, errors vary (role=alert, red text, browser alerts, silent). This phase introduces shared primitives and applies them consistently.
+**Status:** `completed` (shipped 2026-04-17)
+**Commits:** `171d7dc` (13e-01), `c798ef9` (13e-02), `abb4c23` (13e-03), `2fbb6e1` (13e-04), `d3d91ed` (13e-05), `d2d3803` (13e-06), `80a03fa` (13e-07)
+**Scope locked:** 2026-04-16 — audit shipped as part of this plan. Every list had bespoke "No X yet" text, most views used inline `"Loading…"`, errors varied (role=alert, red text, browser alerts, silent). This phase introduced shared primitives and applied them consistently across the entire app.
 
 **Decision IDs:** DEC-EMPTY-001, DEC-LOADING-001, DEC-ERROR-001, DEC-ERROR-002
 **Requirements:** (REQ-P0-140..143 / REQ-P1-144 — Phase 13e namespace)
@@ -985,15 +986,15 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 
 ##### Phase 13e Task Decomposition
 
-| Task ID | Issue | Scope | Files | Depends on | Effort |
-|---------|-------|-------|-------|------------|--------|
-| 13e-01 | #43 | Build primitives: `Skeleton`, `EmptyState`, `ErrorState`, `ErrorBoundary` (DEC-EMPTY-001, DEC-LOADING-001, DEC-ERROR-001) | `web/src/components/ui/Skeleton.tsx`, `EmptyState.tsx`, `ErrorState.tsx`, `ErrorBoundary.tsx` + Vitest tests | #37 (for shimmer motion token) | 1 day |
-| 13e-02 | #44 | Apply to Chat + ConnectionStatus integration | `components/Chat.tsx`, `hooks/useWebSocket.ts` error surface, test | #43 | 0.5 day |
-| 13e-03 | #45 | Apply to Patient + Caregiver dashboards | `components/PatientDashboard.tsx`, `CaregiverDashboard.tsx`, `SessionsCard.tsx`, `StatusCard.tsx`, `AlertsCard.tsx`, `SessionList.tsx`, tests | #43 | 1 day |
-| 13e-04 | #46 | Apply to Boards + Care Circle | `components/BoardView.tsx`, `BoardList.tsx`, `CircleMembers.tsx`, `CircleSelector.tsx`, tests | #43 | 0.5 day |
-| 13e-05 | #47 | Apply to clinical views | `components/KnowledgeGraph.tsx`, `ProgressReport.tsx`, `ScreeningResults.tsx`, `ScreeningHistory.tsx`, `CognitiveScreening.tsx`, `DailySummaryDetail.tsx`, `TreatmentPlan.tsx`, `PrescribingNotes.tsx`, `ClinicianNotes.tsx`, tests | #43 | 1 day |
-| 13e-06 | #48 | Apply to Settings + compliance views | `components/SettingsPage.tsx`, `ConsentManager.tsx`, `ExportDataSection.tsx`, `NotificationBell.tsx`, tests | #43 | 0.5 day |
-| 13e-07 | #49 | Copy voice pass + grep-based lint check | copy sweep across all `Skeleton/EmptyState/ErrorState` uses; CI grep guard in `web/scripts/lint-empty-states.sh` | #44..#48 | 0.5 day |
+| Task ID | Issue | Scope | Files | Depends on | Effort | Status |
+|---------|-------|-------|-------|------------|--------|--------|
+| 13e-01 | #43 | Build primitives: `Skeleton`, `EmptyState`, `ErrorState`, `ErrorBoundary` (DEC-EMPTY-001, DEC-LOADING-001, DEC-ERROR-001) | `web/src/components/ui/Skeleton.tsx`, `EmptyState.tsx`, `ErrorState.tsx`, `ErrorBoundary.tsx` + Vitest tests | #37 (for shimmer motion token) | 1 day | shipped `171d7dc` |
+| 13e-02 | #44 | Apply to Chat + ConnectionStatus integration | `components/Chat.tsx`, `hooks/useWebSocket.ts` error surface, test | #43 | 0.5 day | shipped `c798ef9` |
+| 13e-03 | #45 | Apply to Patient + Caregiver dashboards | `components/PatientDashboard.tsx`, `CaregiverDashboard.tsx`, `SessionsCard.tsx`, `StatusCard.tsx`, `AlertsCard.tsx`, `SessionList.tsx`, tests | #43 | 1 day | shipped `abb4c23` |
+| 13e-04 | #46 | Apply to Boards + Care Circle | `components/BoardView.tsx`, `BoardList.tsx`, `CircleMembers.tsx`, `CircleSelector.tsx`, tests | #43 | 0.5 day | shipped `2fbb6e1` |
+| 13e-05 | #47 | Apply to clinical views | `components/KnowledgeGraph.tsx`, `ProgressReport.tsx`, `ScreeningResults.tsx`, `ScreeningHistory.tsx`, `CognitiveScreening.tsx`, `DailySummaryDetail.tsx`, `TreatmentPlan.tsx`, `PrescribingNotes.tsx`, `ClinicianNotes.tsx`, tests | #43 | 1 day | shipped `d3d91ed` |
+| 13e-06 | #48 | Apply to Settings + compliance views | `components/SettingsPage.tsx`, `ConsentManager.tsx`, `ExportDataSection.tsx`, `NotificationBell.tsx`, tests | #43 | 0.5 day | shipped `d2d3803` |
+| 13e-07 | #49 | Copy voice pass + grep-based lint check (DEC-LINT-001) | copy sweep across all `Skeleton/EmptyState/ErrorState` uses; CI grep guard in `web/scripts/lint-empty-states.sh` | #44..#48 | 0.5 day | shipped `80a03fa` |
 
 **Parallelization:** 13e-01 is a blocker for 02–06 (and benefits from 13d-01). Tasks 02–06 can run in parallel worktrees after 01 merges. 13e-07 is the final sweep and serializes after 02–06.
 
@@ -1012,12 +1013,20 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | DEC-MOTION-006 | Chat affordances: message entrance via `.chat-message--new` class (applied once then dropped); typing indicator as CSS keyframe tied to motion tokens; VoiceIndicator stays canvas-based (no CSS pulse) | One-shot class avoids re-animating on re-render; canvas indicator is data-driven by Web Audio so CSS pulse would be redundant. Addresses: REQ-P1-134. Shipped `948c4a6`. | accepted |
 | DEC-MOTION-007 | Data-viz + board motion: KnowledgeGraph node hover via `.kg-node--hover` scale+stroke, chart tooltip fade via `.chart-tooltip--motion`, BoardView new-item entrance + status pulse gated by seen-IDs set | Hover/tooltip classes stay in CSS land so Recharts/D3 stays unchanged; seen-IDs set distinguishes WS-inserted items from initial load so entrance fires only for live updates. Addresses: REQ-P1-135, REQ-P1-136. Shipped `53dde02`. | accepted |
 
-### Planned Decisions — 13e
+### Phase 13e Decisions
 
-- **DEC-EMPTY-001**: Single `EmptyState` primitive `{ icon, title, description, action?, tone? }` replaces ~12 ad-hoc empty-state implementations — enforces consistent voice and CTA affordance — Addresses: REQ-P0-141
-- **DEC-LOADING-001**: `Skeleton` primitives (`line` / `block` / `circle` / `card`) with shimmer animation that respects reduced-motion — skeletons preferred over spinners for content-shape-stable loading — Addresses: REQ-P0-140
-- **DEC-ERROR-001**: `ErrorState` primitive + `ErrorBoundary` wrapper; WS errors continue routing through existing `ConnectionStatus` (Phase 11a) — unifies 4+ ad-hoc error patterns and catches render-time crashes — Addresses: REQ-P0-142
-- **DEC-ERROR-002**: `AsyncBoundary` render pattern (loading→Skeleton, error→ErrorState, empty→EmptyState, ok→children) applied per-view rather than as a shared component — keeps existing hook shapes unchanged — Addresses: REQ-P0-143
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-LOADING-001 | `Skeleton` primitives (`line` / `block` / `circle` / `card`) + composed `SkeletonCard` / `SkeletonList` with shimmer animation that respects reduced-motion | Skeletons preferred over spinners for content-shape-stable loading; composed variants keep per-view usage terse. Addresses: REQ-P0-140. Shipped `171d7dc`. | accepted |
+| DEC-EMPTY-001 | Single `EmptyState` primitive `{ icon, title, description, action?, tone? }` replaces ~12 ad-hoc empty-state implementations | Enforces consistent voice and CTA affordance across all "nothing here yet" surfaces. Addresses: REQ-P0-141. Shipped `171d7dc`. | accepted |
+| DEC-ERROR-001 | `ErrorState` primitive + `ErrorBoundary` wrapper; WS errors continue routing through existing `ConnectionStatus` (Phase 11a) | Unifies 4+ ad-hoc error patterns for fetch failures and catches render-time crashes; WS surface preserved so live-data views don't double-report. Addresses: REQ-P0-142. Shipped `171d7dc`. | accepted |
+| DEC-ERROR-002 | `AsyncBoundary` render pattern (loading→Skeleton, error→ErrorState, empty→EmptyState, ok→children) applied per-view rather than as a shared component | Per-view composition keeps existing hook shapes unchanged and avoids a leaky generic that would need per-consumer escape hatches. Addresses: REQ-P0-143. Shipped `171d7dc`. | accepted |
+| DEC-CHAT-STATES-001 | AsyncBoundary pattern applied to Chat across its three async surfaces (history load, send-failure, empty thread) | Chat is the highest-traffic view; applying the primitives here first validates the per-view composition pattern before fanning out. Addresses: REQ-P0-143. Shipped `c798ef9`. | accepted |
+| DEC-DASH-STATES-001 | Each dashboard data section (medications, appointments, boards, care team, mood / sessions, alerts) owns its own AsyncBoundary rather than a single dashboard-wide boundary | Sections fail independently; a single failing fetch must not blank the whole dashboard. Per-section boundaries also let loading skeletons match each card's shape. Addresses: REQ-P0-143. Shipped `abb4c23`. | accepted |
+| DEC-BOARDS-STATES-001 | Boards + Care Circle apply AsyncBoundary for fetch states and render an inline `ConnectionStatus` banner for board-scoped WS disconnects | Board state is hybrid REST-seed + WS-live; fetch/error/empty map to primitives while live-connection loss routes through the pre-existing Phase 11a ConnectionStatus banner. Addresses: REQ-P0-142, REQ-P0-143. Shipped `2fbb6e1`. | accepted |
+| DEC-CLIN-STATES-001 | 9 clinical views (KnowledgeGraph, ProgressReport, ScreeningResults, ScreeningHistory, CognitiveScreening, DailySummaryDetail, TreatmentPlan, PrescribingNotes, ClinicianNotes) adopt AsyncBoundary; `useProgressReport` keeps a skeleton overlay while stale data remains mounted | Replaces ad-hoc string-based loading/empty/error spread across the clinical surface; stale-while-revalidate preserves chart context during refetch instead of flashing to skeleton. Addresses: REQ-P0-143. Shipped `d3d91ed`. | accepted |
+| DEC-SETTINGS-STATES-001 | Settings / Consent / Export / NotificationBell apply EmptyState, ErrorState, SkeletonCard; Organization section renders EmptyState in solo mode; ExportDataSection uses generating/disabled state | Settings area mixes fetch states, permission-gated features, and in-flight async actions — each maps to a different primitive rather than collapsing all into a single boundary. Addresses: REQ-P0-141, REQ-P0-142, REQ-P0-143. Shipped `d2d3803`. | accepted |
+| DEC-LINT-001 | CI grep-based lint guard (`web/scripts/lint-empty-states.sh`) blocks regressions of forbidden patterns: inline `"Loading…"`, bare `role="alert"` divs, `alert()`, and off-voice empty-state strings | Copy voice drift is invisible to type-checkers; a grep guard runs in CI and via `npm run lint:empty-states` to fail the build on regression. Addresses: REQ-P0-142, REQ-P1-144. Shipped `80a03fa`. | accepted |
 
 ### Phase 13 Decisions
 
@@ -1092,9 +1101,9 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 
 ### Active Phase Pointer
 
-**Current active:** Phase 13e (Loading / Empty / Error States) — 13a/13b/13c/13d shipped; 13d completed 2026-04-16 (merges `ca549e8`, `3cf732b`, `9300cfe`, `82b198c`, `948c4a6`, `53dde02`). 13e in progress: 13e-01 shipped via #43 `171d7dc`; 13e-02..07 remain (#44, #45, #46, #47, #48, #49).
+**Current active:** none — Phase 13 completed 2026-04-17. All 5 sub-phases shipped: 13a/13b/13c (2026-04-04), 13d (2026-04-16, 6 merges `ca549e8`, `3cf732b`, `9300cfe`, `82b198c`, `948c4a6`, `53dde02`), 13e (2026-04-17, 7 merges `171d7dc`, `c798ef9`, `abb4c23`, `2fbb6e1`, `d3d91ed`, `d2d3803`, `80a03fa`).
 
-**Queued (no open scope):** none — Phases 12 and 14 are complete; Phase 15+ not scoped.
+**Roadmap status:** All phases from the original 4-phase roadmap (11 production-readiness, 12 clinical, 13 UX, 14 platform expansion) now shipped. No next phase queued — new work will require fresh scoping (Planner pass for Phase 15+).
 
 ---
 
