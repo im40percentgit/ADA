@@ -40,7 +40,8 @@ export function ProgressBar({ value, color, className, 'aria-label': ariaLabel }
     background: color ?? 'var(--color-primary)',
     borderRadius: '3px',
     height: '100%',
-    transition: 'width 0.3s',
+    // Uses --motion-duration-base + --motion-ease-emphasized per DEC-MOTION-003
+    transition: 'width var(--motion-duration-base) var(--motion-ease-emphasized)',
   }
 
   const classes = ['ada-progress', className].filter(Boolean).join(' ')

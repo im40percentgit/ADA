@@ -115,6 +115,7 @@ export function TopBar({ greeting, subtitle, onNotification, onProfile, notifica
       <div style={rightStyle}>
         <button
           type="button"
+          className="ada-topbar-icon-btn"
           style={iconBtnStyle}
           onClick={onNotification}
           aria-label={
@@ -131,6 +132,7 @@ export function TopBar({ greeting, subtitle, onNotification, onProfile, notifica
           )}
         </button>
         <div
+          className="ada-topbar-icon-btn"
           style={avatarStyle}
           role="button"
           tabIndex={0}

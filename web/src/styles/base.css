@@ -96,6 +96,127 @@ a {
   border: 0;
 }
 
+/* ── Micro-interaction states ─────────────────────────────────────── */
+/*
+ * @decision DEC-MOTION-003
+ * @title Hover/press motion uses transform + opacity only (GPU-accelerated)
+ * @status accepted
+ * @rationale Using transform (translateY, scale) and opacity for all interactive
+ *   state changes ensures GPU-composited animation with zero layout thrash.
+ *   Border-color transitions for Input focus are the sole exception — they are
+ *   CSS property changes only, not geometry changes, so they remain cheap.
+ *   All durations use motion tokens from tokens.css (DEC-MOTION-001); no
+ *   hardcoded ms values appear here. The blanket reduced-motion override below
+ *   (DEC-MOTION-002) automatically zeroes all these durations via the universal
+ *   selector — no per-rule override is needed or added here.
+ *
+ *   Hover = translateY(-1px) + box-shadow bump
+ *   Press = scale(0.98) + opacity 0.92
+ *   Focus = border-color transition (Input only, via :focus-visible)
+ *   BottomNav active indicator = scaleX transition
+ */
+
+/* Button — all variants get lift on hover, scale on press */
+.ada-btn {
+  transition:
+    transform var(--motion-duration-instant) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-instant) var(--motion-ease-standard),
+    opacity var(--motion-duration-instant) var(--motion-ease-standard);
+  will-change: transform, opacity;
+}
+
+.ada-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.ada-btn:active:not(:disabled) {
+  transform: scale(0.98);
+  opacity: 0.9;
+  box-shadow: none;
+}
+
+/* Card — clickable variant gets hover lift + shadow bump */
+.ada-card--clickable {
+  transition:
+    transform var(--motion-duration-instant) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
+  will-change: transform;
+}
+
+.ada-card--clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.ada-card--clickable:active {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+/* Input — border-color transitions on :focus-visible (Phase 13c a11y pattern) */
+.ada-input input {
+  transition: border-color var(--motion-duration-quick) var(--motion-ease-standard);
+}
+
+.ada-input input:focus-visible {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+/* Badge — subtle opacity on hover when interactive */
+.ada-badge--interactive {
+  cursor: pointer;
+  transition: opacity var(--motion-duration-instant) var(--motion-ease-standard);
+}
+
+.ada-badge--interactive:hover {
+  opacity: 0.8;
+}
+
+/* BottomNav — active-indicator underline animates via transform: scaleX */
+.ada-bottom-nav__indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-primary-light);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--motion-duration-quick) var(--motion-ease-standard);
+}
+
+.ada-bottom-nav__tab--active .ada-bottom-nav__indicator {
+  transform: scaleX(1);
+}
+
+/* TopBar — icon buttons get hover lift + press feedback */
+.ada-topbar-icon-btn {
+  transition:
+    transform var(--motion-duration-instant) var(--motion-ease-standard),
+    opacity var(--motion-duration-instant) var(--motion-ease-standard);
+  will-change: transform, opacity;
+}
+
+.ada-topbar-icon-btn:hover {
+  transform: translateY(-1px);
+}
+
+.ada-topbar-icon-btn:active {
+  transform: scale(0.95);
+  opacity: 0.85;
+}
+
+/* Toggle — thumb slide and track color use motion tokens (replaces hardcoded 0.2s) */
+.ada-toggle__track {
+  transition: background var(--motion-duration-quick) var(--motion-ease-standard);
+}
+
+.ada-toggle__thumb {
+  transition: left var(--motion-duration-quick) var(--motion-ease-standard);
+}
+
 /* ── Reduced motion ────────────────────────────────────────────────── */
 /* @decision DEC-MOTION-002
  * @title Blanket prefers-reduced-motion override zeroes all motion durations

@@ -5,6 +5,12 @@
  * an adjacent visual track/thumb that reflects the checked state. The
  * track transitions between the elevated background and primary colour.
  *
+ * Transition timing for the track and thumb is controlled via the CSS classes
+ * `ada-toggle__track` and `ada-toggle__thumb` in base.css, which reference
+ * `--motion-duration-quick` and `--motion-ease-standard` tokens (DEC-MOTION-003).
+ * Inline styles previously hardcoded `transition: '... 0.2s'` — those have been
+ * removed so that all motion timing flows through the token layer.
+ *
  * @decision DEC-UI-005
  * @title Toggle uses hidden checkbox + visual div, not pure div with role
  * @status accepted
@@ -39,7 +45,7 @@ const trackBase: CSSProperties = {
   width: '44px',
   height: '24px',
   borderRadius: '12px',
-  transition: 'background 0.2s',
+  // Transition handled by .ada-toggle__track in base.css (DEC-MOTION-003)
   flexShrink: 0,
 }
 
@@ -50,7 +56,7 @@ const thumbBase: CSSProperties = {
   height: '20px',
   borderRadius: '50%',
   background: '#ffffff',
-  transition: 'left 0.2s',
+  // Transition handled by .ada-toggle__thumb in base.css (DEC-MOTION-003)
 }
 
 const labelTextStyle: CSSProperties = {
@@ -97,8 +103,8 @@ export function Toggle({ checked, onChange, label, disabled = false }: TogglePro
         style={hiddenInput}
         aria-label={label}
       />
-      <span style={trackStyle} aria-hidden="true">
-        <span style={thumbStyle} />
+      <span className="ada-toggle__track" style={trackStyle} aria-hidden="true">
+        <span className="ada-toggle__thumb" style={thumbStyle} />
       </span>
       {label && <span style={labelTextStyle}>{label}</span>}
     </label>
