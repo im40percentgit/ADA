@@ -13,8 +13,9 @@
  * from the fetched preferences. While loading, inputs are disabled.
  *
  * The Organization section fetches from GET /organizations/me on mount. When
- * null (solo mode), it renders a creation form. When an org exists (org mode),
- * it renders the org name, plan badge, member list, invite form, and leave button.
+ * null (solo mode), it renders an EmptyState (no org yet). When an org exists
+ * (org mode), it renders the org name, plan badge, member list, invite form,
+ * and leave button. While loading it renders a SkeletonCard placeholder.
  *
  * @decision DEC-UI-013
  * @title SettingsPage uses local form state, not live-bound hook state
@@ -23,6 +24,19 @@
  *   request on each keystroke. A local copy seeded on load lets the user
  *   freely edit and only persists on explicit Save. This matches standard
  *   settings-form UX and keeps the MSW handler count deterministic in tests.
+ *
+ * @decision DEC-SETTINGS-STATES-001
+ * @title Async state primitives applied to Settings / compliance / notification views
+ * @status accepted
+ * @rationale Phase 13e-06 applies the EmptyState, ErrorState, and SkeletonCard
+ *   primitives (from #43) to the Settings area. The Organization section uses
+ *   SkeletonCard while fetching so the layout does not jump, and EmptyState
+ *   (tone="neutral") to communicate solo-mode clearly with icon and copy rather
+ *   than a plain paragraph. ConsentManager uses ErrorState with a retry callback
+ *   when the fetch fails. ExportDataSection shows per-button loading state via
+ *   an in-flight Set and disabled buttons with "Generating…" text while the
+ *   backend call is in progress. NotificationBell uses EmptyState (tone="info")
+ *   for an empty notification list, matching the exact copy from issue #48.
  */
 
 import { type CSSProperties, useCallback, useEffect, useState } from 'react'
@@ -30,6 +44,8 @@ import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { Input } from './ui/Input'
+import { EmptyState } from './ui/EmptyState'
+import { SkeletonCard } from './ui/Skeleton'
 import { useCompanionPreferences } from '../hooks/useCompanionPreferences'
 import { ExportDataSection } from './ExportDataSection'
 import { ConsentManager } from './ConsentManager'
@@ -529,10 +545,17 @@ export function SettingsPage({ onLogout, email, patientId }: SettingsPageProps) 
         <h2 style={sectionHeadingStyle}>Organization</h2>
 
         {orgLoading ? (
-          <p style={orgDescriptionStyle}>Loading...</p>
+          <SkeletonCard lines={3} />
         ) : org === null ? (
           /* Solo mode — no org yet */
-          <div style={fieldGroupStyle} data-testid="org-create-form">
+          <>
+            <EmptyState
+              icon="👤"
+              title="Solo mode"
+              description="You're not part of an organization yet."
+              tone="neutral"
+            />
+            <div style={fieldGroupStyle} data-testid="org-create-form">
             <p style={orgDescriptionStyle}>
               Create an organization to manage patients and staff under one account.
             </p>
@@ -556,6 +579,7 @@ export function SettingsPage({ onLogout, email, patientId }: SettingsPageProps) 
               Create Organization
             </Button>
           </div>
+          </>
         ) : (
           /* Org mode — manage existing org */
           <div style={fieldGroupStyle} data-testid="org-manage-section">

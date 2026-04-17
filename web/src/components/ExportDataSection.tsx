@@ -11,6 +11,11 @@
  * endpoint returns mood ratings from sessions; /export/wellbeing returns
  * WHO-5 wellbeing scores from the wellbeing_entries table.
  *
+ * While an export is in progress the button is disabled and its label
+ * changes to "Generating export…" so the user gets immediate feedback.
+ * Multiple exports can run concurrently — each button tracks its own
+ * in-flight state via a Set stored in useState.
+ *
  * @decision DEC-FRONTEND-076
  * @title CSV exports use window.open() to backend endpoint
  * @status accepted
@@ -20,7 +25,7 @@
  *   works correctly for large datasets that would strain the browser.
  */
 
-import { type CSSProperties } from 'react'
+import { type CSSProperties, useState } from 'react'
 import { Card } from './ui/Card'
 import { Button } from './ui/Button'
 import { downloadExportCsv } from '../api/client'
@@ -58,7 +63,29 @@ const EXPORT_TYPES = [
   { type: 'sessions', label: 'Sessions CSV' },
 ] as const
 
+type ExportType = (typeof EXPORT_TYPES)[number]['type']
+
 export function ExportDataSection({ patientId }: ExportDataSectionProps) {
+  // Track which export types are currently in-flight (generating).
+  // downloadExportCsv calls window.open() synchronously, so the in-flight
+  // state is a UX guard against accidental double-clicks and provides visual
+  // feedback. State is reset on the next tick via Promise.resolve().
+  const [inFlight, setInFlight] = useState<Set<ExportType>>(new Set())
+
+  const handleExport = (type: ExportType) => {
+    if (inFlight.has(type)) return
+    setInFlight((prev) => new Set(prev).add(type))
+    downloadExportCsv(patientId, type)
+    // Reset after a tick so the disabled state is visible on fast machines
+    Promise.resolve().then(() => {
+      setInFlight((prev) => {
+        const next = new Set(prev)
+        next.delete(type)
+        return next
+      })
+    })
+  }
+
   return (
     <Card>
       <h2 style={headingStyle}>Export Data</h2>
@@ -66,15 +93,21 @@ export function ExportDataSection({ patientId }: ExportDataSectionProps) {
         Download your data in CSV format for personal records or sharing with healthcare providers.
       </p>
       <div style={buttonGridStyle}>
-        {EXPORT_TYPES.map(({ type, label }) => (
-          <Button
-            key={type}
-            variant="secondary"
-            onClick={() => downloadExportCsv(patientId, type)}
-          >
-            {label}
-          </Button>
-        ))}
+        {EXPORT_TYPES.map(({ type, label }) => {
+          const busy = inFlight.has(type)
+          return (
+            <Button
+              key={type}
+              variant="secondary"
+              onClick={() => handleExport(type)}
+              disabled={busy}
+              aria-busy={busy}
+              data-testid={`export-btn-${type}`}
+            >
+              {busy ? 'Generating export…' : label}
+            </Button>
+          )
+        })}
       </div>
     </Card>
   )

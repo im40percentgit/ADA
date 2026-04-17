@@ -13,6 +13,8 @@
  *   - Personality control rows are all present
  *   - Save button fires a PUT to /api/companion/preferences via the hook
  *   - Logout button fires the onLogout callback
+ *   - Org loading state renders SkeletonCard (DEC-SETTINGS-STATES-001)
+ *   - Solo mode renders EmptyState with correct copy (DEC-SETTINGS-STATES-001)
  *
  * @decision DEC-TEST-018
  * @title SettingsPage tests use MSW for hook data, vi.fn() for callbacks
@@ -25,8 +27,10 @@
 
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SettingsPage } from '../../src/components/SettingsPage'
+import { server } from '../msw/handlers'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -171,5 +175,41 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: /log out/i }))
     expect(onLogout).toHaveBeenCalledTimes(1)
+  })
+
+  // ── Organization loading state (DEC-SETTINGS-STATES-001) ─────────────────
+
+  it('shows a skeleton while the org fetch is in-flight', async () => {
+    // Delay the org response so we can observe the loading state
+    server.use(
+      http.get('/api/organizations/me', async () => {
+        await new Promise((r) => setTimeout(r, 200))
+        return HttpResponse.json(null)
+      }),
+    )
+    renderSettings()
+    // Before the fetch resolves, SkeletonCard renders multiple Skeleton spans —
+    // getAllByRole confirms at least one loading indicator is present.
+    const skeletons = screen.getAllByRole('status', { name: /loading/i })
+    expect(skeletons.length).toBeGreaterThan(0)
+  })
+
+  // ── Solo-mode EmptyState (DEC-SETTINGS-STATES-001) ───────────────────────
+
+  it('renders the solo-mode EmptyState title when no org exists', async () => {
+    // MSW default returns null for /api/organizations/me
+    renderSettings()
+    await waitFor(() => {
+      expect(screen.getByText('Solo mode')).toBeInTheDocument()
+    })
+  })
+
+  it('renders the solo-mode EmptyState description', async () => {
+    renderSettings()
+    await waitFor(() => {
+      expect(
+        screen.getByText("You're not part of an organization yet."),
+      ).toBeInTheDocument()
+    })
   })
 })

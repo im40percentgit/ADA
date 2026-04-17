@@ -18,6 +18,7 @@
 import { type CSSProperties, useCallback, useEffect, useState } from 'react'
 import { Card } from './ui/Card'
 import { Toggle } from './ui/Toggle'
+import { ErrorState } from './ui/ErrorState'
 import { getUserConsents, setConsent } from '../api/client'
 import type { ConsentType } from '../types'
 
@@ -73,9 +74,11 @@ export function ConsentManager() {
     research: false,
   })
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
 
   const fetchConsents = useCallback(async () => {
     setLoading(true)
+    setFetchError(false)
     try {
       const records = await getUserConsents()
       const map: Record<ConsentType, boolean> = {
@@ -89,7 +92,7 @@ export function ConsentManager() {
       }
       setConsents(map)
     } catch {
-      // Failed to fetch — defaults remain
+      setFetchError(true)
     } finally {
       setLoading(false)
     }
@@ -116,27 +119,35 @@ export function ConsentManager() {
       <p style={descriptionStyle}>
         Manage how your data is collected, analyzed, and shared. Changes take effect immediately.
       </p>
-      <div style={toggleGroupStyle}>
-        {CONSENT_LABELS.map(({ type, label, description }) => (
-          <div key={type} data-testid={`consent-${type}`}>
-            <Toggle
-              checked={consents[type]}
-              onChange={(checked) => handleToggle(type, checked)}
-              label={label}
-              disabled={loading}
-            />
-            <p
-              style={{
-                margin: '4px 0 0 52px',
-                fontSize: 'var(--size-caption)',
-                color: 'var(--color-text-muted)',
-              }}
-            >
-              {description}
-            </p>
-          </div>
-        ))}
-      </div>
+      {fetchError ? (
+        <ErrorState
+          title="Something went wrong"
+          message="Unable to load your consent settings."
+          onRetry={fetchConsents}
+        />
+      ) : (
+        <div style={toggleGroupStyle}>
+          {CONSENT_LABELS.map(({ type, label, description }) => (
+            <div key={type} data-testid={`consent-${type}`}>
+              <Toggle
+                checked={consents[type]}
+                onChange={(checked) => handleToggle(type, checked)}
+                label={label}
+                disabled={loading}
+              />
+              <p
+                style={{
+                  margin: '4px 0 0 52px',
+                  fontSize: 'var(--size-caption)',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                {description}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   )
 }

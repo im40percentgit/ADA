@@ -34,6 +34,7 @@
 
 import { useState } from 'react'
 import { useNotifications } from '../hooks/useNotifications'
+import { EmptyState } from './ui/EmptyState'
 import type { NotificationPreferences } from '../types'
 
 // Human-readable labels for each preference key
@@ -106,6 +107,15 @@ export function NotificationBell() {
       >
         {loading ? '...' : subscribed ? 'Notifications On' : 'Notifications Off'}
       </button>
+
+      {!subscribed && !loading && (
+        <EmptyState
+          icon="🔔"
+          title="No notifications yet"
+          description="We'll let you know when something needs your attention."
+          tone="info"
+        />
+      )}
 
       {subscribed && (
         <button
