@@ -124,8 +124,8 @@ export function DailySummaryDetail({
       <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
         <EmptyState
           icon="📓"
-          title="No summary available"
-          description="This day has no recorded sessions."
+          title="Nothing recorded this day"
+          description="No sessions were logged for this date."
           tone="neutral"
           action={<Button variant="secondary" onClick={onBack}>Go back</Button>}
         />

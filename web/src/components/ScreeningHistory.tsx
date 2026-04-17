@@ -120,7 +120,7 @@ export function ScreeningHistory({ patientId, onViewScreening }: ScreeningHistor
         <EmptyState
           icon="📝"
           title="No past screenings"
-          description="Cognitive screening history will appear here once assessments are completed."
+          description="Complete a screening to see your history here."
           tone="neutral"
         />
       </div>

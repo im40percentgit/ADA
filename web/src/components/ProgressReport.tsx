@@ -87,7 +87,7 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
       <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
         <EmptyState
           icon="📊"
-          title="No progress data yet"
+          title="Nothing to report yet"
           description="Check back after your first session."
           tone="info"
           action={<Button variant="secondary" onClick={onBack}>Go back</Button>}

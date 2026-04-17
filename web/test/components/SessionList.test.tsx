@@ -36,7 +36,8 @@ describe('SessionList', () => {
 
   it('renders loading state initially', () => {
     renderSessionList()
-    expect(screen.getByText(/Loading…/i)).toBeInTheDocument()
+    // SkeletonList renders items with role="status" and aria-label="Loading…"
+    expect(screen.getAllByRole('status')[0]).toBeInTheDocument()
   })
 
   it('renders session list after data loads', async () => {

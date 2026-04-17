@@ -120,7 +120,7 @@ describe('DailySummaryDetail', () => {
     )
     renderDetail()
     await waitFor(() => {
-      expect(screen.getByText('No summary available')).toBeInTheDocument()
+      expect(screen.getByText('Nothing recorded this day')).toBeInTheDocument()
     })
   })
 
