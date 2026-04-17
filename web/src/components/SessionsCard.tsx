@@ -2,7 +2,7 @@
  * SessionsCard — recent session summaries for the caregiver dashboard.
  *
  * Lists up to 5 recent sessions with SOAP plan highlights, key topics,
- * and risk flags. Shows "No sessions yet" when the list is empty.
+ * and risk flags. Shows EmptyState when the list is empty.
  *
  * @decision DEC-FRONTEND-023
  * @title SessionsCard shows plan + topics + risk_flags, omits subjective/assessment
@@ -16,6 +16,7 @@
  */
 
 import type { CaregiverSession } from '../types'
+import { EmptyState } from './ui/EmptyState'
 
 interface SessionsCardProps {
   sessions: CaregiverSession[]
@@ -38,7 +39,12 @@ export function SessionsCard({ sessions, onViewSession }: SessionsCardProps) {
       <h2 className="cg-card__title">Recent Sessions</h2>
 
       {sessions.length === 0 ? (
-        <p className="cg-card__empty">No sessions yet</p>
+        <EmptyState
+          tone="info"
+          icon="💬"
+          title="No sessions yet"
+          description="Session summaries will appear here once a conversation is complete."
+        />
       ) : (
         <ul className="cg-sessions__list">
           {sessions.map((s) => (

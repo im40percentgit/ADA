@@ -91,15 +91,15 @@ describe('PatientDashboard', () => {
     })
   })
 
-  it('renders My Boards card — shows not part of circle when no circle', async () => {
+  it('renders My Boards card — shows empty state when no circle', async () => {
     // Override handler: no circles
     server.use(
       http.get('/api/circles/my', () => HttpResponse.json([])),
     )
     renderDashboard()
     await waitFor(() => {
-      // Both My Boards and My Care Team show this message when no circle
-      const msgs = screen.getAllByText('Not part of a care circle')
+      // Both My Boards and My Care Team show EmptyState when no circle
+      const msgs = screen.getAllByText('No shared boards yet')
       expect(msgs.length).toBeGreaterThanOrEqual(1)
     })
   })
@@ -123,7 +123,8 @@ describe('PatientDashboard', () => {
     )
     renderDashboard()
     await waitFor(() => {
-      expect(screen.getByText(/Chat with Ada to track your mood/i)).toBeInTheDocument()
+      // EmptyState title rendered by the mood section when data is empty
+      expect(screen.getByText(/No mood check-ins yet/i)).toBeInTheDocument()
     })
   })
 

@@ -16,6 +16,7 @@
 import { useEffect, useState } from 'react'
 import { listSessions, createSession } from '../api/client'
 import type { Session } from '../types'
+import { EmptyState } from './ui/EmptyState'
 
 interface SessionListProps {
   patientId: string
@@ -103,9 +104,23 @@ export function SessionList({
           Loading…
         </p>
       ) : sessions.length === 0 ? (
-        <p className="session-list__empty">
-          No sessions yet. Start a new one above.
-        </p>
+        <EmptyState
+          tone="warm"
+          icon="💬"
+          title="No sessions yet"
+          description="Start your first conversation with Ada."
+          action={
+            <button
+              className="session-list__new-btn"
+              onClick={handleNewSession}
+              disabled={creating}
+              aria-label="Start new session"
+              type="button"
+            >
+              {creating ? '…' : '+ New Session'}
+            </button>
+          }
+        />
       ) : (
         <ul className="session-list__items" role="list">
           {sessions.map((s) => (

@@ -15,6 +15,7 @@
  */
 
 import type { CaregiverSession, CaregiverAssessmentEntry } from '../types'
+import { EmptyState } from './ui/EmptyState'
 
 interface StatusCardProps {
   sessions: CaregiverSession[]
@@ -68,7 +69,12 @@ export function StatusCard({ sessions, who5Scores }: StatusCardProps) {
           </div>
         </div>
       ) : (
-        <p className="cg-card__empty">No sessions yet</p>
+        <EmptyState
+          tone="info"
+          icon="💬"
+          title="No sessions yet"
+          description="Status will update after the first conversation."
+        />
       )}
     </section>
   )

@@ -19,6 +19,19 @@
  *   inline without hurting readability. Avoids prop-drilling a shared patientId
  *   through six extra file boundaries. If any card grows beyond ~80 lines it
  *   should be extracted.
+ *
+ * @decision DEC-DASH-STATES-001
+ * @title AsyncBoundary primitives applied to PatientDashboard loading/empty/error states
+ * @status accepted
+ * @rationale Each of the five independent data sections (medications, appointments,
+ *   boards, care team, mood) previously used ad-hoc inline `<p>` elements for
+ *   loading ("Loading…"), error (red text), and empty ("No X") states. These have
+ *   been replaced with SkeletonCard (loading), ErrorState with onRetry (errors),
+ *   and EmptyState with warm tone + helpful copy (empty). The existing AppShell,
+ *   BottomNav, Card containers, and all aria-label/role attributes are preserved
+ *   unchanged. Retry callbacks are wired to the existing useCallback fetch
+ *   functions — no hook refactoring required. The mood card degrades silently
+ *   (non-critical) so it uses EmptyState but no ErrorState.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -37,6 +50,9 @@ import { useCompanionPreferences, DEFAULT_COMPANION_PREFERENCES } from '../hooks
 import { Card } from './ui/Card'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
+import { SkeletonCard } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 import type { Medication, Appointment, Board, CareCircleMember, MoodDataPoint } from '../types'
 
 interface PatientDashboardProps {
@@ -187,16 +203,6 @@ const itemTagStyle: CSSProperties = {
   color: 'var(--color-text-muted)',
 }
 
-const emptyStyle: CSSProperties = {
-  fontSize: 'var(--size-sm)',
-  color: 'var(--color-text-muted)',
-}
-
-const errorStyle: CSSProperties = {
-  fontSize: 'var(--size-sm)',
-  color: 'var(--color-danger)',
-}
-
 const changeFormStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -276,6 +282,8 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
   // Fetch: medications
   // -------------------------------------------------------------------------
   const fetchMeds = useCallback(async () => {
+    setMedsLoading(true)
+    setMedError(null)
     try {
       const data = await listMedications(patientId, true)
       setMeds(data)
@@ -290,6 +298,8 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
   // Fetch: appointments
   // -------------------------------------------------------------------------
   const fetchAppts = useCallback(async () => {
+    setApptLoading(true)
+    setApptError(null)
     try {
       const data = await listAppointments(patientId)
       setAppts(data)
@@ -436,9 +446,14 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
       <Card>
         <h2 style={sectionHeadingStyle}>Mood Summary</h2>
         {moodLoading ? (
-          <p style={emptyStyle}>Loading…</p>
+          <SkeletonCard lines={2} />
         ) : moodPoints.length === 0 ? (
-          <p style={emptyStyle}>Chat with {companionName} to track your mood</p>
+          <EmptyState
+            tone="warm"
+            icon="💙"
+            title="No mood check-ins yet"
+            description={`Share how you're feeling — ${companionName} will track your trend.`}
+          />
         ) : (
           <div>
             <span style={moodScoreStyle}>
@@ -499,11 +514,20 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
           )}
         </div>
         {medsLoading ? (
-          <p style={emptyStyle}>Loading…</p>
+          <SkeletonCard lines={3} />
         ) : medError ? (
-          <p style={errorStyle}>{medError}</p>
+          <ErrorState
+            title="Couldn't load medications"
+            message={medError}
+            onRetry={fetchMeds}
+          />
         ) : meds.length === 0 ? (
-          <p style={emptyStyle}>No medications</p>
+          <EmptyState
+            tone="warm"
+            icon="💊"
+            title="No medications tracked"
+            description="Add a medication to start logging daily adherence."
+          />
         ) : (
           <ul style={listStyle}>
             {meds.map(med => (
@@ -543,11 +567,20 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
           )}
         </div>
         {apptLoading ? (
-          <p style={emptyStyle}>Loading…</p>
+          <SkeletonCard lines={2} />
         ) : apptError ? (
-          <p style={errorStyle}>{apptError}</p>
+          <ErrorState
+            title="Couldn't load appointments"
+            message={apptError}
+            onRetry={fetchAppts}
+          />
         ) : upcomingAppts.length === 0 ? (
-          <p style={emptyStyle}>No upcoming appointments</p>
+          <EmptyState
+            tone="warm"
+            icon="📅"
+            title="No upcoming appointments"
+            description="Your schedule is clear."
+          />
         ) : (
           <ul style={listStyle}>
             {upcomingAppts.map(appt => {
@@ -619,13 +652,27 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
       <Card>
         <h2 style={sectionHeadingStyle}>My Boards</h2>
         {!selectedCircle ? (
-          <p style={emptyStyle}>Not part of a care circle</p>
+          <EmptyState
+            tone="warm"
+            icon="📋"
+            title="No shared boards yet"
+            description="Ask a family member to invite you or start a new board."
+          />
         ) : boardsLoading ? (
-          <p style={emptyStyle}>Loading…</p>
+          <SkeletonCard lines={2} />
         ) : boardsError ? (
-          <p style={errorStyle}>{boardsError}</p>
+          <ErrorState
+            title="Couldn't load boards"
+            message={boardsError}
+            onRetry={() => fetchBoards(selectedCircle.id)}
+          />
         ) : boards.length === 0 ? (
-          <p style={emptyStyle}>No boards yet</p>
+          <EmptyState
+            tone="warm"
+            icon="📋"
+            title="No shared boards yet"
+            description="Ask a family member to invite you or start a new board."
+          />
         ) : (
           <ul style={listStyle}>
             {boards.map(board => (
@@ -642,13 +689,27 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
       <Card>
         <h2 style={sectionHeadingStyle}>My Care Team</h2>
         {!selectedCircle ? (
-          <p style={emptyStyle}>Not part of a care circle</p>
+          <EmptyState
+            tone="warm"
+            icon="👥"
+            title="No care team members yet"
+            description="Invite someone to share wellbeing updates."
+          />
         ) : membersLoading ? (
-          <p style={emptyStyle}>Loading…</p>
+          <SkeletonCard lines={2} />
         ) : membersError ? (
-          <p style={errorStyle}>{membersError}</p>
+          <ErrorState
+            title="Couldn't load care team"
+            message={membersError}
+            onRetry={() => fetchMembers(selectedCircle.id)}
+          />
         ) : members.length === 0 ? (
-          <p style={emptyStyle}>Not part of a care circle</p>
+          <EmptyState
+            tone="warm"
+            icon="👥"
+            title="No care team members yet"
+            description="Invite someone to share wellbeing updates."
+          />
         ) : (
           <ul style={listStyle}>
             {members.map(m => (

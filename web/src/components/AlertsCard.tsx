@@ -24,6 +24,7 @@
 import { useState } from 'react'
 import type { CaregiverAlert } from '../types'
 import { updateAlertStatus } from '../api/client'
+import { EmptyState } from './ui/EmptyState'
 
 interface AlertsCardProps {
   alerts: CaregiverAlert[]
@@ -72,7 +73,12 @@ export function AlertsCard({ alerts }: AlertsCardProps) {
       <h2 className="cg-card__title">Alerts</h2>
 
       {alerts.length === 0 ? (
-        <p className="cg-card__empty cg-alerts__none">No recent alerts</p>
+        <EmptyState
+          tone="info"
+          icon="✅"
+          title="No recent alerts"
+          description="Everything's quiet right now."
+        />
       ) : (
         <ul className="cg-alerts__list">
           {alerts.map((alert) => {
