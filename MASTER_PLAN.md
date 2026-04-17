@@ -931,13 +931,83 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | Focus management + skip links in AppShell | Done | |
 | Color contrast pass | Done | Against Tailwind token set from 13a |
 
-#### Phase 13d — Accessibility polish (post-design-consultation)
+#### Phase 13d — Micro-interactions & Motion
 **Status:** `planned`
-Awaiting DESIGN.md output from `/design-consultation` before scoping.
+**Scope locked:** 2026-04-16 — descoped from "post-design-consultation polish". No DESIGN.md required; the existing 13a design system (`web/src/styles/tokens.css`, `base.css`) and the 13a spec serve as source of truth. Adds a motion-token layer and applies it consistently across UI primitives and key views.
 
-#### Phase 13e — Micro-interactions & Polish
+**Decision IDs:** DEC-MOTION-001, DEC-MOTION-002, DEC-MOTION-003
+**Requirements:** (REQ-P0-130..133 / REQ-P1-134..136 — Phase 13d namespace)
+- REQ-P0-130 — Motion tokens in `styles/tokens.css` (durations + easings) so every animated component references the same vocabulary.
+- REQ-P0-131 — Buttons, cards, inputs, bottom-nav tabs, toggle have hover/focus/press transitions using tokens.
+- REQ-P0-132 — Entrance/exit motion for `GraphDetailPanel` (and any other modal/drawer) + onboarding step transitions + BottomNav active-state animation.
+- REQ-P0-133 — Every new motion has a reduced-motion-safe path (existing blunt `@media (prefers-reduced-motion: reduce)` rule keeps us safe; new tokens inherit it).
+- REQ-P1-134 — Chat message appearance animation + typing indicator + STT pulse use motion tokens.
+- REQ-P1-135 — KnowledgeGraph node hover, chart hover states use motion tokens.
+- REQ-P1-136 — BoardView realtime-state-change visual feedback (new item enter, status change pulse).
+
+**Definition of Done:**
+- `--motion-duration-instant/quick/base/slow` and `--motion-ease-standard/emphasized/out/in` tokens defined in `tokens.css` (REQ-P0-130).
+- All 8 `ui/` primitives have tokenised transitions; a Vitest snapshot per primitive asserts `transition` prop is present (REQ-P0-131).
+- `GraphDetailPanel` open/close uses token-driven transform/opacity transition with reduced-motion fallback; onboarding step changes cross-fade; BottomNav active tab underline animates (REQ-P0-132).
+- Axe-core smoke test confirms no animation violates WCAG 2.3.3 (REQ-P0-133).
+
+##### Phase 13d Task Decomposition
+
+| Task ID | Issue | Scope | Files | Depends on | Effort |
+|---------|-------|-------|-------|------------|--------|
+| 13d-01 | #37 | Define motion tokens (DEC-MOTION-001) | `web/src/styles/tokens.css`, docs comment header | — | 0.5 day |
+| 13d-02 | #38 | Primitive micro-interactions (hover/focus/press) | `ui/Button.tsx`, `ui/Card.tsx`, `ui/Input.tsx`, `ui/Toggle.tsx`, `ui/Badge.tsx`, `ui/BottomNav.tsx`, `ui/ProgressBar.tsx`, `ui/TopBar.tsx` + tests | #37 | 1 day |
+| 13d-03 | #39 | Dialog / modal entrance-exit motion | `components/GraphDetailPanel.tsx`, any other role=dialog usage, test | #37 | 0.5 day |
+| 13d-04 | #40 | Onboarding step transition motion | `components/onboarding/OnboardingFlow.tsx`, step components wrap, test | #37 | 0.5 day |
+| 13d-05 | #41 | Chat affordances: message appear, typing indicator, STT pulse | `components/Chat.tsx`, `components/ChatMessage.tsx`, `components/VoiceIndicator.tsx`, tests | #37 | 1 day |
+| 13d-06 | #42 | Data-viz + board interactions | `components/KnowledgeGraph.tsx`, `components/charts/*`, `components/BoardView.tsx`, `components/BoardItem.tsx`, tests | #37 | 1 day |
+
+**Parallelization:** 13d-01 is a blocker for 02–06. 02 / 03 / 04 / 05 / 06 can run in parallel worktrees after 01 merges.
+
+#### Phase 13e — Loading / Empty / Error States
 **Status:** `planned`
-Awaiting DESIGN.md. May be subsumed into a broader "design refresh" sub-phase depending on consultation outcome.
+**Scope locked:** 2026-04-16 — audit shipped as part of this plan. Today every list has bespoke "No X yet" text, most views use inline `"Loading…"`, errors vary (role=alert, red text, browser alerts, silent). This phase introduces shared primitives and applies them consistently.
+
+**Decision IDs:** DEC-EMPTY-001, DEC-LOADING-001, DEC-ERROR-001, DEC-ERROR-002
+**Requirements:** (REQ-P0-140..143 / REQ-P1-144 — Phase 13e namespace)
+- REQ-P0-140 — `Skeleton` primitive with `line`, `block`, `circle`, `card` variants + composed `SkeletonCard` / `SkeletonList`; respects reduced-motion.
+- REQ-P0-141 — `EmptyState` primitive: `{ icon, title, description, action?, tone? }`.
+- REQ-P0-142 — `ErrorState` primitive + `ErrorBoundary` wrapper. WS errors route through existing `ConnectionStatus`.
+- REQ-P0-143 — `AsyncBoundary` pattern applied across all data-fetching views (dashboards, chat, boards, knowledge graph, progress report, screenings, daily summaries, treatment plans, prescribing notes, export, consent, audit-log, notifications).
+- REQ-P1-144 — Copy voice consistent: warm, patient-facing ("No sessions yet — start your first one" not "Empty list").
+
+**Definition of Done:**
+- Three new primitives exist in `web/src/components/ui/` with unit tests (REQ-P0-140, REQ-P0-141, REQ-P0-142).
+- Every data-fetching view renders skeleton-while-loading, empty-state-when-empty, error-state-on-failure (REQ-P0-143).
+- No view still ships `"Loading…"` plain text or inline red error divs outside the primitives (grep-based lint check in CI).
+- WS disconnect produces a visible `ConnectionStatus` banner on every view that uses WS (Chat, BoardView) (REQ-P0-142).
+
+##### Phase 13e Task Decomposition
+
+| Task ID | Issue | Scope | Files | Depends on | Effort |
+|---------|-------|-------|-------|------------|--------|
+| 13e-01 | #43 | Build primitives: `Skeleton`, `EmptyState`, `ErrorState`, `ErrorBoundary` (DEC-EMPTY-001, DEC-LOADING-001, DEC-ERROR-001) | `web/src/components/ui/Skeleton.tsx`, `EmptyState.tsx`, `ErrorState.tsx`, `ErrorBoundary.tsx` + Vitest tests | #37 (for shimmer motion token) | 1 day |
+| 13e-02 | #44 | Apply to Chat + ConnectionStatus integration | `components/Chat.tsx`, `hooks/useWebSocket.ts` error surface, test | #43 | 0.5 day |
+| 13e-03 | #45 | Apply to Patient + Caregiver dashboards | `components/PatientDashboard.tsx`, `CaregiverDashboard.tsx`, `SessionsCard.tsx`, `StatusCard.tsx`, `AlertsCard.tsx`, `SessionList.tsx`, tests | #43 | 1 day |
+| 13e-04 | #46 | Apply to Boards + Care Circle | `components/BoardView.tsx`, `BoardList.tsx`, `CircleMembers.tsx`, `CircleSelector.tsx`, tests | #43 | 0.5 day |
+| 13e-05 | #47 | Apply to clinical views | `components/KnowledgeGraph.tsx`, `ProgressReport.tsx`, `ScreeningResults.tsx`, `ScreeningHistory.tsx`, `CognitiveScreening.tsx`, `DailySummaryDetail.tsx`, `TreatmentPlan.tsx`, `PrescribingNotes.tsx`, `ClinicianNotes.tsx`, tests | #43 | 1 day |
+| 13e-06 | #48 | Apply to Settings + compliance views | `components/SettingsPage.tsx`, `ConsentManager.tsx`, `ExportDataSection.tsx`, `NotificationBell.tsx`, tests | #43 | 0.5 day |
+| 13e-07 | #49 | Copy voice pass + grep-based lint check | copy sweep across all `Skeleton/EmptyState/ErrorState` uses; CI grep guard in `web/scripts/lint-empty-states.sh` | #44..#48 | 0.5 day |
+
+**Parallelization:** 13e-01 is a blocker for 02–06 (and benefits from 13d-01). Tasks 02–06 can run in parallel worktrees after 01 merges. 13e-07 is the final sweep and serializes after 02–06.
+
+### Phase 13d / 13e Decision Log
+<!-- Guardian appends entries here after each task/phase completion. -->
+
+### Planned Decisions — 13d / 13e
+
+- **DEC-MOTION-001**: Motion tokens as CSS custom properties in `tokens.css` (durations `instant/quick/base/slow`, easings `standard/emphasized/out/in`) — aligns with DEC-TOKENS zero-runtime pattern; components reference `var(--motion-duration-quick)` etc. — Addresses: REQ-P0-130
+- **DEC-MOTION-002**: Keep blanket `prefers-reduced-motion: reduce` override as safety net; new motion tokens inherit the zero-duration under reduce; essential motion uses explicit inline style and `@media (prefers-reduced-motion: no-preference)` — preserves 13c accessibility guarantee while enabling richer motion for the majority of users — Addresses: REQ-P0-133
+- **DEC-MOTION-003**: Hover/press micro-interactions use `transform` + `opacity` only (hover = `translateY(-1px)` + shadow bump; press = `scale(0.98)` + opacity 0.9) — GPU-accelerated, no layout thrash, therapy-appropriate understated motion — Addresses: REQ-P0-131
+- **DEC-EMPTY-001**: Single `EmptyState` primitive `{ icon, title, description, action?, tone? }` replaces ~12 ad-hoc empty-state implementations — enforces consistent voice and CTA affordance — Addresses: REQ-P0-141
+- **DEC-LOADING-001**: `Skeleton` primitives (`line` / `block` / `circle` / `card`) with shimmer animation that respects reduced-motion — skeletons preferred over spinners for content-shape-stable loading — Addresses: REQ-P0-140
+- **DEC-ERROR-001**: `ErrorState` primitive + `ErrorBoundary` wrapper; WS errors continue routing through existing `ConnectionStatus` (Phase 11a) — unifies 4+ ad-hoc error patterns and catches render-time crashes — Addresses: REQ-P0-142
+- **DEC-ERROR-002**: `AsyncBoundary` render pattern (loading→Skeleton, error→ErrorState, empty→EmptyState, ok→children) applied per-view rather than as a shared component — keeps existing hook shapes unchanged — Addresses: REQ-P0-143
 
 ### Phase 13 Decisions
 
@@ -1012,7 +1082,7 @@ Awaiting DESIGN.md. May be subsumed into a broader "design refresh" sub-phase de
 
 ### Active Phase Pointer
 
-**Current active:** Phase 13 (UX Leap) — 13a/13b/13c shipped; 13d/13e awaiting `/design-consultation` to produce `DESIGN.md` which will drive the next sub-phase plan.
+**Current active:** Phase 13 (UX Leap) — 13a/13b/13c shipped; 13d/13e scoped 2026-04-16 (issues #37..#49, no DESIGN.md needed — existing 13a tokens serve as source of truth).
 
 **Queued (no open scope):** none — Phases 12 and 14 are complete; Phase 15+ not scoped.
 
