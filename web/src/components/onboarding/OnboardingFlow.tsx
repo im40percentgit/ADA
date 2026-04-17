@@ -14,6 +14,35 @@
  * @rationale Centralising step navigation, preferences, and the completion
  *   side-effects (API calls) in a single component keeps the individual
  *   screens independently testable and the flow logic easy to follow.
+ *
+ * @decision DEC-MOTION-005
+ * @title Step transition: fade-out 120ms, then fade-in + slide 240ms, direction-aware
+ * @status accepted
+ * @rationale Onboarding steps are heavyweight full-screen views; abrupt swaps
+ *   are visually jarring and provide no spatial cue. The two-phase approach
+ *   (short exit at 120ms, then directional entrance at 240ms) maps to the
+ *   spec exactly: outgoing disappears quickly so the user isn't kept waiting,
+ *   incoming slides from ±8px so forward/back feel physically distinct.
+ *
+ *   State machine: `direction` captures forward/back intent at the moment the
+ *   navigation button is pressed. `transitionPhase` cycles idle → exiting →
+ *   entering → idle. `displayedStep` lags behind `step` during the exit phase
+ *   and is updated only when entering begins, so the exiting content is the
+ *   correct outgoing frame.
+ *
+ *   CSS class variants `.onboarding-step--enter-forward` and
+ *   `.onboarding-step--enter-back` apply translateX(8px) vs translateX(-8px)
+ *   as the enter start-frame; both resolve to translateX(0) on
+ *   `.onboarding-step--entering` so the slide reads as inward motion.
+ *
+ *   Focus management: the existing Phase 13c focus-on-step-change useEffect
+ *   fires on `displayedStep` updates, which happen right as the entering
+ *   phase begins — matching the visual frame of the new content appearing.
+ *   This preserves the 13c contract without additional timing coupling.
+ *
+ *   Reduced-motion: the blanket prefers-reduced-motion override in base.css
+ *   (DEC-MOTION-002) zeroes all transition durations, so the 120ms exit and
+ *   240ms entrance collapse to ~0ms. No per-component override is needed.
  */
 
 import { useState, useEffect, useRef, type CSSProperties } from 'react'
@@ -36,6 +65,14 @@ export interface OnboardingFlowProps {
 }
 
 const TOTAL_STEPS = 7
+
+// Duration constants mirror the motion tokens so setTimeout values stay in sync.
+// These are JS-side only; CSS reads from var(--motion-duration-*) directly.
+const EXIT_DURATION_MS = 120  // fade-out before swap
+const ENTER_DURATION_MS = 240 // --motion-duration-base: slide + fade-in
+
+type Direction = 'forward' | 'back'
+type TransitionPhase = 'idle' | 'exiting' | 'entering'
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -121,6 +158,9 @@ function dotStyle(state: 'completed' | 'current' | 'future'): CSSProperties {
 
 export function OnboardingFlow({ role, onComplete }: OnboardingFlowProps) {
   const [step, setStep] = useState(0)
+  const [displayedStep, setDisplayedStep] = useState(0)
+  const [direction, setDirection] = useState<Direction>('forward')
+  const [transitionPhase, setTransitionPhase] = useState<TransitionPhase>('idle')
   const [companionName, setCompanionName] = useState('Ada')
   const [voice, setVoice] = useState('female')
   const [personality, setPersonality] = useState<PersonalitySettings>({
@@ -130,13 +170,46 @@ export function OnboardingFlow({ role, onComplete }: OnboardingFlowProps) {
   })
   const stepContainerRef = useRef<HTMLDivElement>(null)
 
-  // Focus the step container when step changes
+  // Focus the step container when the displayed step changes (Phase 13c contract).
+  // Fires when displayedStep updates — which is exactly when entering begins and
+  // the new content is placed in the DOM.
   useEffect(() => {
     stepContainerRef.current?.focus()
+  }, [displayedStep])
+
+  // Orchestrate the two-phase transition whenever `step` changes.
+  useEffect(() => {
+    // Skip on initial mount (step === displayedStep, nothing to transition).
+    if (step === displayedStep) return
+
+    // Phase 1 — exit: current content fades out over EXIT_DURATION_MS.
+    setTransitionPhase('exiting')
+
+    const exitTimer = setTimeout(() => {
+      // Phase 2 — entering: swap to new content, apply enter class.
+      setDisplayedStep(step)
+      setTransitionPhase('entering')
+
+      const enterTimer = setTimeout(() => {
+        // Phase 3 — idle: entrance animation complete, remove classes.
+        setTransitionPhase('idle')
+      }, ENTER_DURATION_MS)
+
+      return () => clearTimeout(enterTimer)
+    }, EXIT_DURATION_MS)
+
+    return () => clearTimeout(exitTimer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
-  const goNext = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1))
-  const goBack = () => setStep((s) => Math.max(s - 1, 0))
+  function navigate(targetStep: number, dir: Direction) {
+    if (transitionPhase !== 'idle') return // guard: ignore during active transition
+    setDirection(dir)
+    setStep(targetStep)
+  }
+
+  const goNext = () => navigate(Math.min(step + 1, TOTAL_STEPS - 1), 'forward')
+  const goBack = () => navigate(Math.max(step - 1, 0), 'back')
 
   async function handleFinalNext() {
     try {
@@ -165,10 +238,26 @@ export function OnboardingFlow({ role, onComplete }: OnboardingFlowProps) {
     onComplete()
   }
 
-  // Determine which screen to render based on role and step
+  // Build CSS class string for the step container based on transition phase + direction.
+  function stepClassName(): string {
+    const classes = ['onboarding-step']
+    if (transitionPhase === 'exiting') {
+      classes.push('onboarding-step--exiting')
+    } else if (transitionPhase === 'entering') {
+      classes.push('onboarding-step--entering')
+      classes.push(
+        direction === 'forward'
+          ? 'onboarding-step--enter-forward'
+          : 'onboarding-step--enter-back',
+      )
+    }
+    return classes.join(' ')
+  }
+
+  // Determine which screen to render based on role and displayedStep.
+  // Uses displayedStep (not step) so exiting content stays visible during fade-out.
   function renderStep() {
-    // Steps 0-3 are shared between patient and caregiver
-    switch (step) {
+    switch (displayedStep) {
       case 0:
         return <OnboardingWelcome onNext={goNext} />
       case 1:
@@ -204,9 +293,8 @@ export function OnboardingFlow({ role, onComplete }: OnboardingFlowProps) {
         break
     }
 
-    // Steps 4-6 diverge by role
     if (role === 'user') {
-      switch (step) {
+      switch (displayedStep) {
         case 4:
           return <OnboardingChat name={companionName} onNext={goNext} onBack={goBack} />
         case 5:
@@ -216,7 +304,7 @@ export function OnboardingFlow({ role, onComplete }: OnboardingFlowProps) {
       }
     } else {
       // caregiver
-      switch (step) {
+      switch (displayedStep) {
         case 4:
           return <OnboardingCircle onNext={goNext} onBack={goBack} />
         case 5:
@@ -253,13 +341,16 @@ export function OnboardingFlow({ role, onComplete }: OnboardingFlowProps) {
         </div>
       </div>
 
-      {/* Step content */}
+      {/* Step content — transition wrapper */}
       <div
         ref={stepContainerRef}
         style={contentStyle}
         tabIndex={-1}
         aria-label={`Onboarding step ${step + 1} of ${TOTAL_STEPS}`}
         data-testid="step-container"
+        className={stepClassName()}
+        data-transition-phase={transitionPhase}
+        data-direction={direction}
       >
         {renderStep()}
       </div>
