@@ -50,3 +50,4 @@ htmlcov/
 
 # Logs
 firebase-debug.log
+.gstack/
