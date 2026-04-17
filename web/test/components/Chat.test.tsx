@@ -232,6 +232,70 @@ describe('Chat', () => {
     expect(screen.getByText('Remember this pattern')).toBeInTheDocument()
   })
 
+  // ---------------------------------------------------------------------------
+  // Typing indicator (DEC-MOTION-006)
+  // ---------------------------------------------------------------------------
+
+  it('shows typing indicator when last message is from user', () => {
+    (useChat as Mock).mockReturnValue(makeChatHookReturn({
+      messages: [
+        { id: 'msg-1', role: 'user', content: 'Hello Ada', streaming: false, timestamp: new Date() },
+      ],
+    }))
+
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    expect(screen.getByText(/Ada is thinking/i)).toBeInTheDocument()
+  })
+
+  it('hides typing indicator when last message is from assistant', () => {
+    (useChat as Mock).mockReturnValue(makeChatHookReturn({
+      messages: [
+        { id: 'msg-1', role: 'user', content: 'Hello Ada', streaming: false, timestamp: new Date() },
+        { id: 'msg-2', role: 'assistant', content: 'Hello!', streaming: false, timestamp: new Date() },
+      ],
+    }))
+
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    expect(screen.queryByText(/is thinking/i)).not.toBeInTheDocument()
+  })
+
+  it('hides typing indicator when no messages', () => {
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    expect(screen.queryByText(/is thinking/i)).not.toBeInTheDocument()
+  })
+
+  it('typing indicator has aria-live="polite" and aria-atomic="true"', () => {
+    (useChat as Mock).mockReturnValue(makeChatHookReturn({
+      messages: [
+        { id: 'msg-1', role: 'user', content: 'Hello', streaming: false, timestamp: new Date() },
+      ],
+    }))
+
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    const indicator = screen.getByText(/Ada is thinking/i).closest('[aria-live]')
+    expect(indicator).toHaveAttribute('aria-live', 'polite')
+    expect(indicator).toHaveAttribute('aria-atomic', 'true')
+  })
+
+  it('typing indicator dots are aria-hidden', () => {
+    (useChat as Mock).mockReturnValue(makeChatHookReturn({
+      messages: [
+        { id: 'msg-1', role: 'user', content: 'Hello', streaming: false, timestamp: new Date() },
+      ],
+    }))
+
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    const dots = document.querySelector('.chat-typing-indicator__dots')
+    expect(dots).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('role=log aria-live=polite on message list is unchanged (13c contract)', () => {
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    const log = screen.getByRole('log', { name: 'Chat messages' })
+    expect(log).toHaveAttribute('aria-live', 'polite')
+    expect(log).toHaveAttribute('aria-relevant', 'additions')
+  })
+
   it('renders answered state for cognitive task after submission', () => {
     (useChat as Mock).mockReturnValue(makeChatHookReturn({
       messages: [

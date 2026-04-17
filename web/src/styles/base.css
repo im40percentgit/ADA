@@ -336,6 +336,98 @@ a {
   }
 }
 
+/*
+ * @decision DEC-MOTION-006
+ * @title Chat affordance motion: message entrance 240ms, typing indicator 400ms infinite, STT pulse retimed
+ * @status accepted
+ * @rationale Three chat-specific motion affordances communicate conversational state:
+ *
+ *   1. Message entrance (chat-message--new): opacity 0→1 + translateY(8px→0) at
+ *      var(--motion-duration-base) (240ms) with ease-out. Applied by ChatMessage.tsx
+ *      on every mount. The 8px vertical slide provides spatial context (message
+ *      arrives from below) without being distracting in a therapeutic context.
+ *
+ *   2. Typing indicator (.chat-typing-indicator): three-dot stagger cycling opacity
+ *      0.3→1 with 133ms offsets, var(--motion-duration-slow) (400ms) infinite. The
+ *      wrapper has aria-live="polite" on a static DOM node so the announcement fires
+ *      once when the text is first inserted — not on every animation tick. Reduced-
+ *      motion users see the text "Ada is thinking…" with dots frozen (blanket
+ *      override zeroes animation-duration to 0.01ms, per DEC-MOTION-002).
+ *
+ *   3. STT pulse (.chat__voice-btn--active): retimed from hardcoded 1.5s to
+ *      var(--motion-duration-slow) (400ms). The keyframe is kept in App.css for
+ *      compatibility since .chat__voice-btn--active lives in App.css; the
+ *      animation-duration is overridden here via the token to ensure consistency.
+ *      The VoiceIndicator canvas uses the Web Audio API for live visualisation and
+ *      requires no CSS animation.
+ *
+ *   A11y: aria-live="polite" on the typing-indicator wrapper announces once (React
+ *   diffing — text is injected once; the animated dots are aria-hidden). The
+ *   existing role="log" aria-live="polite" on the chat message list (Phase 13c) is
+ *   unchanged. All durations are zeroed by DEC-MOTION-002 blanket override.
+ */
+
+/* Message entrance animation — applied to every new ChatMessage on mount */
+@keyframes chat-message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-message--new {
+  animation: chat-message-enter var(--motion-duration-base) var(--motion-ease-out) both;
+}
+
+/* Typing indicator dots — staggered opacity pulse */
+@keyframes typing-dot-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 1; }
+}
+
+.chat-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+  padding: var(--space-xs, 4px) 0;
+  color: var(--color-text-muted);
+  font-size: var(--size-body);
+  font-family: var(--font-body);
+}
+
+.chat-typing-indicator__text {
+  font-size: var(--size-caption, 0.75rem);
+  color: var(--color-text-muted);
+}
+
+.chat-typing-indicator__dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: var(--space-xs, 4px);
+}
+
+.chat-typing-indicator__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  animation: typing-dot-pulse var(--motion-duration-slow) var(--motion-ease-standard) infinite;
+}
+
+.chat-typing-indicator__dot:nth-child(2) {
+  /* one-third of --motion-duration-slow (400ms / 3 ≈ 133ms) */
+  animation-delay: calc(var(--motion-duration-slow) / 3);
+}
+
+.chat-typing-indicator__dot:nth-child(3) {
+  /* two-thirds of --motion-duration-slow (400ms * 2/3 ≈ 266ms) */
+  animation-delay: calc(var(--motion-duration-slow) * 2 / 3);
+}
+
 /* ── Reduced motion ────────────────────────────────────────────────── */
 /* @decision DEC-MOTION-002
  * @title Blanket prefers-reduced-motion override zeroes all motion durations

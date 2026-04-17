@@ -467,7 +467,9 @@ html, body, #root {
   background: #ef4444;
   color: white;
   border-color: #ef4444;
-  animation: pulse-voice 1.5s ease-in-out infinite;
+  /* DEC-MOTION-006: retimed from hardcoded 1.5s to motion token (400ms).
+     ease-in-out replaced by var(--motion-ease-standard) for token consistency. */
+  animation: pulse-voice var(--motion-duration-slow) var(--motion-ease-standard) infinite;
 }
 
 @keyframes pulse-voice {

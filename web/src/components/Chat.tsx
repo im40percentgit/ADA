@@ -12,6 +12,26 @@
  *   Footer: status bar + input area
  *   Floating: FacePreview (bottom-right)
  *
+ * @decision DEC-MOTION-006
+ * @title Chat affordance motion: typing indicator aria-live, message entrance, STT pulse tokens
+ * @status accepted
+ * @rationale The "Ada is thinking…" typing indicator is shown when the last message
+ *   in the list has role='user' (Ada has not replied yet) — derived directly from
+ *   the messages array rather than adding a separate state flag to useChat. This
+ *   keeps the hook surface unchanged and avoids race conditions between a flag reset
+ *   and the first streaming token arriving.
+ *
+ *   The indicator wrapper carries aria-live="polite" on a static DOM node so the
+ *   announcement fires exactly once when the text is first inserted into the live
+ *   region. The animated dots are aria-hidden so screen readers do not re-announce
+ *   on every animation tick. The existing role="log" aria-live="polite" on the
+ *   message list (Phase 13c) is unchanged — both live regions coexist without
+ *   conflict because one announces the indicator (polite, once) and the other
+ *   announces completed messages (polite, on addition).
+ *
+ *   Reduced-motion: DEC-MOTION-002 blanket override zeroes animation-duration to
+ *   0.01ms, so dots stop animating. Text "Ada is thinking…" remains visible.
+ *
  * @decision DEC-FRONTEND-009
  * @title Chat uses useEffect scroll-to-bottom on message list changes
  * @status accepted
@@ -345,6 +365,23 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
           ) : (
             <ChatMessage key={msg.id} message={msg} />
           ),
+        )}
+        {/* Typing indicator — shown when Ada has not yet replied to the last user message.
+            Derived from messages: last message role === 'user' means no assistant response yet.
+            aria-live="polite" on the static wrapper announces once when text is inserted. */}
+        {messages.length > 0 && messages[messages.length - 1].role === 'user' && (
+          <div
+            className="chat-typing-indicator"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span className="chat-typing-indicator__text">{companionName} is thinking</span>
+            <span className="chat-typing-indicator__dots" aria-hidden="true">
+              <span className="chat-typing-indicator__dot" />
+              <span className="chat-typing-indicator__dot" />
+              <span className="chat-typing-indicator__dot" />
+            </span>
+          </div>
         )}
         <div ref={sentinelRef} aria-hidden="true" />
       </main>
