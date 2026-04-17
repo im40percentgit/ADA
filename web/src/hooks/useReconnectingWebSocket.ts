@@ -26,6 +26,17 @@
  *   socket opens. Making onOpen a first-class option (rather than forcing
  *   callers to intercept onMessage for 'connected' acks) keeps auth logic
  *   co-located with the caller that owns the token, not buried in transport.
+ *
+ * @decision DEC-FRONTEND-019
+ * @title Superseded-socket guards on ws handlers (React StrictMode safety)
+ * @status accepted
+ * @rationale React 18 StrictMode double-invokes effects (mount→cleanup→mount).
+ *   The initial intentionalCloseRef guard is insufficient because the second
+ *   mount resets the ref to false before the first socket's async onopen
+ *   fires. Both sockets would authenticate and receive every message,
+ *   producing duplicated renders in chat. The wsRef.current !== ws check
+ *   reliably identifies superseded sockets in all four handlers (onopen,
+ *   onmessage, onerror, onclose) and drops their events cleanly.
  */
 
 import { useEffect, useRef, useCallback } from 'react'
@@ -142,7 +153,8 @@ export function useReconnectingWebSocket({
     wsRef.current = ws
 
     ws.onopen = () => {
-      if (intentionalCloseRef.current) {
+      // Superseded socket or intentional close — discard without authenticating
+      if (intentionalCloseRef.current || wsRef.current !== ws) {
         ws.close()
         return
       }
@@ -158,6 +170,8 @@ export function useReconnectingWebSocket({
     }
 
     ws.onmessage = (event: MessageEvent) => {
+      // Ignore late frames from a superseded socket
+      if (wsRef.current !== ws) return
       if (event.data instanceof ArrayBuffer) {
         onBinaryMessageRef.current?.(event.data)
         return
@@ -171,11 +185,15 @@ export function useReconnectingWebSocket({
     }
 
     ws.onerror = () => {
+      // Only surface errors for the active socket
+      if (wsRef.current !== ws) return
       // onerror always precedes onclose; let onclose drive reconnect logic
       setStatus('reconnecting')
     }
 
     ws.onclose = () => {
+      // A superseded socket closing should not reset wsRef or trigger reconnect
+      if (wsRef.current !== ws) return
       wsRef.current = null
       if (intentionalCloseRef.current) {
         setStatus('closed')
