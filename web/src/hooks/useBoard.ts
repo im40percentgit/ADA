@@ -28,12 +28,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { getBoard } from '../api/client'
 import { useBoardWebSocket } from './useBoardWebSocket'
 import type { Board, BoardItem, WsBoardMessage } from '../types'
+import type { ReconnectingWsStatus } from './useReconnectingWebSocket'
 
 interface UseBoardResult {
   board: Board | null
   items: BoardItem[]
   loading: boolean
   error: string | null
+  wsStatus: ReconnectingWsStatus
   addItem: (text: string) => void
   checkItem: (itemId: string, checked: boolean) => void
   editItem: (itemId: string, text: string) => void
@@ -104,7 +106,7 @@ export function useBoard(boardId: string): UseBoardResult {
     }
   }, [])
 
-  const { send } = useBoardWebSocket({ boardId, onMessage: handleMessage })
+  const { send, wsStatus } = useBoardWebSocket({ boardId, onMessage: handleMessage })
 
   const addItem = useCallback(
     (text: string) => send({ type: 'item_add', text }),
@@ -155,6 +157,7 @@ export function useBoard(boardId: string): UseBoardResult {
     items,
     loading,
     error,
+    wsStatus,
     addItem,
     checkItem,
     editItem,
