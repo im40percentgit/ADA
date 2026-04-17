@@ -10,6 +10,13 @@
  * @rationale Bar charts are the natural choice for discrete count data
  *   grouped by time period. The week labels from the API are ISO week
  *   identifiers which we display as-is.
+ *
+ * @decision DEC-MOTION-007
+ * @title Chart tooltip motion via .chart-tooltip-motion outer wrapper class
+ * @status accepted
+ * @rationale Same approach as WellbeingTrendChart — CSS transition on
+ *   .recharts-tooltip-wrapper scoped to .chart-tooltip-motion parent.
+ *   See WellbeingTrendChart for full rationale.
  */
 
 import {
@@ -34,7 +41,7 @@ export function SessionFrequencyChart({ data }: SessionFrequencyChartProps) {
   return (
     <section aria-label="Session frequency chart">
       <h4>Sessions per Week</h4>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={220} className="chart-tooltip-motion">
         <BarChart
           data={data}
           margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
