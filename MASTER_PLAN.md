@@ -37,6 +37,7 @@ ada/
   config/          TOML configuration files
   sensors/       SensorSimulator (physiological data streams)
   tests/           pytest-asyncio unit + integration tests (939 passing)
+  web/test/        Vitest + RTL + MSW component tests (266 passing across 29 files)
   web/             React + TypeScript + Vite frontend
 ```
 
@@ -51,7 +52,7 @@ ada/
 | API routes | `ada/api/routes/` | All endpoints |
 | Frontend | `web/src/` | React components |
 | Sensor simulator | `ada/sensors/` | SensorSimulator presets |
-| Tests | `tests/` | 819 unit + integration tests |
+| Tests | `tests/` | 939 backend unit+integration + 266 frontend (Vitest/RTL/MSW) |
 
 ---
 
@@ -757,10 +758,12 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 ---
 
 ### Phase 11 — Production Readiness
+**Status:** `completed` (shipped 2026-04-03)
 **Design:** `docs/superpowers/specs/2026-04-03-phase11-production-readiness-design.md`
 
 #### Phase 11a — Foundation (Testing + Resilience)
-**Status:** `in_progress`
+**Status:** `completed`
+**Commits:** `3711563` (merge frontend-testing), `5f3b41c` (merge agent-failure), `b9dab5f`, `e82a1cd`, `b07e493`, `2287a8f` (WS reconnect polish 2026-04-16)
 
 ##### Phase 11a — Testing Decisions
 
@@ -770,25 +773,248 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | DEC-TEST-011 | MSW handlers mirror real API shapes using factories | Factories produce domain objects with sensible defaults, preventing test brittleness when shapes evolve. One canonical factory per domain type, overridable per test. | accepted |
 | DEC-TEST-012 | Factories use sequential counters for unique IDs | Sequential IDs (patient-1, patient-2...) are deterministic and debuggable. UUIDs would be unreadable in test output. | accepted |
 | DEC-TEST-013 | Component tests use vi.mock for complex hooks (useWebSocket, useBoard) | Chat and BoardView use WebSocket-backed hooks that cannot be exercised in jsdom without a real server. vi.mock at the hook boundary provides controlled return values without mocking internal modules. | accepted |
+| DEC-RESILIENCE-001 | Central error_handler wraps agent event dispatch with structured logging | Every agent inherits identical error handling without boilerplate. Errors captured with context (event type, agent name, traceback) for observability. | accepted |
+| DEC-RESILIENCE-002 | Circuit breaker per-agent with half-open probe | Prevents cascading failures when an upstream (LLM, DB) is down. Open state fails fast; half-open probes allow recovery detection without thundering herd. | accepted |
+| DEC-RESILIENCE-003 | Timeout wrapper at BaseAgent handle_event boundary | Per-event timeout protects the EventBus from blocked handlers. Default 30s; configurable per agent. | accepted |
+| DEC-FRONTEND-019 | useReconnectingWebSocket with exponential backoff + connection status UI | Silent WS disconnects produced a dead chat with no user feedback. Hook exposes status (connecting/open/closed/reconnecting); ConnectionStatus component renders a banner. Backoff caps at 30s. | accepted |
 
 ##### Phase 11a Task 1 — Frontend Testing Infrastructure
-**Status:** `in_progress`
-**Branch:** `feature/frontend-testing`
+**Status:** `completed`
+**Branch:** `feature/frontend-testing` (merged)
 
 | Deliverable | Status | Notes |
 |-------------|--------|-------|
-| `web/vitest.config.ts` — Vitest + jsdom config | In progress | |
-| `web/test/setup.ts` — RTL cleanup, MSW lifecycle, browser API mocks | In progress | |
-| `web/test/msw/handlers.ts` — MSW request handlers for all API endpoints | Planned | |
-| `web/test/factories.ts` — Test data factories for all domain types | Planned | |
+| `web/vitest.config.ts` — Vitest + jsdom config | Done | |
+| `web/test/setup.ts` — RTL cleanup, MSW lifecycle, browser API mocks | Done | |
+| `web/test/msw/handlers.ts` — MSW request handlers for all API endpoints | Done | |
+| `web/test/factories.ts` — Test data factories for all domain types | Done | |
 | `web/package.json` — add vitest, RTL, MSW, user-event, jsdom | Done | |
-| `web/test/components/Login.test.tsx` | Planned | ~7 tests |
-| `web/test/components/Chat.test.tsx` | Planned | ~8 tests |
-| `web/test/components/PatientDashboard.test.tsx` | Planned | ~9 tests |
-| `web/test/components/CaregiverDashboard.test.tsx` | Planned | ~8 tests |
-| `web/test/components/BoardView.test.tsx` | Planned | ~8 tests |
-| `web/test/components/NotificationBell.test.tsx` | Planned | ~7 tests |
-| Target: ~47 frontend component tests | Planned | 0 backend regressions |
+| Initial component suites (Login, Chat, Dashboards, BoardView, NotificationBell) | Done | 59 tests landed |
+| Later phase suites added on top (Phase 12 clinical, Phase 13 onboarding, Phase 14c export) | Done | Grown to 266 tests across 29 files |
+| `web/test/hooks/useReconnectingWebSocket.test.tsx` | Done | Added 2026-04-16 (commit `2287a8f`) |
+| Frontend tests total: 266/266 passing | Done | 0 regressions |
+
+##### Phase 11a Task 2 — WebSocket Resilience
+**Status:** `completed`
+**Commits:** `e82a1cd`, `2287a8f`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `web/src/hooks/useReconnectingWebSocket.ts` — exponential backoff | Done | DEC-FRONTEND-019 |
+| `web/src/components/ConnectionStatus.tsx` — banner UI | Done | |
+| useChat + useMediaWebSocket + useBoard migrated onto shared hook | Done | |
+
+##### Phase 11a Task 3 — Agent Failure Handling
+**Status:** `completed`
+**Commits:** `5f3b41c`, `b07e493`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/agents/error_handler.py` — structured logging wrapper | Done | DEC-RESILIENCE-001 |
+| `ada/agents/circuit_breaker.py` — per-agent breaker with half-open probe | Done | DEC-RESILIENCE-002 |
+| `ada/agents/base.py` — timeout wrapper on handle_event | Done | DEC-RESILIENCE-003 |
+
+#### Phase 11b — Features (Recovery + Notifications + PWA)
+**Status:** `completed`
+**Commits:** `a66b28f` (recovery merge), `16e8d7e` (notification polish merge), `f0ad5a5` (PWA/LAN merge), `660d75c`, `625f2b7`, `9298f1d`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Account recovery — forgot password + reset password flow | Done | Closes Issue #19 |
+| `ada/api/routes/auth.py` — POST /auth/forgot-password + /auth/reset-password | Done | |
+| `web/src/components/ForgotPassword.tsx` + `ResetPassword.tsx` | Done | |
+| Notification preferences (per-event opt-in/out) | Done | DEC-NOTIF-007, DEC-NOTIF-008 |
+| Notification deduplication (hash-based, short TTL) | Done | DEC-NOTIF-009 |
+| Per-user throttling (rolling window) | Done | DEC-NOTIF-009 |
+| `ada/notifications/preferences.py` | Done | |
+| PWA manifest + install prompt | Done | DEC-PWA-001, DEC-PWA-002 |
+| Service worker caching strategy | Done | DEC-PWA-001, DEC-PWA-005 (vite-plugin-pwa) |
+| `web/src/components/InstallBanner.tsx` | Done | DEC-PWA-002 |
+| LAN dev mode — `scripts/lan-dev.sh` + mkcert + LAN_IP override | Done | DEC-PWA-003, DEC-PWA-004, DEC-CORE-003 |
+
+##### Phase 11b Decisions (new)
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-NOTIF-007 | Preferences stored per-(user, event_type) with default = opt-in | Users can silence noisy event types without losing critical alerts (crisis always on). Default opt-in reflects care-coordination intent. | accepted |
+| DEC-NOTIF-008 | Deduplication via content hash + short TTL window | Multiple agents may publish the same event shape (e.g. daily summary regenerate). Hash-based dedup within a 60s TTL prevents duplicate pushes. | accepted |
+| DEC-NOTIF-009 | Per-user rolling-window throttle configured in `[notifications.throttle]` | Prevents notification storms when a subscriber misbehaves. Excess events drop silently; critical (crisis) bypasses throttle. | accepted |
+| DEC-PWA-001 | Service worker written by hand (not Workbox) for caching strategy control | Small app; Workbox adds weight. Hand-written SW caches shell offline, network-first for API, skip-waiting on new versions. | accepted |
+| DEC-PWA-002 | Install banner hidden after user dismisses or installs | `beforeinstallprompt` captured once; banner state persisted in localStorage. Banner never nags after initial dismissal. | accepted |
+| DEC-PWA-003 | PWA config flag in AdaConfig `[pwa]` section | Allows dev mode to disable SW registration (hot reload conflicts). Prod enables SW + install prompt. | accepted |
+| DEC-PWA-004 | `scripts/lan-dev.sh` provisions mkcert certificate and binds both servers to LAN | Mobile browsers require HTTPS for getUserMedia + push notifications. mkcert + LAN_IP env override lets phones hit the dev server on real WiFi. | accepted |
+| DEC-PWA-005 | vite-plugin-pwa for manifest + SW bundling | Plugin handles manifest injection + precache manifest generation; replaces manual vite shim. | accepted |
+| DEC-CORE-003 | LAN_IP env var overrides bind address in AdaConfig | Allows the same config file to work for localhost and LAN mode without code changes. | accepted |
+
+---
+
+### Phase 12 — Clinical Capabilities
+**Status:** `completed` (shipped 2026-04-04)
+**Commits:** `2d69b34` (Phase 12a merge), `52ac115` (Phase 12b merge), `c04549a`, `c202134`, `d70b67b`, `c28ac50`, `0455450`, `cd68e4c`, `29b441e`
+
+#### Phase 12a — Clinical Visualization
+**Status:** `completed`
+**Commits:** `2d69b34` (merge)
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Interactive knowledge graph visualization with clinical overlay | Done | `web/src/components/KnowledgeGraph.tsx` + `GraphDetailPanel.tsx` |
+| Progress dashboard with charts + AI narrative | Done | `ada/api/routes/progress_report.py`, `ProgressReport.tsx` (DEC-VIZ-001) |
+| Session summary viewer (SOAP note detail) | Done | `SessionSummary.tsx` |
+| Daily summary viewer | Done | `DailySummaryDetail.tsx` — daily summary route 204 fix (`cd68e4c`) |
+| Clinician notes CRUD | Done | `ClinicianNotes.tsx` + backend CRUD |
+| Patient + caregiver dashboard integration | Done | Clinical views surfaced in both roles |
+| Backend endpoints (summary views, clinician notes) | Done | `0455450` |
+
+#### Phase 12b — Interactive Cognitive Screening
+**Status:** `completed`
+**Commits:** `52ac115` (merge), `29b441e`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Visual cognitive task components (ClockTask, PatternGrid, SequenceOrder) | Done | DEC-COG-006 (visual task scoring) |
+| Dual-mode UI (verbal + visual tasks) | Done | CognitiveScreening.tsx |
+| Results viewer + screening history | Done | ScreeningResults.tsx + ScreeningHistory.tsx |
+| Task scoring engine | Done | `ada/agents/task_scoring.py` (DEC-COG-005) |
+| Interactive screening flow | Done | DEC-COG-007 |
+
+### Phase 12 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-VIZ-001 | Progress report endpoint aggregates assessments + mood + sessions in one response | Single endpoint serves the report view without N+1 round-trips. Clinician reads a holistic snapshot; frontend stays simple. | accepted |
+| DEC-VIZ-002 | Progress report unit tests use real in-memory SQLite with seeded timelines | Consistent with DEC-TEST-001. Time-series aggregation is exactly what you want to exercise against real SQL. | accepted |
+| DEC-VIZ-003 | Progress report integration test spans assessment write → report read | End-to-end verification that the report reflects freshly-written assessment rows. | accepted |
+| DEC-COG-005 | Task scoring engine as pure module (no agent) | Scoring is deterministic given task output + expected. Easier to test as a pure function than an agent. | accepted |
+| DEC-COG-006 | Visual task scoring uses geometry primitives (distance, ordering, closure) | Analytical scoring (not ML) is deterministic and auditable. Suitable for Phase 12b where test fixtures drive the scoring surface. | accepted |
+| DEC-COG-007 | Interactive screening persists partial state (resume on refresh) | Cognitive screening runs several minutes; losing progress on reload is unacceptable. State saved after each task completion. | accepted |
+
+---
+
+### Phase 13 — UX Leap
+**Status:** `in_progress` — 13a/13b/13c shipped, 13d/13e still planned (pending DESIGN.md)
+**Note:** 13a–13c shipped autonomously on 2026-04-04 before a formal design consultation. User plans `/design-consultation` to produce `DESIGN.md`; subsequent sub-phases (13d accessibility polish, 13e micro-interactions) may be reorganized or renumbered once the formal design system lands.
+
+#### Phase 13a — Design System + Responsive Layout + Companion Personalization
+**Status:** `completed`
+**Commits:** `f7438d8` (merge), `3e677a1`
+**Design:** `docs/superpowers/specs/2026-04-04-phase13a-design-system-responsive-design.md`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Tailwind design token setup + shared UI primitives (Button, Card) | Done | `web/src/components/ui/` |
+| Responsive AppShell + navigation | Done | `AppShell.tsx` |
+| Companion personalization (name, personality, voice, preferences) | Done | `ada/api/routes/companion.py` (DEC-COMPANION-001, DEC-COMPANION-002) |
+| Settings page | Done | `SettingsPage.tsx` |
+| Mobile responsive layout across dashboards, chat, boards | Done | |
+
+#### Phase 13b — Onboarding Flow
+**Status:** `completed`
+**Commits:** `1b02499` (merge), `e343bda`
+**Design:** `docs/superpowers/specs/2026-04-04-phase13b-onboarding-design.md`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| `ada/api/routes/onboarding.py` — progress tracking endpoints | Done | |
+| OnboardingFlow orchestrator + role-specific tours | Done | DEC-ONBOARD-002 |
+| 10 onboarding step components (Welcome, Name, Personality, Voice, Chat, Wellbeing, Cognitive, Circle, Notifications, Dashboard) | Done | DEC-ONBOARD-001 per-step |
+
+#### Phase 13c — Accessibility (WCAG 2.1 AA)
+**Status:** `completed`
+**Commits:** `d615231` (merge), `88c6715`
+**Design:** `docs/superpowers/specs/2026-04-04-phase13c-accessibility-design.md`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| ARIA labels + roles across all interactive components | Done | Chat, dashboards, graphs, screening tasks, onboarding |
+| Keyboard navigation for visual cognitive tasks | Done | ClockTask, PatternGrid, SequenceOrder |
+| Focus management + skip links in AppShell | Done | |
+| Color contrast pass | Done | Against Tailwind token set from 13a |
+
+#### Phase 13d — Accessibility polish (post-design-consultation)
+**Status:** `planned`
+Awaiting DESIGN.md output from `/design-consultation` before scoping.
+
+#### Phase 13e — Micro-interactions & Polish
+**Status:** `planned`
+Awaiting DESIGN.md. May be subsumed into a broader "design refresh" sub-phase depending on consultation outcome.
+
+### Phase 13 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-COMPANION-001 | Companion preferences as per-user record with JSON blob for traits | Preferences evolve rapidly; JSON blob avoids schema churn. Structured keys (name, personality, voice) extracted into columns for indexed queries. | accepted |
+| DEC-COMPANION-002 | Preferences cached in `useCompanionPreferences` hook with mutation round-trip | PUT returns the updated record; hook swaps state atomically. Avoids stale reads after save. | accepted |
+| DEC-NOTIF-011 | Companion routes emit subset of notification events per preference flag | Keeps opt-in granularity aligned between settings UI and dispatcher logic. | accepted |
+| DEC-NOTIF-012 | Frontend preferences hook unifies companion + notification settings surface | Single settings page; one hook fetches both so save is atomic. | accepted |
+| DEC-NOTIF-013 | NotificationBell reads from preferences to hide disabled categories in history | Prevents users from seeing historical entries for event types they've since muted. | accepted |
+| DEC-ONBOARD-001 | Each onboarding step is a self-contained component with progress API write | Stateless steps + server-persisted progress keeps resume/refresh trivial and makes A/B testing steps straightforward. | accepted |
+| DEC-ONBOARD-002 | OnboardingFlow orchestrator drives step order from role + config | Different roles (patient, caregiver, clinician) see different step subsets. Centralizing the sequence in the flow component keeps steps decoupled. | accepted |
+
+---
+
+### Phase 14 — Platform Expansion
+**Status:** `completed` (shipped 2026-04-06)
+**Commits:** `b98267a` (14a merge), `09edd44` (14b merge), `9e685d8` (14c CSV), `2857703` (14c recovery merge)
+
+#### Phase 14a — Multi-Tenancy
+**Status:** `completed`
+**Commits:** `b98267a` (merge), `43f5f8a`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Organization accounts + tenant isolation | Done | DEC-TENANT-001 |
+| `ada/api/tenant.py` — tenant resolution + scoping helper | Done | |
+| Per-tenant data scoping across existing tables | Done | |
+| Tenant integration tests — cross-tenant access denied | Done | DEC-TENANT-002 |
+
+#### Phase 14b — Clinician Portal
+**Status:** `completed`
+**Commits:** `09edd44` (merge), `0aa74fb`, `4788a8c`
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Clinician portal — treatment planning UI | Done | TreatmentPlan.tsx |
+| Treatment goals with auto-progress tracking | Done | Goals auto-advance based on assessment deltas |
+| Prescribing notes | Done | PrescribingNotes.tsx |
+
+#### Phase 14c — Data Export & Compliance
+**Status:** `completed`
+**Commits:** `9e685d8` (CSV export backend), `50c077b` (adherence + wellbeing endpoint), `affab78` (audit + consent + retention backend), `9f39777` (PDF export + frontend UI), `2857703` (recovery merge)
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| CSV export — assessments, mood, medications, sessions | Done | `ce1e754` / DEC-EXPORT-001 |
+| Wellbeing export endpoint (WHO-5 timeline) — separate from mood | Done | `50c077b` |
+| Medication export = adherence logs (taken/skipped/missed) | Done | `50c077b` |
+| PDF export (patient report bundle) | Done | `9f39777` / DEC-EXPORT-002 |
+| Frontend ExportDataSection UI | Done | `ExportDataSection.tsx` |
+| Audit log — `log_audit()` helper called from routes | Done | DEC-AUDIT-001, DEC-AUDIT-002 |
+| Consent management — default-deny | Done | DEC-CONSENT-001 |
+| Data retention — dry-run-first pattern | Done | DEC-RETENTION-001, DEC-RETENTION-002 |
+| Consent manager UI | Done | `ConsentManager.tsx` |
+
+### Phase 14 Decisions
+
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-TENANT-001 | Organizations as first-class tenants; every row carries tenant_id | Additive column lets multi-tenancy land without rewriting existing queries. Scoping helper injects tenant_id on read paths. | accepted |
+| DEC-TENANT-002 | Integration test proves cross-tenant access returns 404, not 403 | Returning 404 avoids leaking tenant existence to attackers. Matches DEC-CIRCLE-AUTH-001 pattern. | accepted |
+| DEC-EXPORT-001 | CSV export backend with per-domain endpoints (assessments, mood, medications, sessions, wellbeing) | Clinicians + patients may export subsets; one endpoint per domain keeps paths discoverable and permissioning explicit. Mood (session check-ins) and Wellbeing (WHO-5) are semantically distinct — separate endpoints avoid conflating two different scoring systems. | accepted |
+| DEC-EXPORT-002 | PDF export composes patient report bundle from existing report templates | Reuses progress_report payload + daily summaries + screening results. Generating PDF server-side keeps styling consistent and avoids shipping a PDF library to the browser. | accepted |
+| DEC-AUDIT-001 | Audit log via `log_audit()` helper called from each route, not middleware | Middleware cannot know business-level context (who is being acted on, which resource). Helper-per-route makes the audit call an explicit, reviewable line in each handler. Same pattern as RFC-style "log-as-you-go." | accepted |
+| DEC-AUDIT-002 | Audit log unit tests assert presence of helper call + payload shape | Helpers are boring enough to regression-test directly. Keeps audit coverage honest without requiring an integration scenario per route. | accepted |
+| DEC-CONSENT-001 | Consent uses default-deny (missing consent record → granted=False) | Compliance defaults must fail closed. A user who has never been asked has not consented; routes gate on explicit True. | accepted |
+| DEC-RETENTION-001 | Retention endpoint uses dry-run-first pattern (`confirm=true` required for actual deletes) | Data deletion is destructive and irreversible. Default behavior lists candidate rows; the same endpoint with `confirm=true` performs the delete. Matches CLI tools like `rsync --dry-run`. | accepted |
+| DEC-RETENTION-002 | Retention unit tests cover both dry-run and confirm paths + count parity | Dry-run rowcount must match confirm rowcount. Catches a whole class of bugs where dry-run over-counts or confirm under-deletes. | accepted |
+
+---
+
+### Active Phase Pointer
+
+**Current active:** Phase 13 (UX Leap) — 13a/13b/13c shipped; 13d/13e awaiting `/design-consultation` to produce `DESIGN.md` which will drive the next sub-phase plan.
+
+**Queued (no open scope):** none — Phases 12 and 14 are complete; Phase 15+ not scoped.
 
 ---
 
