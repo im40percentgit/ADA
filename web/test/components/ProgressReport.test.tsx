@@ -34,7 +34,9 @@ describe('ProgressReport', () => {
 
   it('renders loading state initially', () => {
     renderReport()
-    expect(screen.getByText(/Loading progress report/i)).toBeInTheDocument()
+    // SkeletonCard renders multiple child skeletons with generic "Loading…" labels.
+    // The loading container is identified by aria-busy="true" on its wrapper div.
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument()
   })
 
   it('renders AI narrative text after data loads', async () => {
@@ -118,8 +120,10 @@ describe('ProgressReport', () => {
     )
     renderReport()
     await waitFor(() => {
-      expect(screen.getByText(/API 500/i)).toBeInTheDocument()
+      // ErrorState uses role="status" (polite live region), not role="alert"
+      expect(screen.getByRole('status', { name: /Error state/i })).toBeInTheDocument()
     })
+    expect(screen.getByText(/API 500/i)).toBeInTheDocument()
   })
 
   it('renders assessment score cards with correct instruments', async () => {
@@ -143,6 +147,53 @@ describe('ProgressReport', () => {
     renderReport()
     await waitFor(() => {
       expect(screen.getByText('2026-01-05')).toBeInTheDocument()
+    })
+  })
+
+  it('loading container has aria-busy="true"', () => {
+    renderReport()
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+  })
+
+  it('shows chart-area skeleton while range-change fetch is in flight', async () => {
+    const user = userEvent.setup()
+    renderReport()
+
+    // Wait for initial data
+    await waitFor(() => {
+      expect(screen.getByText('AI Narrative')).toBeInTheDocument()
+    })
+
+    // Block the next fetch so isFetching stays true for a tick
+    let resolveNext: () => void
+    server.use(
+      http.get('/api/patients/:patientId/progress-report', () =>
+        new Promise<Response>((resolve) => {
+          resolveNext = () => resolve(HttpResponse.json({ detail: 'ok' }, { status: 200 }))
+        }),
+      ),
+    )
+
+    await user.click(screen.getByText('1M'))
+
+    // isFetching skeleton replaces the chart grid during the pending fetch
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: /Loading chart data/i })).toBeInTheDocument()
+    })
+
+    // Unblock the fetch
+    resolveNext!()
+  })
+
+  it('shows empty state when API returns no data', async () => {
+    server.use(
+      http.get('/api/patients/:patientId/progress-report', () =>
+        HttpResponse.json(null, { status: 200 }),
+      ),
+    )
+    renderReport()
+    await waitFor(() => {
+      expect(screen.getByText('No progress data yet')).toBeInTheDocument()
     })
   })
 })

@@ -26,9 +26,11 @@ import { usePdfExport } from '../hooks/usePdfExport'
 import type { CognitiveScreening } from '../types'
 import { ClinicianNotes } from './ClinicianNotes'
 import { Card } from './ui/Card'
-import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { ProgressBar } from './ui/ProgressBar'
+import { Skeleton } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 
 interface ScreeningResultsProps {
   patientId: string
@@ -57,11 +59,6 @@ function formatDuration(startedAt: string, completedAt: string | null): string {
   const seconds = totalSeconds % 60
   if (minutes === 0) return `${seconds}s`
   return `${minutes}m ${seconds}s`
-}
-
-/** Convert avg_score (0-2 scale) to a percentage width (0-100%) */
-function domainBarWidth(avgScore: number): string {
-  return `${Math.min(100, Math.max(0, (avgScore / 2) * 100)).toFixed(1)}%`
 }
 
 /** Colour band based on percentage equivalent of avg_score */
@@ -223,16 +220,19 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
   if (loading) {
     return (
       <div className="patient-dash" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
-        Loading screening results...
+        <Skeleton variant="block" height="320px" aria-label="Loading screening results…" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+      <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
+        <ErrorState
+          title="Could not load screening results"
+          message={error}
+          action={<Button variant="secondary" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }
@@ -240,8 +240,13 @@ export function ScreeningResults({ patientId, screeningId, onBack }: ScreeningRe
   if (!data) {
     return (
       <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="patient-dash__empty" style={{ color: 'var(--color-text-muted)' }}>No screening data available</p>
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+        <EmptyState
+          icon="🧠"
+          title="No screenings yet"
+          description="Complete a cognitive screening to see your results here."
+          tone="info"
+          action={<Button variant="secondary" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }

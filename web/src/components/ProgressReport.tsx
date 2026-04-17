@@ -18,6 +18,18 @@
  *   ProgressReport is a pure layout component that receives data from
  *   the hook and passes slices to each chart. This separation makes both
  *   the hook and the layout independently testable.
+ *
+ * @decision DEC-CLIN-STATES-001
+ * @title AsyncBoundary pattern: SkeletonCard for initial load, isFetching skeleton for range switch
+ * @status accepted
+ * @rationale On initial load (loading=true, no data), a SkeletonCard fills the chart area.
+ *   On range-change re-fetches (isFetching=true, data already present), the chart grid is
+ *   replaced with a Skeleton(block) so the user sees immediate feedback rather than stale
+ *   charts with an invisible loader overlay. DEC-MOTION-007 (.chart-tooltip-motion wrappers
+ *   on WellbeingTrendChart and SessionFrequencyChart) are only rendered when isFetching is
+ *   false — the skeleton replaces the chart container entirely during the fetch window.
+ *   ErrorState replaces the inline danger-text pattern. EmptyState (tone="info") replaces
+ *   the plain "No progress data available" paragraph.
  */
 
 import { useProgressReport, type TimeRange } from '../hooks/useProgressReport'
@@ -29,7 +41,9 @@ import { AdherenceDonut } from './charts/AdherenceDonut'
 import { AssessmentScores } from './charts/AssessmentScores'
 import { Card } from './ui/Card'
 import { Button } from './ui/Button'
-import { Badge } from './ui/Badge'
+import { Skeleton, SkeletonCard } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 
 interface ProgressReportProps {
   patientId: string
@@ -45,22 +59,25 @@ const RANGES: { label: string; value: TimeRange }[] = [
 ]
 
 export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
-  const { data, loading, error, range, setRange } = useProgressReport(patientId)
+  const { data, loading, isFetching, error, range, setRange } = useProgressReport(patientId)
   const { exportToPdf, exporting } = usePdfExport()
 
   if (loading) {
     return (
       <div className="patient-dash" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
-        Loading progress report...
+        <SkeletonCard lines={4} />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+      <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
+        <ErrorState
+          title="Could not load progress report"
+          message={error}
+          action={<Button variant="secondary" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }
@@ -68,8 +85,13 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
   if (!data) {
     return (
       <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="patient-dash__empty" style={{ color: 'var(--color-text-muted)' }}>No progress data available</p>
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+        <EmptyState
+          icon="📊"
+          title="No progress data yet"
+          description="Check back after your first session."
+          tone="info"
+          action={<Button variant="secondary" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }
@@ -137,36 +159,45 @@ export function ProgressReport({ patientId, onBack }: ProgressReportProps) {
       </Card>
       </section>
 
-      {/* 2x2 chart grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 'var(--space-md)',
-          marginTop: 'var(--space-md)',
-        }}
-      >
-        <section aria-label="WHO-5 Wellbeing Trend">
-          <Card>
-            <WellbeingTrendChart data={data.who5_trend} />
-          </Card>
-        </section>
-        <section aria-label="Session Frequency">
-          <Card>
-            <SessionFrequencyChart data={data.session_count_by_week} />
-          </Card>
-        </section>
-        <section aria-label="Emotion Distribution">
-          <Card>
-            <EmotionDistribution data={data.emotion_distribution} />
-          </Card>
-        </section>
-        <section aria-label="Medication Adherence">
-          <Card>
-            <AdherenceDonut data={data.medication_adherence} />
-          </Card>
-        </section>
-      </div>
+      {/* 2x2 chart grid — replaced by skeleton while range-change fetch is in flight */}
+      {isFetching ? (
+        <Skeleton
+          variant="block"
+          height="320px"
+          style={{ marginTop: 'var(--space-md)' }}
+          aria-label="Loading chart data…"
+        />
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 'var(--space-md)',
+            marginTop: 'var(--space-md)',
+          }}
+        >
+          <section aria-label="WHO-5 Wellbeing Trend">
+            <Card>
+              <WellbeingTrendChart data={data.who5_trend} />
+            </Card>
+          </section>
+          <section aria-label="Session Frequency">
+            <Card>
+              <SessionFrequencyChart data={data.session_count_by_week} />
+            </Card>
+          </section>
+          <section aria-label="Emotion Distribution">
+            <Card>
+              <EmotionDistribution data={data.emotion_distribution} />
+            </Card>
+          </section>
+          <section aria-label="Medication Adherence">
+            <Card>
+              <AdherenceDonut data={data.medication_adherence} />
+            </Card>
+          </section>
+        </div>
+      )}
 
       {/* Assessment Scores */}
       <section aria-label="Assessment Scores">

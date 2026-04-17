@@ -20,6 +20,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getClinicianNotes, upsertClinicianNote } from '../api/client'
 import type { ClinicianNote } from '../types'
+import { Skeleton } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
 
 interface ClinicianNotesProps {
   entityType: 'session_summary' | 'daily_summary' | 'cognitive_screening'
@@ -95,7 +97,7 @@ export function ClinicianNotes({ entityType, entityId, role }: ClinicianNotesPro
   if (loading) {
     return (
       <div className="patient-dash__card" aria-busy="true">
-        Loading notes...
+        <Skeleton variant="block" height="100px" aria-label="Loading notes…" />
       </div>
     )
   }
@@ -111,7 +113,12 @@ export function ClinicianNotes({ entityType, entityId, role }: ClinicianNotesPro
       )}
 
       {notes.length === 0 && !error && (
-        <p style={{ color: '#6b7280', fontSize: '14px' }}>No notes yet.</p>
+        <EmptyState
+          icon="📝"
+          title="No notes yet"
+          description="Add a note below to annotate this record."
+          tone="neutral"
+        />
       )}
 
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label="Clinical notes">

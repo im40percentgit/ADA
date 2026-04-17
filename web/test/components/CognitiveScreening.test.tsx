@@ -67,12 +67,12 @@ describe('CognitiveScreening', () => {
 
     await user.click(screen.getByTestId('start-screening'))
 
-    // Should show loading/starting state
+    // Skeleton replaces the old text strings — check aria-label on role=status
     await waitFor(() => {
-      // Either 'Starting screening...' or transitions to 'Waiting for next task...'
-      const starting = screen.queryByText('Starting screening...')
-      const waiting = screen.queryByText('Waiting for next task...')
-      expect(starting || waiting).toBeTruthy()
+      // Either starting skeleton or in_progress waiting skeleton
+      const startingSkeleton = screen.queryByRole('status', { name: /Starting screening/i })
+      const waitingSkeleton = screen.queryByRole('status', { name: /Waiting for next task/i })
+      expect(startingSkeleton || waitingSkeleton).toBeTruthy()
     })
   })
 
@@ -82,8 +82,11 @@ describe('CognitiveScreening', () => {
 
     await user.click(screen.getByTestId('start-screening'))
 
+    // Skeleton has aria-label — query by role=status once in_progress and no task yet
     await waitFor(() => {
-      expect(screen.getByText('Waiting for next task...')).toBeInTheDocument()
+      expect(
+        screen.getByRole('status', { name: /Waiting for next task/i }),
+      ).toBeInTheDocument()
     })
   })
 
@@ -133,5 +136,46 @@ describe('CognitiveScreening', () => {
   it('intro screen has correct test ids', () => {
     renderScreening()
     expect(screen.getByTestId('screening-intro')).toBeInTheDocument()
+  })
+
+  it('error state shows ErrorState component with message', async () => {
+    server.use(
+      http.post('/api/patients/:patientId/screenings/start', () =>
+        HttpResponse.json({ detail: 'Service unavailable' }, { status: 503 }),
+      ),
+    )
+
+    const user = userEvent.setup()
+    renderScreening()
+    await user.click(screen.getByTestId('start-screening'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/API 503/i)).toBeInTheDocument()
+    })
+  })
+
+  it('shows starting skeleton immediately after clicking start', async () => {
+    // Block the start API so we can observe the skeleton
+    let resolveStart: () => void
+    server.use(
+      http.post('/api/patients/:patientId/screenings/start', () =>
+        new Promise<Response>((resolve) => {
+          resolveStart = () => resolve(HttpResponse.json({ screening_id: 'screening-1' }))
+        }),
+      ),
+    )
+
+    const user = userEvent.setup()
+    renderScreening()
+    await user.click(screen.getByTestId('start-screening'))
+
+    // Starting skeleton is immediately visible (aria-label on role=status)
+    await waitFor(() => {
+      expect(
+        screen.getByRole('status', { name: /Starting screening/i }),
+      ).toBeInTheDocument()
+    })
+
+    resolveStart!()
   })
 })

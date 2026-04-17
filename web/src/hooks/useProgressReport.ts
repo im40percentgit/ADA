@@ -14,7 +14,7 @@
  *   data hooks in this codebase.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getProgressReport } from '../api/client'
 import type { ProgressReportData } from '../types'
 
@@ -23,24 +23,41 @@ export type TimeRange = '1w' | '2w' | '1m' | '3m' | 'all'
 export function useProgressReport(patientId: string) {
   const [data, setData] = useState<ProgressReportData | null>(null)
   const [loading, setLoading] = useState(true)
+  // isFetching is true on both the initial load AND on range-change re-fetches.
+  // ProgressReport gates a skeleton on isFetching (not loading) to eliminate
+  // stale-chart flicker when the user switches time ranges. loading stays true
+  // only for the very first fetch (no data yet), so the full-page skeleton only
+  // renders once. On subsequent fetches, isFetching=true triggers a chart-area
+  // skeleton overlay while stale data remains mounted. (DEC-CLIN-STATES-001)
+  const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [range, setRange] = useState<TimeRange>('2w')
+  const isFirstFetch = useRef(true)
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    setIsFetching(true)
+    if (isFirstFetch.current) {
+      setLoading(true)
+    }
     setError(null)
 
     getProgressReport(patientId, range)
       .then((report) => {
-        if (!cancelled) setData(report)
+        if (!cancelled) {
+          setData(report)
+          isFirstFetch.current = false
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled)
           setError(err instanceof Error ? err.message : 'Failed to load progress report')
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          setIsFetching(false)
+        }
       })
 
     return () => {
@@ -48,5 +65,5 @@ export function useProgressReport(patientId: string) {
     }
   }, [patientId, range])
 
-  return { data, loading, error, range, setRange }
+  return { data, loading, isFetching, error, range, setRange }
 }

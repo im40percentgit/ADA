@@ -125,8 +125,9 @@ describe('PrescribingNotes', () => {
 
     renderNotes()
 
+    // Wait for initial data load — EmptyState title (no trailing period or "yet")
     await waitFor(() => {
-      expect(screen.getByText('No prescribing notes yet.')).toBeInTheDocument()
+      expect(screen.getByText('No prescribing notes')).toBeInTheDocument()
     })
 
     // Open form
@@ -164,7 +165,8 @@ describe('PrescribingNotes', () => {
     renderNotes()
 
     await waitFor(() => {
-      expect(screen.getByText('No prescribing notes yet.')).toBeInTheDocument()
+      // EmptyState title: "No prescribing notes" (no trailing period/yet)
+      expect(screen.getByText('No prescribing notes')).toBeInTheDocument()
     })
   })
 
@@ -178,8 +180,14 @@ describe('PrescribingNotes', () => {
     renderNotes()
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument()
+      // ErrorState uses role="status" (polite live region), not role="alert"
+      expect(screen.getByRole('status', { name: /Error state/i })).toBeInTheDocument()
     })
+  })
+
+  it('loading container has aria-busy="true"', () => {
+    renderNotes()
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument()
   })
 
   it('renders medication name from the linked medication', async () => {

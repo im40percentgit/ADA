@@ -37,7 +37,25 @@ describe('KnowledgeGraph', () => {
 
   it('renders loading state initially', () => {
     renderGraph()
-    expect(screen.getByText('Loading knowledge graph...')).toBeInTheDocument()
+    // Skeleton replaces the old text string — check aria-busy on container
+    expect(screen.getByRole('status', { name: /Loading knowledge graph/i })).toBeInTheDocument()
+  })
+
+  it('loading container has aria-busy="true"', () => {
+    renderGraph()
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+  })
+
+  it('renders empty state when graph has no nodes', async () => {
+    server.use(
+      http.get('/api/patients/:patientId/knowledge/graph', () =>
+        HttpResponse.json({ nodes: [], edges: [] }),
+      ),
+    )
+    renderGraph()
+    await waitFor(() => {
+      expect(screen.getByText('No concepts mapped yet')).toBeInTheDocument()
+    })
   })
 
   it('renders graph container after data loads', async () => {
@@ -111,7 +129,8 @@ describe('KnowledgeGraph', () => {
     )
     renderGraph()
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument()
+      // ErrorState uses role="status" (polite live region), not role="alert"
+      expect(screen.getByRole('status', { name: /Error state/i })).toBeInTheDocument()
     })
   })
 
@@ -124,7 +143,8 @@ describe('KnowledgeGraph', () => {
     const onBack = vi.fn()
     renderGraph({ onBack })
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument()
+      // ErrorState uses role="status" (polite live region), not role="alert"
+      expect(screen.getByRole('status', { name: /Error state/i })).toBeInTheDocument()
     })
     expect(screen.getByText('Back')).toBeInTheDocument()
   })

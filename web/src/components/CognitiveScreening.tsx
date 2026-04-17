@@ -23,9 +23,10 @@ import { useEffect, useRef } from 'react'
 import { useCognitiveScreening } from '../hooks/useCognitiveScreening'
 import { ScreeningTask } from './ScreeningTask'
 import { Card } from './ui/Card'
-import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { ProgressBar } from './ui/ProgressBar'
+import { Skeleton } from './ui/Skeleton'
+import { ErrorState } from './ui/ErrorState'
 
 interface CognitiveScreeningProps {
   patientId: string
@@ -120,7 +121,7 @@ export function CognitiveScreening({
   if (status === 'starting') {
     return (
       <div className="patient-dash" aria-busy="true" data-testid="screening-loading" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
-        <p>Starting screening...</p>
+        <Skeleton variant="block" height="200px" aria-label="Starting screening…" />
       </div>
     )
   }
@@ -129,9 +130,12 @@ export function CognitiveScreening({
 
   if (error && !currentTask) {
     return (
-      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+      <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
+        <ErrorState
+          title="Could not start screening"
+          message={error}
+          action={<Button variant="secondary" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }
@@ -141,7 +145,7 @@ export function CognitiveScreening({
   if (status === 'in_progress' && !currentTask) {
     return (
       <div className="patient-dash" data-testid="screening-waiting" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
-        <p>Waiting for next task...</p>
+        <Skeleton variant="block" height="200px" aria-label="Waiting for next task…" />
       </div>
     )
   }

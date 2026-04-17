@@ -31,6 +31,22 @@
  *   so it applies in both directions (hover in AND hover out). Existing aria-label
  *   and role="img" on the SVG are preserved; the GraphDetailPanel focus trap (DEC-BOARDS)
  *   is not touched.
+ *
+ * @decision DEC-CLIN-STATES-001
+ * @title AsyncBoundary pattern applied to 9 clinical views
+ * @status accepted
+ * @rationale Replaced ad-hoc string-based loading/empty/error states across all 9 clinical
+ *   components (KnowledgeGraph, ProgressReport, ScreeningResults, ScreeningHistory,
+ *   CognitiveScreening, DailySummaryDetail, TreatmentPlan, PrescribingNotes, ClinicianNotes)
+ *   with the shared primitives from #43: Skeleton/SkeletonCard/SkeletonList for loading,
+ *   EmptyState for zero-content, and ErrorState for API failures.
+ *   For KnowledgeGraph: Skeleton(block) fills the SVG area during load; ErrorState replaces
+ *   the danger-text role="alert" pattern; EmptyState with tone="info" replaces the empty
+ *   graph message. DEC-MOTION-007 (.kg-node hover transition + d3 mouseover class toggling)
+ *   is fully preserved — Skeleton renders ONLY while data is loading; once loaded the SVG
+ *   renders normally. For ProgressReport: an isFetching flag (separate from initial loading)
+ *   gates a range-change Skeleton, eliminating the stale-chart flicker on range switch.
+ *   See each component's inline comments for component-specific rationale.
  */
 
 import { useEffect, useRef, useCallback, useMemo } from 'react'
@@ -40,7 +56,10 @@ import { useKnowledgeGraph } from '../hooks/useKnowledgeGraph'
 import { GraphFilters } from './GraphFilters'
 import { GraphDetailPanel } from './GraphDetailPanel'
 import { Button } from './ui/Button'
-import type { KnowledgeNode, KnowledgeEdge, KnowledgeTrend } from '../types'
+import { Skeleton } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
+import type { KnowledgeNode, KnowledgeTrend } from '../types'
 
 const NODE_COLORS: Record<string, string> = {
   emotion: '#8b5cf6',
@@ -289,16 +308,20 @@ export function KnowledgeGraph({ patientId, clinicalOverlay = false, onBack }: K
     return (
       <div className="knowledge-graph knowledge-graph--loading" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
         <Button variant="secondary" size="sm" onClick={onBack}>Back</Button>
-        <p>Loading knowledge graph...</p>
+        <Skeleton variant="block" height="400px" style={{ marginTop: 'var(--space-md)' }} aria-label="Loading knowledge graph…" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="knowledge-graph knowledge-graph--error" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="knowledge-graph knowledge-graph--error" style={{ fontFamily: 'var(--font-body)' }}>
         <Button variant="secondary" size="sm" onClick={onBack}>Back</Button>
-        <p style={{ color: 'var(--color-danger)' }}>{error}</p>
+        <ErrorState
+          title="Could not load knowledge graph"
+          message={error}
+          action={<Button variant="secondary" size="sm" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }
@@ -318,28 +341,39 @@ export function KnowledgeGraph({ patientId, clinicalOverlay = false, onBack }: K
       </div>
 
       <div className="knowledge-graph__container">
-        <svg
-          ref={svgRef}
-          className="knowledge-graph__svg"
-          width="100%"
-          height="100%"
-          role="img"
-          aria-label={graphDescription}
-        >
-          <title>Knowledge Graph</title>
-          <g className="kg-edges" />
-          <g className="kg-nodes" />
-          <g className="kg-labels" />
-          <g className="kg-trends" />
-        </svg>
+        {nodes.length === 0 ? (
+          <EmptyState
+            icon="🔗"
+            title="No concepts mapped yet"
+            description="As Ada learns about you through conversations, this graph will populate."
+            tone="info"
+          />
+        ) : (
+          <>
+            <svg
+              ref={svgRef}
+              className="knowledge-graph__svg"
+              width="100%"
+              height="100%"
+              role="img"
+              aria-label={graphDescription}
+            >
+              <title>Knowledge Graph</title>
+              <g className="kg-edges" />
+              <g className="kg-nodes" />
+              <g className="kg-labels" />
+              <g className="kg-trends" />
+            </svg>
 
-        <GraphDetailPanel
-          node={selectedNode}
-          edges={edges}
-          allNodes={nodes}
-          onSelectNode={handleSelectNodeById}
-          onClose={() => setSelectedNode(null)}
-        />
+            <GraphDetailPanel
+              node={selectedNode}
+              edges={edges}
+              allNodes={nodes}
+              onSelectNode={handleSelectNodeById}
+              onClose={() => setSelectedNode(null)}
+            />
+          </>
+        )}
       </div>
     </div>
   )

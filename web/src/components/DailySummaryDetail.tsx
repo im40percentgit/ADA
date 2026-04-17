@@ -26,6 +26,9 @@ import { ClinicianNotes } from './ClinicianNotes'
 import { Card } from './ui/Card'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
+import { SkeletonCard } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 
 interface DailySummaryDetailProps {
   patientId: string
@@ -99,16 +102,19 @@ export function DailySummaryDetail({
   if (loading) {
     return (
       <div className="patient-dash" aria-busy="true" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)' }}>
-        Loading daily summary...
+        <SkeletonCard lines={3} />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="patient-dash" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="patient-dash__error" style={{ color: 'var(--color-danger)' }}>{error}</p>
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+      <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
+        <ErrorState
+          title="Could not load daily summary"
+          message={error}
+          action={<Button variant="secondary" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }
@@ -116,8 +122,13 @@ export function DailySummaryDetail({
   if (!data) {
     return (
       <div className="patient-dash" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="patient-dash__empty" style={{ color: 'var(--color-text-muted)' }}>No summary available for this date</p>
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+        <EmptyState
+          icon="📓"
+          title="No summary available"
+          description="This day has no recorded sessions."
+          tone="neutral"
+          action={<Button variant="secondary" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }

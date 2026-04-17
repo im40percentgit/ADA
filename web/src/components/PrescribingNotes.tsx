@@ -19,6 +19,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { Card } from './ui/Card'
 import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
+import { Skeleton } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 import { listPrescribingNotes, createPrescribingNote, listMedications } from '../api/client'
 import type { PrescribingNote, Medication } from '../types'
 
@@ -144,7 +147,7 @@ export function PrescribingNotes({ patientId, onBack }: PrescribingNotesProps) {
   if (loading) {
     return (
       <div aria-busy="true" style={{ padding: 'var(--space-md)' }}>
-        Loading...
+        <Skeleton variant="block" height="200px" aria-label="Loading prescribing notes…" />
       </div>
     )
   }
@@ -160,9 +163,10 @@ export function PrescribingNotes({ patientId, onBack }: PrescribingNotesProps) {
       </div>
 
       {error && (
-        <p role="alert" style={{ color: 'var(--color-danger)', marginBottom: 'var(--space-sm)' }}>
-          {error}
-        </p>
+        <ErrorState
+          title="Could not load prescribing notes"
+          message={error}
+        />
       )}
 
       {showForm && (
@@ -258,7 +262,12 @@ export function PrescribingNotes({ patientId, onBack }: PrescribingNotesProps) {
       )}
 
       {notes.length === 0 && !error && (
-        <p style={{ color: 'var(--color-text-muted)' }}>No prescribing notes yet.</p>
+        <EmptyState
+          icon="💊"
+          title="No prescribing notes"
+          description="Prescribing activity for this patient will appear here."
+          tone="neutral"
+        />
       )}
 
       {notes.map((note) => (
