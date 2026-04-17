@@ -14,9 +14,22 @@
  *   This keeps routing trivial and avoids adding react-router just for one
  *   nested view. If the navigation tree grows beyond two levels, migrate to
  *   a proper router at that point.
+ *
+ * @decision DEC-MOTION-007
+ * @title Board new-item enter animation: track WS-inserted IDs via seenIds Set
+ * @status accepted
+ * @rationale The enter animation (.board-item--new) must only fire for items
+ *   that arrive via WebSocket after initial load — not for items present on
+ *   first render. We track a seenIds Set (ref) initialized on first non-loading
+ *   render: all item IDs present at that point are "seen". Subsequent items
+ *   whose IDs are not in seenIds are WS-inserted; they receive the board-item--new
+ *   class for one animation cycle. The class is cleaned up after 600ms (covering
+ *   both the 240ms entrance + 400ms warmth flash per DEC-MOTION-007 CSS spec).
+ *   Using a ref (not state) for seenIds avoids re-renders; newItemIds is state
+ *   so class removal triggers a re-render to strip the class.
  */
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useBoard } from '../hooks/useBoard'
 import { BoardItem } from './BoardItem'
 
@@ -38,6 +51,44 @@ export function BoardView({ boardId, onBack }: BoardViewProps) {
     approveItem,
   } = useBoard(boardId)
   const [newText, setNewText] = useState('')
+
+  // DEC-MOTION-007: track IDs seen at initial load to distinguish WS-inserted items
+  const seenIds = useRef<Set<string>>(new Set())
+  const initializedRef = useRef(false)
+  const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (loading) return
+    if (!initializedRef.current) {
+      // First render after load: seed seenIds with all current item IDs
+      initializedRef.current = true
+      seenIds.current = new Set(items.map((i) => i.id))
+      return
+    }
+    // On subsequent renders: find any items whose ID is not yet seen
+    const fresh: string[] = []
+    for (const item of items) {
+      if (!seenIds.current.has(item.id)) {
+        fresh.push(item.id)
+        seenIds.current.add(item.id)
+      }
+    }
+    if (fresh.length === 0) return
+    setNewItemIds((prev) => {
+      const next = new Set(prev)
+      for (const id of fresh) next.add(id)
+      return next
+    })
+    // Remove the enter class after animation completes (240ms enter + 400ms warmth = 640ms)
+    const timer = setTimeout(() => {
+      setNewItemIds((prev) => {
+        const next = new Set(prev)
+        for (const id of fresh) next.delete(id)
+        return next
+      })
+    }, 640)
+    return () => clearTimeout(timer)
+  }, [items, loading])
 
   const handleAdd = () => {
     if (!newText.trim()) return
@@ -68,6 +119,7 @@ export function BoardView({ boardId, onBack }: BoardViewProps) {
           <BoardItem
             key={item.id}
             item={item}
+            isNew={newItemIds.has(item.id)}
             onCheck={(c) => checkItem(item.id, c)}
             onEdit={(t) => editItem(item.id, t)}
             onDelete={() => deleteItem(item.id)}

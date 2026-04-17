@@ -12,6 +12,17 @@
  *   and displayed as a percentage. The API returns pre-computed scores
  *   which we display directly — the Y-axis range of 0-100 accommodates
  *   both raw and percentage values.
+ *
+ * @decision DEC-MOTION-007
+ * @title Chart tooltip motion: CSS transition on .recharts-tooltip-wrapper via outer class
+ * @status accepted
+ * @rationale Recharts manages the tooltip element internally; we cannot inject
+ *   a className onto the tooltip div directly without replacing library internals.
+ *   Instead, the outer ResponsiveContainer wrapper receives the class
+ *   .chart-tooltip-motion, and base.css targets .chart-tooltip-motion
+ *   .recharts-tooltip-wrapper to add opacity + translateY(4px→0) transitions.
+ *   This achieves the motion spec without forking Recharts internals. The
+ *   section's aria-label is preserved. All durations are zeroed by DEC-MOTION-002.
  */
 
 import {
@@ -51,7 +62,7 @@ export function WellbeingTrendChart({ data }: WellbeingTrendChartProps) {
   return (
     <section aria-label="Wellbeing trend chart">
       <h4>WHO-5 Wellbeing Trend</h4>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={220} className="chart-tooltip-motion">
         <LineChart
           data={chartData}
           margin={{ top: 8, right: 16, left: 0, bottom: 8 }}

@@ -428,6 +428,106 @@ a {
   animation-delay: calc(var(--motion-duration-slow) * 2 / 3);
 }
 
+/*
+ * @decision DEC-MOTION-007
+ * @title Data-viz + board motion: graph node scale, chart tooltip fade, board enter + status pulse
+ * @status accepted
+ * @rationale Four motion affordances communicate interactivity and real-time state:
+ *
+ *   1. KnowledgeGraph node hover (.kg-node--hovered): CSS transition on transform
+ *      scale(1) → scale(1.08) with stroke brightening. Applied via d3 mouseover/mouseout
+ *      handlers that add/remove the class. duration-quick (160ms) + ease-standard gives
+ *      snappy-but-not-jarring hover feedback on SVG elements. Stroke brightening uses
+ *      the --color-primary-light token (was #fff at rest) to visually highlight the active
+ *      node. transform-box: fill-box + transform-origin: center ensure SVG circles scale
+ *      from their own center, not the SVG viewport origin.
+ *
+ *   2. Chart tooltip (.recharts-tooltip-wrapper): The Recharts library manages tooltip
+ *      visibility internally. We add a CSS transition on opacity and transform to the
+ *      .recharts-tooltip-wrapper element so the Recharts-owned div fades in with a
+ *      translateY(4px) → 0 ease. This avoids replacing Recharts internals while still
+ *      providing motion feedback. The outer ResponsiveContainer wrapper receives the
+ *      class .chart-tooltip-motion to scope the override.
+ *
+ *   3. Board new item (.board-item--new): keyframe animation opacity 0→1 +
+ *      translateY(4px→0) at duration-base (240ms) + ease-out. Brief background-color
+ *      flash from --color-warmth to transparent at duration-slow (400ms — closest
+ *      available token to the 600ms ideal; flagged as acceptable compromise per spec).
+ *      Applied by BoardView.tsx on items whose ID appears in the WS-received set but
+ *      was not present before the message. Class is removed after one animation cycle
+ *      via a 600ms timeout (covers both the 240ms entrance + 400ms warmth flash).
+ *      Initial render items do not receive the class — detection is via a Set<string>
+ *      of IDs seen before WS messages arrive.
+ *
+ *   4. Board status pulse (.board-item--status-pulse): @keyframes scale 1→1.02→1
+ *      fires once at duration-base (240ms) on status prop change. Applied by BoardItem
+ *      on item status transitions detected via useEffect on item.checked/item.status.
+ *
+ *   A11y: All animation durations are zeroed by DEC-MOTION-002 blanket
+ *   prefers-reduced-motion override — no per-rule override needed here. Existing
+ *   aria-label and role attributes on KnowledgeGraph SVG are preserved; chart
+ *   wrappers retain their aria-label from the <section> element.
+ */
+
+/* KnowledgeGraph node — scale up on hover, stroke brightens */
+.kg-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform var(--motion-duration-quick) var(--motion-ease-standard),
+    stroke var(--motion-duration-quick) var(--motion-ease-standard);
+  will-change: transform;
+}
+
+.kg-node--hovered {
+  transform: scale(1.08);
+  stroke: var(--color-primary-light);
+}
+
+/* Chart tooltip fade-in via Recharts wrapper element */
+.chart-tooltip-motion .recharts-tooltip-wrapper {
+  transition:
+    opacity var(--motion-duration-quick) var(--motion-ease-standard),
+    transform var(--motion-duration-quick) var(--motion-ease-standard);
+}
+
+/* Board new item — WS-inserted items enter with opacity + slide + warmth flash */
+@keyframes board-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes board-item-warmth {
+  0% {
+    background-color: var(--color-warmth);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.board-item--new {
+  animation:
+    board-item-enter var(--motion-duration-base) var(--motion-ease-out) both,
+    board-item-warmth var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+/* Board status pulse — scale 1→1.02→1 on status change */
+@keyframes board-item-status-pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.02); }
+}
+
+.board-item--status-pulse {
+  animation: board-item-status-pulse var(--motion-duration-base) var(--motion-ease-standard) 1;
+}
+
 /* ── Reduced motion ────────────────────────────────────────────────── */
 /* @decision DEC-MOTION-002
  * @title Blanket prefers-reduced-motion override zeroes all motion durations

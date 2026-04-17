@@ -10,7 +10,7 @@
  * Board mutations (add, approve) are sent as WS messages captured in sentMessages.
  */
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { server } from '../msw/handlers'
@@ -174,4 +174,117 @@ describe('BoardView', () => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
     })
   })
+})
+
+// ---------------------------------------------------------------------------
+// DEC-MOTION-007: BoardView new-item enter animation + status pulse
+// ---------------------------------------------------------------------------
+
+describe('BoardView — DEC-MOTION-007 motion classes', () => {
+  beforeEach(() => {
+    localStorage.setItem('ADA_ACCESS_TOKEN', 'test-access-token')
+    MockWebSocket.lastInstance = null
+  })
+
+  it('items present on initial load do NOT receive board-item--new class', async () => {
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText(/Test item/i)).toBeInTheDocument()
+    })
+    // The item from the MSW handler was present on first render — no enter class
+    const li = screen.getByText(/Test item/i).closest('li')
+    expect(li).not.toHaveClass('board-item--new')
+  })
+
+  it('WS-injected item receives board-item--new class', async () => {
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText(/Test item/i)).toBeInTheDocument()
+    })
+    // Wait for WS to open so message dispatch works
+    await waitFor(() => {
+      expect(MockWebSocket.lastInstance?.readyState).toBe(MockWebSocket.OPEN)
+    })
+
+    const ws = MockWebSocket.lastInstance!
+    ws.simulateMessage({
+      type: 'item_added',
+      item: makeBoardItem({ id: 'ws-item-999', text: 'WS injected item', position: 99 }),
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('WS injected item')).toBeInTheDocument()
+    })
+    const li = screen.getByText('WS injected item').closest('li')
+    expect(li).toHaveClass('board-item--new')
+  })
+
+  it('board-item--new class is removed after the animation timeout', async () => {
+    // Use real timers — inject the item, confirm class present, then wait > 640ms
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText(/Test item/i)).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(MockWebSocket.lastInstance?.readyState).toBe(MockWebSocket.OPEN)
+    })
+
+    const ws = MockWebSocket.lastInstance!
+    ws.simulateMessage({
+      type: 'item_added',
+      item: makeBoardItem({ id: 'ws-item-888', text: 'Fading item', position: 88 }),
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Fading item')).toBeInTheDocument()
+    })
+    const li = screen.getByText('Fading item').closest('li')!
+    expect(li).toHaveClass('board-item--new')
+
+    // Wait for the 640ms cleanup timer to fire (real timers)
+    await waitFor(() => {
+      expect(li).not.toHaveClass('board-item--new')
+    }, { timeout: 1500 })
+  }, 10000)
+
+  it('checking an item applies board-item--status-pulse class', async () => {
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText(/Test item/i)).toBeInTheDocument()
+    })
+
+    // Use fireEvent (synchronous) to avoid userEvent delay issues
+    const checkbox = screen.getByRole('checkbox')
+    act(() => {
+      fireEvent.click(checkbox)
+    })
+
+    // Pulse class should appear on the list item after the checked state changes
+    const li = screen.getByText(/Test item/i).closest('li')
+    await waitFor(() => {
+      expect(li).toHaveClass('board-item--status-pulse')
+    }, { timeout: 3000 })
+  }, 10000)
+
+  it('board-item--status-pulse class is removed after 260ms', async () => {
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText(/Test item/i)).toBeInTheDocument()
+    })
+
+    const checkbox = screen.getByRole('checkbox')
+    act(() => {
+      fireEvent.click(checkbox)
+    })
+
+    const li = screen.getByText(/Test item/i).closest('li')!
+    await waitFor(() => {
+      expect(li).toHaveClass('board-item--status-pulse')
+    }, { timeout: 3000 })
+
+    // Wait for the 260ms pulse cleanup timer (real timers)
+    await waitFor(() => {
+      expect(li).not.toHaveClass('board-item--status-pulse')
+    }, { timeout: 2000 })
+  }, 10000)
 })

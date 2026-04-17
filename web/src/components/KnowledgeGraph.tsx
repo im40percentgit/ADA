@@ -18,6 +18,19 @@
  *   render SVG elements declaratively in JSX. d3-selection is used only
  *   for simulation tick updates to node/edge positions via ref, avoiding
  *   a full React re-render on every tick.
+ *
+ * @decision DEC-MOTION-007
+ * @title Graph node hover: scale(1.08) + stroke brighten, duration-quick + ease-standard
+ * @status accepted
+ * @rationale SVG circle elements do not respond to CSS :hover in all browsers for
+ *   transform-origin purposes, so we toggle a CSS class (.kg-node--hovered) via d3
+ *   mouseover/mouseout event handlers rather than relying on :hover pseudo-class.
+ *   The class applies transform: scale(1.08) with transform-box: fill-box so the
+ *   circle scales from its own center. Stroke brightens to --color-primary-light for
+ *   additional visual feedback. The transition is on .kg-node (not .kg-node--hovered)
+ *   so it applies in both directions (hover in AND hover out). Existing aria-label
+ *   and role="img" on the SVG are preserved; the GraphDetailPanel focus trap (DEC-BOARDS)
+ *   is not touched.
  */
 
 import { useEffect, useRef, useCallback, useMemo } from 'react'
@@ -215,6 +228,14 @@ export function KnowledgeGraph({ patientId, clinicalOverlay = false, onBack }: K
       .on('click', (_event, d) => {
         const original = nodes.find((n) => n.id === d.id) ?? null
         setSelectedNode(original)
+      })
+      .on('mouseover', (_event, _d) => {
+        // DEC-MOTION-007: add hover class for scale(1.08) + stroke brighten
+        ;(_event.target as SVGCircleElement).classList.add('kg-node--hovered')
+      })
+      .on('mouseout', (_event, _d) => {
+        // DEC-MOTION-007: remove hover class to revert scale + stroke
+        ;(_event.target as SVGCircleElement).classList.remove('kg-node--hovered')
       })
 
     // Bind labels

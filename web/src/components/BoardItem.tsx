@@ -13,14 +13,29 @@
  *   stays decoupled from transport concerns. This makes the component trivially
  *   testable without mocking the WS layer and enables future consumers (e.g.
  *   a mobile view) to supply alternative mutation strategies.
+ *
+ * @decision DEC-MOTION-007
+ * @title BoardItem motion: isNew prop for enter animation; status pulse on checked change
+ * @status accepted
+ * @rationale Two motion affordances for board items:
+ *   1. isNew prop: BoardView passes true for WS-inserted items. The class
+ *      board-item--new is applied when isNew is true, triggering the CSS enter
+ *      animation (opacity 0→1 + translateY 4px→0 + warmth flash). The prop is
+ *      controlled by BoardView which removes it after 640ms.
+ *   2. Status pulse: useEffect watches item.checked. When it changes after mount
+ *      (prevChecked ref differs from current), board-item--status-pulse is applied
+ *      for one animation cycle (240ms = duration-base). A ref tracks the previous
+ *      checked value so the effect only fires on actual transitions, not on mount.
+ *      The pulse class is removed after 260ms (20ms grace over duration-base).
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AdaSuggestionBadge } from './AdaSuggestionBadge'
 import type { BoardItem as BoardItemType } from '../types'
 
 interface BoardItemProps {
   item: BoardItemType
+  isNew?: boolean
   onCheck: (checked: boolean) => void
   onEdit: (text: string) => void
   onDelete: () => void
@@ -29,6 +44,7 @@ interface BoardItemProps {
 
 export function BoardItem({
   item,
+  isNew = false,
   onCheck,
   onEdit,
   onDelete,
@@ -36,6 +52,24 @@ export function BoardItem({
 }: BoardItemProps) {
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState(item.text)
+
+  // DEC-MOTION-007: status pulse on checked transition
+  const [pulsing, setPulsing] = useState(false)
+  const prevChecked = useRef<boolean | null>(null)
+
+  useEffect(() => {
+    // Skip on initial mount (prevChecked starts null)
+    if (prevChecked.current === null) {
+      prevChecked.current = item.checked
+      return
+    }
+    if (prevChecked.current !== item.checked) {
+      prevChecked.current = item.checked
+      setPulsing(true)
+      const timer = setTimeout(() => setPulsing(false), 260)
+      return () => clearTimeout(timer)
+    }
+  }, [item.checked])
 
   const handleSubmitEdit = () => {
     if (editText.trim() && editText !== item.text) onEdit(editText.trim())
@@ -50,6 +84,8 @@ export function BoardItem({
         'board-item',
         isSuggested ? 'board-item--suggested' : '',
         item.checked ? 'board-item--checked' : '',
+        isNew ? 'board-item--new' : '',
+        pulsing ? 'board-item--status-pulse' : '',
       ]
         .filter(Boolean)
         .join(' ')}
