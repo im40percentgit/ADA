@@ -13,10 +13,30 @@
  *   (the selected node remains in the graph behind the panel). This avoids
  *   a full-page navigation or modal that would lose the spatial context
  *   of the graph exploration.
+ *
+ * @decision DEC-MOTION-004
+ * @title Dialog entrance/exit uses opacity + translateY(12px), duration-base, ease-out/ease-in
+ * @status accepted
+ * @rationale Enter: opacity 0→1 + translateY(12px)→0 over 240ms (--motion-duration-base)
+ *   with ease-out for a natural settle. Exit: same properties reversed with ease-in so the
+ *   panel accelerates out of frame. Mount/unmount coordination: a `isVisible` state flag
+ *   keeps the element in the DOM during exit; a 240ms setTimeout fires after onClose to
+ *   unmount once the CSS transition completes. Escape triggers onClose immediately so
+ *   keyboard users never wait for animation. The Phase 13c blanket prefers-reduced-motion
+ *   override in base.css zeroes all durations automatically — no per-rule handling needed.
+ *   CSS class `ada-dialog` (default = closed style) + `ada-dialog--open` (open style) are
+ *   defined in base.css at DEC-MOTION-004.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import type { KnowledgeNode, KnowledgeEdge } from '../types'
+
+/**
+ * Duration must match --motion-duration-base (240ms) in tokens.css so that the
+ * setTimeout fires after the CSS transition completes and the element unmounts
+ * cleanly. If the token value changes, update this constant to match.
+ */
+const DIALOG_MOTION_DURATION_MS = 240
 
 const NODE_COLORS: Record<string, string> = {
   emotion: '#8b5cf6',
@@ -45,17 +65,68 @@ export function GraphDetailPanel({
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Focus the close button when panel opens
+  /**
+   * Mount/unmount coordination for exit animation.
+   *
+   * `visibleNode` holds the last non-null node so the panel can render its
+   * content during the exit transition (after `node` becomes null).
+   * `isOpen` drives the .ada-dialog--open class (enter) vs default .ada-dialog
+   * (exit). Both flags are updated together to keep the state machine simple.
+   *
+   * State transitions:
+   *   node: null → node  →  visibleNode = node, isOpen = true  (enter)
+   *   node: node → null  →  isOpen = false (triggers exit CSS), then after
+   *                         DIALOG_MOTION_DURATION_MS visibleNode = null (unmount)
+   */
+  const [isOpen, setIsOpen] = useState(false)
+  const [visibleNode, setVisibleNode] = useState<KnowledgeNode | null>(null)
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     if (node) {
-      closeButtonRef.current?.focus()
+      // Cancel any in-flight exit timer (e.g., user re-selected before exit finished)
+      if (exitTimerRef.current !== null) {
+        clearTimeout(exitTimerRef.current)
+        exitTimerRef.current = null
+      }
+      setVisibleNode(node)
+      // A zero-delay setTimeout ensures the element is committed to the DOM
+      // in the current paint before the open class is applied, giving the
+      // browser a frame boundary to start the entrance CSS transition.
+      // Using setTimeout(0) rather than requestAnimationFrame means this is
+      // controllable by vi.useFakeTimers() in tests.
+      setTimeout(() => {
+        setIsOpen(true)
+      }, 0)
+    } else {
+      // Trigger exit transition by removing the open class, then unmount
+      setIsOpen(false)
+      exitTimerRef.current = setTimeout(() => {
+        setVisibleNode(null)
+        exitTimerRef.current = null
+      }, DIALOG_MOTION_DURATION_MS)
+    }
+
+    return () => {
+      if (exitTimerRef.current !== null) {
+        clearTimeout(exitTimerRef.current)
+        exitTimerRef.current = null
+      }
     }
   }, [node])
+
+  // Focus the close button when panel enters open state
+  useEffect(() => {
+    if (isOpen) {
+      closeButtonRef.current?.focus()
+    }
+  }, [isOpen])
 
   // Focus trap: keep Tab within the panel
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.stopPropagation()
+      // Close immediately — animation plays over still-mounted element
       onClose()
       return
     }
@@ -86,26 +157,26 @@ export function GraphDetailPanel({
     }
   }, [onClose])
 
-  if (!node) return null
+  if (!visibleNode) return null
 
   // Find connected nodes
   const connectedEdges = edges.filter(
-    (e) => e.from_node === node.id || e.to_node === node.id,
+    (e) => e.from_node === visibleNode.id || e.to_node === visibleNode.id,
   )
   const connectedNodeIds = connectedEdges.map((e) =>
-    e.from_node === node.id ? e.to_node : e.from_node,
+    e.from_node === visibleNode.id ? e.to_node : e.from_node,
   )
   const nodeMap = new Map(allNodes.map((n) => [n.id, n]))
   const connectedNodes = connectedNodeIds
     .map((id) => nodeMap.get(id))
     .filter((n): n is KnowledgeNode => n !== undefined)
 
-  const color = NODE_COLORS[node.node_type] ?? NODE_COLORS.other
+  const color = NODE_COLORS[visibleNode.node_type] ?? NODE_COLORS.other
 
   return (
     <div
       ref={panelRef}
-      className="graph-detail-panel"
+      className={`graph-detail-panel ada-dialog${isOpen ? ' ada-dialog--open' : ''}`}
       role="dialog"
       aria-labelledby="graph-detail-panel-title"
       aria-modal="true"
@@ -120,7 +191,7 @@ export function GraphDetailPanel({
       }}
     >
       <div className="graph-detail-panel__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-        <h3 id="graph-detail-panel-title" className="graph-detail-panel__title" style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{node.label}</h3>
+        <h3 id="graph-detail-panel-title" className="graph-detail-panel__title" style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{visibleNode.label}</h3>
         <button
           ref={closeButtonRef}
           type="button"
@@ -159,17 +230,17 @@ export function GraphDetailPanel({
           marginBottom: 'var(--space-md)',
         }}
       >
-        {node.node_type}
+        {visibleNode.node_type}
       </span>
 
       <dl className="graph-detail-panel__stats" style={{ display: 'flex', gap: 'var(--space-lg)', margin: '0 0 var(--space-md)' }}>
         <div className="graph-detail-panel__stat">
           <dt style={{ fontSize: 'var(--size-xs)', color: 'var(--color-text-muted)' }}>Mentions</dt>
-          <dd style={{ margin: 0, fontWeight: 700, fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{node.mention_count}</dd>
+          <dd style={{ margin: 0, fontWeight: 700, fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{visibleNode.mention_count}</dd>
         </div>
         <div className="graph-detail-panel__stat">
           <dt style={{ fontSize: 'var(--size-xs)', color: 'var(--color-text-muted)' }}>Confidence</dt>
-          <dd style={{ margin: 0, fontWeight: 700, fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{Math.round(node.confidence * 100)}%</dd>
+          <dd style={{ margin: 0, fontWeight: 700, fontSize: 'var(--size-h2)', color: 'var(--color-text-primary)' }}>{Math.round(visibleNode.confidence * 100)}%</dd>
         </div>
       </dl>
 

@@ -230,9 +230,14 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
       {/* Crisis alert — always rendered at top, non-dismissible */}
       {crisisAlert && <CrisisAlert alert={crisisAlert} />}
 
-      {/* Assessment overlay */}
+      {/* Assessment overlay — ada-dialog + ada-dialog--open provides entrance/exit motion
+          (DEC-MOTION-004). This overlay uses React's conditional render (mount/unmount)
+          so the entrance transition fires naturally on mount. Exit is instantaneous on
+          unmount — a future enhancement could wrap this in a deferred-unmount hook like
+          GraphDetailPanel for a smooth exit transition, but the current mount-only approach
+          is consistent with the existing clearAssessmentPrompt pattern. */}
       {assessmentPrompt && (
-        <div className="chat__assessment-overlay" role="dialog" aria-modal="true" aria-label="Assessment questionnaire">
+        <div className="chat__assessment-overlay ada-dialog ada-dialog--open" role="dialog" aria-modal="true" aria-label="Assessment questionnaire">
           <div className="chat__assessment-panel">
             <AssessmentForm
               instrument={assessmentPrompt.instrument === 'who5' ? 'phq9' : assessmentPrompt.instrument}
