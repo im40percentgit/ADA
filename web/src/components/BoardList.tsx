@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createBoard, getCircleBoards } from '../api/client'
 import type { Board } from '../types'
+import { EmptyState } from './ui/EmptyState'
 
 interface BoardListProps {
   circleId: string
@@ -113,7 +114,21 @@ export function BoardList({ circleId, onSelectBoard }: BoardListProps) {
           </button>
         ))}
         {boards.length === 0 && !showCreate && (
-          <p className="board-list__empty">No boards yet. Create one to get started.</p>
+          <EmptyState
+            icon="📝"
+            title="No shared boards yet"
+            description="Create one to start sharing with your care team."
+            action={
+              <button
+                className="board-list__new-btn"
+                onClick={() => setShowCreate(true)}
+                type="button"
+              >
+                Create board
+              </button>
+            }
+            tone="warm"
+          />
         )}
       </div>
     </div>

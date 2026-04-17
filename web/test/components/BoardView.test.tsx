@@ -8,6 +8,13 @@
  * No hook mocking needed — real useBoard + real useWebSocket global stub.
  * The board WebSocket sends an auth message on open; MockWebSocket captures it.
  * Board mutations (add, approve) are sent as WS messages captured in sentMessages.
+ *
+ * Phase 13e-04 additions (DEC-BOARDS-STATES-001):
+ *   - loading path: SkeletonList renders (role="status")
+ *   - empty path: EmptyState renders with correct heading
+ *   - error path: ErrorState renders (role="status", aria-label="Error state")
+ *   - WS disconnect: ConnectionStatus banner absent once WS opens
+ *   - DEC-MOTION-007 preservation: board-item--new not applied to initial items
  */
 
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
@@ -34,7 +41,8 @@ describe('BoardView', () => {
 
   it('shows loading state initially', () => {
     renderBoard()
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    // SkeletonList renders multiple spans each with role="status"; assert at least one present
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0)
   })
 
   it('renders board name after loading', async () => {
@@ -82,7 +90,7 @@ describe('BoardView', () => {
     )
     renderBoard()
     await waitFor(() => {
-      expect(screen.getByText(/No items yet/i)).toBeInTheDocument()
+      expect(screen.getByText(/No items on this board yet/i)).toBeInTheDocument()
     })
   })
 
@@ -171,8 +179,96 @@ describe('BoardView', () => {
     )
     renderBoard()
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument()
+      // ErrorState uses role="status" + aria-label="Error state"
+      expect(screen.getByRole('status', { name: /Error state/i })).toBeInTheDocument()
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 13e-04: DEC-BOARDS-STATES-001 async state primitives
+// ---------------------------------------------------------------------------
+
+describe('BoardView — async state primitives (DEC-BOARDS-STATES-001)', () => {
+  beforeEach(() => {
+    localStorage.setItem('ADA_ACCESS_TOKEN', 'test-access-token')
+    MockWebSocket.lastInstance = null
+  })
+
+  it('renders SkeletonList while loading (role=status present before data arrives)', () => {
+    renderBoard()
+    // SkeletonList renders multiple spans with role="status"; assert the container class is present
+    expect(document.querySelector('.ada-skeleton-list')).toBeInTheDocument()
+  })
+
+  it('renders EmptyState heading when board has no items', async () => {
+    server.use(
+      http.get('/api/boards/:boardId', ({ params }) => {
+        return HttpResponse.json({
+          board: { id: params.boardId, care_circle_id: 'circle-1', name: 'Empty Board', board_type: 'custom', created_by: 'user-1', created_at: '2026-01-01T00:00:00Z' },
+          items: [],
+        })
+      }),
+    )
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText('No items on this board yet')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Add the first item using the form below.')).toBeInTheDocument()
+  })
+
+  it('add-item form still renders below EmptyState (affordance preserved)', async () => {
+    server.use(
+      http.get('/api/boards/:boardId', ({ params }) => {
+        return HttpResponse.json({
+          board: { id: params.boardId, care_circle_id: 'circle-1', name: 'Empty Board', board_type: 'custom', created_by: 'user-1', created_at: '2026-01-01T00:00:00Z' },
+          items: [],
+        })
+      }),
+    )
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText('No items on this board yet')).toBeInTheDocument()
+    })
+    // The add form must still be present — "add one below" affordance (DEC-BOARDS-STATES-001)
+    expect(screen.getByPlaceholderText(/Add an item/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Add$/i })).toBeInTheDocument()
+  })
+
+  it('renders ErrorState with title when fetch fails', async () => {
+    server.use(
+      http.get('/api/boards/:boardId', () =>
+        HttpResponse.json({ detail: 'Server error' }, { status: 500 }),
+      ),
+    )
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: /Error state/i })).toBeInTheDocument()
+    })
+    expect(screen.getByText('Could not load board')).toBeInTheDocument()
+  })
+
+  it('ConnectionStatus banner is absent once WS opens', async () => {
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText(/Test Board/i)).toBeInTheDocument()
+    })
+    // After WS opens (MockWebSocket fires open via setTimeout), ConnectionStatus
+    // renders null for status='open' — no banner element in DOM
+    await waitFor(() => {
+      expect(MockWebSocket.lastInstance?.readyState).toBe(MockWebSocket.OPEN)
+    })
+    expect(document.querySelector('.connection-status')).toBeNull()
+  })
+
+  it('DEC-MOTION-007 preserved: initial-load items do NOT receive board-item--new', async () => {
+    renderBoard()
+    await waitFor(() => {
+      expect(screen.getByText(/Test item/i)).toBeInTheDocument()
+    })
+    // Items present on the first non-loading render must NOT have the enter class
+    const li = screen.getByText(/Test item/i).closest('li')
+    expect(li).not.toHaveClass('board-item--new')
   })
 })
 

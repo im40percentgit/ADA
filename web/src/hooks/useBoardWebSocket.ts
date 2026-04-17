@@ -50,7 +50,7 @@ export function useBoardWebSocket({
     }
   }, [onMessage])
 
-  const { sendJson } = useReconnectingWebSocket({
+  const { sendJson, status } = useReconnectingWebSocket({
     url,
     onMessage: handleMessage,
     onOpen: handleOpen,
@@ -61,5 +61,5 @@ export function useBoardWebSocket({
     sendJson(msg)
   }, [sendJson])
 
-  return { send }
+  return { send, wsStatus: status }
 }

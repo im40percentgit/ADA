@@ -22,6 +22,8 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { addCircleMember, getCircleMembers, removeCircleMember } from '../api/client'
 import type { CareCircleMember } from '../types'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 
 interface CircleMembersProps {
   circleId: string
@@ -94,7 +96,13 @@ export function CircleMembers({ circleId, currentUserRole }: CircleMembersProps)
         )}
       </div>
 
-      {error && <div className="circle-members__error">{error}</div>}
+      {error && (
+        <ErrorState
+          title="Could not load members"
+          message={error}
+          onRetry={fetchMembers}
+        />
+      )}
 
       {showAdd && (
         <div className="circle-members__add-form">
@@ -118,6 +126,15 @@ export function CircleMembers({ circleId, currentUserRole }: CircleMembersProps)
             Add
           </button>
         </div>
+      )}
+
+      {members.length === 0 && !error && (
+        <EmptyState
+          icon="👥"
+          title="No members invited yet"
+          description="Invite family members or caregivers from the care circle settings."
+          tone="neutral"
+        />
       )}
 
       <ul className="circle-members__list">

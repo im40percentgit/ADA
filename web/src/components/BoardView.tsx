@@ -27,11 +27,37 @@
  *   both the 240ms entrance + 400ms warmth flash per DEC-MOTION-007 CSS spec).
  *   Using a ref (not state) for seenIds avoids re-renders; newItemIds is state
  *   so class removal triggers a re-render to strip the class.
+ *
+ * @decision DEC-BOARDS-STATES-001
+ * @title AsyncBoundary pattern applied to BoardView: SkeletonList / EmptyState / ErrorState + inline ConnectionStatus
+ * @status accepted
+ * @rationale
+ *   1. Loading — SkeletonList replaces the plain "Loading…" div so the loading
+ *      state matches the visual weight of the item list and avoids layout shift.
+ *   2. Empty — EmptyState (tone="info") replaces the bare <li> text while
+ *      preserving the add-item form below it, satisfying the "add one below"
+ *      affordance without losing context.
+ *   3. Error — ErrorState (role="status", aria-label="Error state") replaces
+ *      the plain role="alert" div; consistent with DEC-ERROR-001.
+ *   4. WS disconnect — ConnectionStatus is rendered inline at the top of the
+ *      board view (not at App root) because the board WS is a separate
+ *      connection from the chat WS. CaregiverDashboard has no WS status
+ *      callback mechanism; threading wsStatus up through CaregiverDashboard →
+ *      App would require changes to three files for a contained, view-scoped
+ *      concern. Inline placement is intentional and scoped.
+ *   5. DEC-MOTION-007 is fully preserved: seenIds initialization is still
+ *      gated on `!loading` and only runs once. SkeletonList renders while
+ *      loading=true, EmptyState/items render while loading=false — the exact
+ *      same condition that gates seenIds initialization. No interference.
  */
 
 import { useState, useRef, useEffect } from 'react'
 import { useBoard } from '../hooks/useBoard'
 import { BoardItem } from './BoardItem'
+import { SkeletonList } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
+import { ConnectionStatus } from './ConnectionStatus'
 
 interface BoardViewProps {
   boardId: string
@@ -44,6 +70,7 @@ export function BoardView({ boardId, onBack }: BoardViewProps) {
     items,
     loading,
     error,
+    wsStatus,
     addItem,
     checkItem,
     editItem,
@@ -97,15 +124,29 @@ export function BoardView({ boardId, onBack }: BoardViewProps) {
   }
 
   if (loading) {
-    return <div className="board-view__loading" role="status">Loading...</div>
+    return (
+      <div className="board-view board-view--loading">
+        <SkeletonList count={4} />
+      </div>
+    )
   }
 
   if (error) {
-    return <div className="board-view__error" role="alert">{error}</div>
+    return (
+      <div className="board-view board-view--error">
+        <ErrorState
+          title="Could not load board"
+          message={error}
+        />
+      </div>
+    )
   }
 
   return (
     <div className="board-view">
+      {/* DEC-BOARDS-STATES-001: inline WS disconnect banner for board-scoped WS */}
+      <ConnectionStatus status={wsStatus} />
+
       <div className="board-view__header">
         <button className="board-view__back" onClick={onBack} type="button">
           &larr; Back
@@ -127,7 +168,14 @@ export function BoardView({ boardId, onBack }: BoardViewProps) {
           />
         ))}
         {items.length === 0 && (
-          <li className="board-view__empty">No items yet — add one below.</li>
+          <li className="board-view__empty" aria-label="empty board">
+            <EmptyState
+              icon="📋"
+              title="No items on this board yet"
+              description="Add the first item using the form below."
+              tone="info"
+            />
+          </li>
         )}
       </ul>
 
