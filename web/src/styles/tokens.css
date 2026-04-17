@@ -6,6 +6,14 @@
  * @decision DEC-TOKENS — Single-file CSS custom properties chosen over
  *   JS theme objects for zero-runtime cost, native cascade support, and
  *   straightforward dark-mode extensibility via media queries.
+ * @decision DEC-MOTION-001
+ * @title Motion tokens as CSS custom properties in tokens.css
+ * @status accepted
+ * @rationale Zero-runtime cost — custom properties resolve at paint time with
+ *   no JS overhead. Aligns with the existing token architecture: all design
+ *   constants live on :root so components reference semantic names. The four
+ *   duration steps (instant/quick/base/slow) and four named easing curves
+ *   cover the full range of UI motion without arbitrary one-off values.
  */
 
 :root {
@@ -64,4 +72,19 @@
 
   /* ── Touch ────────────────────────────────────────────────────────── */
   --touch-target-min: 44px;
+
+  /* ── Motion ──────────────────────────────────────────────────────── */
+  /* Duration steps: instant → quick → base → slow, mapped to interaction
+     feedback, element transitions, content entrance, and page navigation.
+     Easing curves follow Material Design 3 naming conventions adapted for
+     Ada's warm-motion feel. All durations are zeroed by the
+     prefers-reduced-motion: reduce override in base.css (DEC-MOTION-002). */
+  --motion-duration-instant: 80ms;   /* hover/press feedback */
+  --motion-duration-quick: 160ms;    /* button/input transitions */
+  --motion-duration-base: 240ms;     /* card entrance, panel slide */
+  --motion-duration-slow: 400ms;     /* page/step transitions */
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
 }

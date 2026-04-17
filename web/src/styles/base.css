@@ -97,6 +97,15 @@ a {
 }
 
 /* ── Reduced motion ────────────────────────────────────────────────── */
+/* @decision DEC-MOTION-002
+ * @title Blanket prefers-reduced-motion override zeroes all motion durations
+ * @status accepted
+ * @rationale The universal selector with !important ensures that any element
+ *   using transition-duration or animation-duration — including those that
+ *   reference the --motion-duration-* tokens — is collapsed to a negligible
+ *   0.01ms. This is intentionally kept as a blanket rule rather than targeting
+ *   individual tokens so that future animated components gain reduced-motion
+ *   support automatically without per-component overrides. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
