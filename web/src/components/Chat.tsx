@@ -12,6 +12,33 @@
  *   Footer: status bar + input area
  *   Floating: FacePreview (bottom-right)
  *
+ * @decision DEC-CHAT-STATES-001
+ * @title AsyncBoundary pattern applied to Chat: Skeleton / EmptyState / ErrorState
+ * @status accepted
+ * @rationale Phase 13e applies the primitives shipped in #43 (DEC-LOADING-001,
+ *   DEC-EMPTY-001, DEC-ERROR-001) to the Chat component's three async surface areas:
+ *
+ *   1. Initial load — SkeletonList is shown while useChat.isLoading is true and
+ *      the message list is empty. isLoading is set false in the .finally() of the
+ *      getSessionMessages fetch so it covers both the success and error paths.
+ *
+ *   2. Empty state — EmptyState (tone="warm") replaces the previous plain-text
+ *      placeholder. The warm tone signals an encouraging first-run state. Copy is
+ *      exactly: "Say hello to Ada — she's listening." (em-dash per spec).
+ *
+ *   3. Send failure — ErrorState is rendered inline above the input area when
+ *      sendMessage is called while the WS is not open. retrySend retries the
+ *      buffered content when the connection has recovered. This is separate from
+ *      the WS disconnect banner (ConnectionStatus, DEC-FRONTEND-016) which is
+ *      already mounted at the App root and covers the global disconnect state.
+ *
+ *   WS disconnect is surfaced via the existing ConnectionStatus banner (Phase 11a,
+ *   DEC-FRONTEND-016) — this component does not duplicate that logic.
+ *
+ *   13c a11y contract preserved: role="log" + aria-live="polite" on the message
+ *   list container is untouched. The typing indicator aria-live="polite" wrapper
+ *   from DEC-MOTION-006 is also untouched.
+ *
  * @decision DEC-MOTION-006
  * @title Chat affordance motion: typing indicator aria-live, message entrance, STT pulse tokens
  * @status accepted
@@ -74,6 +101,9 @@ import { MediaControls } from './MediaControls'
 import { Card } from './ui/Card'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
+import { SkeletonList } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 import type { Assessment } from '../types'
 import type { SimulatorPreset } from '../hooks/useSensorSimulator'
 import type { ReconnectingWsStatus } from '../hooks/useReconnectingWebSocket'
@@ -119,6 +149,9 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
     pendingTranscription,
     sendCognitiveResponse,
     markCognitiveTaskAnswered,
+    isLoading,
+    sendError,
+    retrySend,
   } = useChat(sessionId, patientId, { onAudioData: handleAudioData })
 
   // Bubble full reconnecting status up to App for the global ConnectionStatus banner
@@ -333,10 +366,19 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
         aria-relevant="additions"
         style={{ background: 'var(--color-bg-base)' }}
       >
-        {messages.length === 0 && (
-          <div className="chat__empty-state" style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)' }}>
-            <p>Welcome. How are you feeling today?</p>
+        {isLoading && messages.length === 0 && (
+          <div className="chat__skeleton" style={{ padding: 'var(--space-md)' }}>
+            <SkeletonList count={4} />
           </div>
+        )}
+        {!isLoading && messages.length === 0 && (
+          <EmptyState
+            className="chat__empty-state"
+            tone="warm"
+            icon="💬"
+            title="Start a conversation"
+            description="Say hello to Ada — she's listening."
+          />
         )}
         {messages.map((msg) =>
           msg.cognitiveTask ? (
@@ -397,6 +439,16 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
         <span className="chat__status-dot" aria-hidden="true" />
         {WS_STATUS_LABELS[wsStatus] ?? wsStatus}
       </div>
+
+      {/* Inline send-failure error — shown when sendMessage fails due to WS being closed */}
+      {sendError && (
+        <ErrorState
+          className="chat__send-error"
+          title="Message not sent"
+          message={sendError}
+          onRetry={retrySend}
+        />
+      )}
 
       {/* Input area */}
       <div className="chat__input-area" style={{ background: 'var(--color-bg-elevated)', borderTop: '1px solid var(--color-border)', padding: 'var(--space-sm) var(--space-md)', display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-end' }}>
