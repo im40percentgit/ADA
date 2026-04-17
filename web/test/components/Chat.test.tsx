@@ -86,6 +86,7 @@ function makeChatHookReturn(overrides = {}) {
     crisisAlert: null,
     assessmentPrompt: null,
     wsStatus: 'open' as const,
+    reconnectingStatus: 'open' as const,
     sendMessage: vi.fn(),
     clearAssessmentPrompt: vi.fn(),
     currentEmotion: null,
@@ -94,6 +95,10 @@ function makeChatHookReturn(overrides = {}) {
     pendingTranscription: null,
     sendCognitiveResponse: vi.fn(),
     markCognitiveTaskAnswered: vi.fn(),
+    // Phase 13e additions
+    isLoading: false,
+    sendError: null,
+    retrySend: vi.fn(),
     ...overrides,
   }
 }
@@ -117,9 +122,68 @@ describe('Chat', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument()
   })
 
-  it('shows empty state when no messages', () => {
+  // ---------------------------------------------------------------------------
+  // Phase 13e: AsyncBoundary states (DEC-CHAT-STATES-001)
+  // @mock-exempt: all vi.fn() below are callback stubs passed to makeChatHookReturn —
+  // not new vi.mock() declarations. useChat is an external boundary (WebSocket transport)
+  // already exempt at the file level. Callback stubs (retrySend, sendMessage) are used
+  // to verify interaction, not to avoid testing real logic.
+  // ---------------------------------------------------------------------------
+
+  it('shows empty state when no messages and not loading', () => {
     render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
-    expect(screen.getByText(/Welcome. How are you feeling today/i)).toBeInTheDocument()
+    // EmptyState title
+    expect(screen.getByText('Start a conversation')).toBeInTheDocument()
+    // EmptyState description — exact copy per spec (em-dash)
+    expect(screen.getByText("Say hello to Ada — she's listening.")).toBeInTheDocument()
+  })
+
+  it('shows skeleton list while loading and messages are empty', () => {
+    (useChat as Mock).mockReturnValue(makeChatHookReturn({ isLoading: true, messages: [] }))
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    // SkeletonList renders individual Skeleton items with role=status aria-label="Loading…"
+    const skeletons = screen.getAllByRole('status', { name: 'Loading…' })
+    expect(skeletons.length).toBeGreaterThanOrEqual(4)
+    // Empty state should NOT be visible while loading
+    expect(screen.queryByText('Start a conversation')).not.toBeInTheDocument()
+  })
+
+  it('does not show skeleton when loading but messages exist', () => {
+    (useChat as Mock).mockReturnValue(makeChatHookReturn({
+      isLoading: true,
+      messages: [{ id: 'msg-1', role: 'assistant', content: 'Hello', streaming: false, timestamp: new Date() }],
+    }))
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    expect(screen.queryByRole('status', { name: 'Loading…' })).not.toBeInTheDocument()
+  })
+
+  it('shows error state with retry button when sendError is set', () => {
+    const retrySend = vi.fn()
+    ;(useChat as Mock).mockReturnValue(makeChatHookReturn({
+      sendError: 'Message could not be sent — connection is unavailable.',
+      retrySend,
+    }))
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    expect(screen.getByText('Message not sent')).toBeInTheDocument()
+    expect(screen.getByText('Message could not be sent — connection is unavailable.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+
+  it('calls retrySend when Try again is clicked', async () => {
+    const retrySend = vi.fn()
+    ;(useChat as Mock).mockReturnValue(makeChatHookReturn({
+      sendError: 'Message could not be sent — connection is unavailable.',
+      retrySend,
+    }))
+    const user = userEvent.setup()
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(retrySend).toHaveBeenCalledOnce()
+  })
+
+  it('does not show error state when sendError is null', () => {
+    render(<Chat sessionId={SESSION_ID} patientId={PATIENT_ID} />)
+    expect(screen.queryByText('Message not sent')).not.toBeInTheDocument()
   })
 
   it('displays messages when present', () => {

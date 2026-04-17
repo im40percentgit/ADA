@@ -77,6 +77,12 @@ export interface UseChatReturn {
   sendCognitiveResponse: (screeningId: string, taskIndex: number, response: string | Record<string, unknown>) => void
   /** Phase 12b: mark an inline cognitive task message as answered */
   markCognitiveTaskAnswered: (messageId: string) => void
+  /** Phase 13e: true while the initial session message history is loading */
+  isLoading: boolean
+  /** Phase 13e: non-null when the last sendMessage call failed (WS not open) */
+  sendError: string | null
+  /** Phase 13e: retry the last failed send and clear the error */
+  retrySend: () => void
 }
 
 export function useChat(
@@ -89,6 +95,10 @@ export function useChat(
   const [assessmentPrompt, setAssessmentPrompt] = useState<WsAssessmentPrompt | null>(null)
   const [wsStatus, setWsStatus] = useState<WsStatus>('connecting')
   const [currentEmotion, setCurrentEmotion] = useState<WsEmotionUpdate | null>(null)
+  // Phase 13e: loading + send-error state for AsyncBoundary pattern
+  const [isLoading, setIsLoading] = useState(true)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const lastFailedContentRef = useRef<string | null>(null)
   const [currentVitals, setCurrentVitals] = useState<CurrentVitals>({
     hr: null,
     gsr: null,
@@ -103,17 +113,22 @@ export function useChat(
   // Load persisted message history on mount
   useEffect(() => {
     let cancelled = false
+    setIsLoading(true)
     getSessionMessages(sessionId).then((history) => {
-      if (cancelled || history.length === 0) return
-      setMessages(history.map((m) => ({
-        id: m.id,
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-        agent: m.agent ?? undefined,
-        streaming: false,
-        timestamp: new Date(m.timestamp),
-      })))
-    }).catch(() => { /* session may be new with no messages */ })
+      if (cancelled) return
+      if (history.length > 0) {
+        setMessages(history.map((m) => ({
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          agent: m.agent ?? undefined,
+          streaming: false,
+          timestamp: new Date(m.timestamp),
+        })))
+      }
+    }).catch(() => { /* session may be new with no messages */ }).finally(() => {
+      if (!cancelled) setIsLoading(false)
+    })
     return () => { cancelled = true }
   }, [sessionId])
 
@@ -305,6 +320,14 @@ export function useChat(
     (content: string) => {
       const trimmed = content.trim()
       if (!trimmed) return
+      // Phase 13e: surface WS send failures as inline ErrorState
+      if (wsStatus !== 'open') {
+        lastFailedContentRef.current = trimmed
+        setSendError('Message could not be sent — connection is unavailable.')
+        return
+      }
+      setSendError(null)
+      lastFailedContentRef.current = null
       setMessages((prev) => [
         ...prev,
         {
@@ -317,8 +340,34 @@ export function useChat(
       ])
       sendJson({ content: trimmed, patient_id: patientId })
     },
-    [sendJson, patientId],
+    [sendJson, patientId, wsStatus],
   )
+
+  const retrySend = useCallback(() => {
+    const content = lastFailedContentRef.current
+    if (!content) {
+      setSendError(null)
+      return
+    }
+    if (wsStatus !== 'open') {
+      // Still not connected — keep error visible
+      setSendError('Message could not be sent — connection is unavailable.')
+      return
+    }
+    setSendError(null)
+    lastFailedContentRef.current = null
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId(),
+        role: 'user',
+        content,
+        streaming: false,
+        timestamp: new Date(),
+      },
+    ])
+    sendJson({ content, patient_id: patientId })
+  }, [sendJson, patientId, wsStatus])
 
   const sendVoiceMode = useCallback(
     (enabled: boolean) => {
@@ -361,5 +410,8 @@ export function useChat(
     pendingTranscription,
     sendCognitiveResponse,
     markCognitiveTaskAnswered,
+    isLoading,
+    sendError,
+    retrySend,
   }
 }
