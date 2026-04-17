@@ -932,10 +932,11 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 | Color contrast pass | Done | Against Tailwind token set from 13a |
 
 #### Phase 13d — Micro-interactions & Motion
-**Status:** `planned`
+**Status:** `completed` (shipped 2026-04-16)
+**Commits:** `ca549e8` (13d-01), `3cf732b` (13d-02), `9300cfe` (13d-03), `82b198c` (13d-04), `948c4a6` (13d-05), `53dde02` (13d-06)
 **Scope locked:** 2026-04-16 — descoped from "post-design-consultation polish". No DESIGN.md required; the existing 13a design system (`web/src/styles/tokens.css`, `base.css`) and the 13a spec serve as source of truth. Adds a motion-token layer and applies it consistently across UI primitives and key views.
 
-**Decision IDs:** DEC-MOTION-001, DEC-MOTION-002, DEC-MOTION-003
+**Decision IDs:** DEC-MOTION-001, DEC-MOTION-002, DEC-MOTION-003, DEC-MOTION-004, DEC-MOTION-005, DEC-MOTION-006, DEC-MOTION-007
 **Requirements:** (REQ-P0-130..133 / REQ-P1-134..136 — Phase 13d namespace)
 - REQ-P0-130 — Motion tokens in `styles/tokens.css` (durations + easings) so every animated component references the same vocabulary.
 - REQ-P0-131 — Buttons, cards, inputs, bottom-nav tabs, toggle have hover/focus/press transitions using tokens.
@@ -953,14 +954,14 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 
 ##### Phase 13d Task Decomposition
 
-| Task ID | Issue | Scope | Files | Depends on | Effort |
-|---------|-------|-------|-------|------------|--------|
-| 13d-01 | #37 | Define motion tokens (DEC-MOTION-001) | `web/src/styles/tokens.css`, docs comment header | — | 0.5 day |
-| 13d-02 | #38 | Primitive micro-interactions (hover/focus/press) | `ui/Button.tsx`, `ui/Card.tsx`, `ui/Input.tsx`, `ui/Toggle.tsx`, `ui/Badge.tsx`, `ui/BottomNav.tsx`, `ui/ProgressBar.tsx`, `ui/TopBar.tsx` + tests | #37 | 1 day |
-| 13d-03 | #39 | Dialog / modal entrance-exit motion | `components/GraphDetailPanel.tsx`, any other role=dialog usage, test | #37 | 0.5 day |
-| 13d-04 | #40 | Onboarding step transition motion | `components/onboarding/OnboardingFlow.tsx`, step components wrap, test | #37 | 0.5 day |
-| 13d-05 | #41 | Chat affordances: message appear, typing indicator, STT pulse | `components/Chat.tsx`, `components/ChatMessage.tsx`, `components/VoiceIndicator.tsx`, tests | #37 | 1 day |
-| 13d-06 | #42 | Data-viz + board interactions | `components/KnowledgeGraph.tsx`, `components/charts/*`, `components/BoardView.tsx`, `components/BoardItem.tsx`, tests | #37 | 1 day |
+| Task ID | Issue | Scope | Files | Depends on | Effort | Status |
+|---------|-------|-------|-------|------------|--------|--------|
+| 13d-01 | #37 | Define motion tokens (DEC-MOTION-001) | `web/src/styles/tokens.css`, docs comment header | — | 0.5 day | shipped `ca549e8` |
+| 13d-02 | #38 | Primitive micro-interactions (hover/focus/press) | `ui/Button.tsx`, `ui/Card.tsx`, `ui/Input.tsx`, `ui/Toggle.tsx`, `ui/Badge.tsx`, `ui/BottomNav.tsx`, `ui/ProgressBar.tsx`, `ui/TopBar.tsx` + tests | #37 | 1 day | shipped `3cf732b` |
+| 13d-03 | #39 | Dialog / modal entrance-exit motion | `components/GraphDetailPanel.tsx`, any other role=dialog usage, test | #37 | 0.5 day | shipped `9300cfe` |
+| 13d-04 | #40 | Onboarding step transition motion | `components/onboarding/OnboardingFlow.tsx`, step components wrap, test | #37 | 0.5 day | shipped `82b198c` |
+| 13d-05 | #41 | Chat affordances: message appear, typing indicator, STT pulse | `components/Chat.tsx`, `components/ChatMessage.tsx`, `components/VoiceIndicator.tsx`, tests | #37 | 1 day | shipped `948c4a6` |
+| 13d-06 | #42 | Data-viz + board interactions | `components/KnowledgeGraph.tsx`, `components/charts/*`, `components/BoardView.tsx`, `components/BoardItem.tsx`, tests | #37 | 1 day | shipped `53dde02` |
 
 **Parallelization:** 13d-01 is a blocker for 02–06. 02 / 03 / 04 / 05 / 06 can run in parallel worktrees after 01 merges.
 
@@ -999,11 +1000,20 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 ### Phase 13d / 13e Decision Log
 <!-- Guardian appends entries here after each task/phase completion. -->
 
-### Planned Decisions — 13d / 13e
+### Phase 13d Decisions
 
-- **DEC-MOTION-001**: Motion tokens as CSS custom properties in `tokens.css` (durations `instant/quick/base/slow`, easings `standard/emphasized/out/in`) — aligns with DEC-TOKENS zero-runtime pattern; components reference `var(--motion-duration-quick)` etc. — Addresses: REQ-P0-130
-- **DEC-MOTION-002**: Keep blanket `prefers-reduced-motion: reduce` override as safety net; new motion tokens inherit the zero-duration under reduce; essential motion uses explicit inline style and `@media (prefers-reduced-motion: no-preference)` — preserves 13c accessibility guarantee while enabling richer motion for the majority of users — Addresses: REQ-P0-133
-- **DEC-MOTION-003**: Hover/press micro-interactions use `transform` + `opacity` only (hover = `translateY(-1px)` + shadow bump; press = `scale(0.98)` + opacity 0.9) — GPU-accelerated, no layout thrash, therapy-appropriate understated motion — Addresses: REQ-P0-131
+| ID | Decision | Rationale | Status |
+|----|----------|-----------|--------|
+| DEC-MOTION-001 | Motion tokens as CSS custom properties in `tokens.css` (durations `instant/quick/base/slow`, easings `standard/emphasized/out/in`) | Aligns with DEC-TOKENS zero-runtime pattern; components reference `var(--motion-duration-quick)` etc. Addresses: REQ-P0-130. Shipped `ca549e8`. | accepted |
+| DEC-MOTION-002 | Keep blanket `prefers-reduced-motion: reduce` override as safety net; new motion tokens inherit zero-duration under reduce; essential motion uses explicit inline style and `@media (prefers-reduced-motion: no-preference)` | Preserves 13c accessibility guarantee while enabling richer motion for the majority of users. Addresses: REQ-P0-133. Shipped `ca549e8`. | accepted |
+| DEC-MOTION-003 | Hover/press micro-interactions use `transform` + `opacity` only (hover = `translateY(-1px)` + shadow bump; press = `scale(0.98)` + opacity 0.9) | GPU-accelerated, no layout thrash, therapy-appropriate understated motion. Addresses: REQ-P0-131. Shipped `3cf732b`. | accepted |
+| DEC-MOTION-004 | Dialog entrance/exit uses mount/unmount with `.dialog-enter`/`.dialog-exit` classes driving opacity + transform; base.css defines keyframes gated behind `prefers-reduced-motion: no-preference` | React conditional render keeps semantics clean; CSS-driven motion avoids JS animation libraries and inherits the reduced-motion safety net automatically. Addresses: REQ-P0-132. Shipped `9300cfe`. | accepted |
+| DEC-MOTION-005 | Onboarding step transitions cross-fade via keyed wrapper + CSS class, not a transition library | Keyed remount forces the enter animation to replay per step; CSS-only keeps bundle flat. Addresses: REQ-P0-132. Shipped `82b198c`. | accepted |
+| DEC-MOTION-006 | Chat affordances: message entrance via `.chat-message--new` class (applied once then dropped); typing indicator as CSS keyframe tied to motion tokens; VoiceIndicator stays canvas-based (no CSS pulse) | One-shot class avoids re-animating on re-render; canvas indicator is data-driven by Web Audio so CSS pulse would be redundant. Addresses: REQ-P1-134. Shipped `948c4a6`. | accepted |
+| DEC-MOTION-007 | Data-viz + board motion: KnowledgeGraph node hover via `.kg-node--hover` scale+stroke, chart tooltip fade via `.chart-tooltip--motion`, BoardView new-item entrance + status pulse gated by seen-IDs set | Hover/tooltip classes stay in CSS land so Recharts/D3 stays unchanged; seen-IDs set distinguishes WS-inserted items from initial load so entrance fires only for live updates. Addresses: REQ-P1-135, REQ-P1-136. Shipped `53dde02`. | accepted |
+
+### Planned Decisions — 13e
+
 - **DEC-EMPTY-001**: Single `EmptyState` primitive `{ icon, title, description, action?, tone? }` replaces ~12 ad-hoc empty-state implementations — enforces consistent voice and CTA affordance — Addresses: REQ-P0-141
 - **DEC-LOADING-001**: `Skeleton` primitives (`line` / `block` / `circle` / `card`) with shimmer animation that respects reduced-motion — skeletons preferred over spinners for content-shape-stable loading — Addresses: REQ-P0-140
 - **DEC-ERROR-001**: `ErrorState` primitive + `ErrorBoundary` wrapper; WS errors continue routing through existing `ConnectionStatus` (Phase 11a) — unifies 4+ ad-hoc error patterns and catches render-time crashes — Addresses: REQ-P0-142
@@ -1082,7 +1092,7 @@ social connection) rather than CBT/DBT/MI therapeutic techniques.
 
 ### Active Phase Pointer
 
-**Current active:** Phase 13 (UX Leap) — 13a/13b/13c shipped; 13d/13e scoped 2026-04-16 (issues #37..#49, no DESIGN.md needed — existing 13a tokens serve as source of truth).
+**Current active:** Phase 13e (Loading / Empty / Error States) — 13a/13b/13c/13d shipped; 13d completed 2026-04-16 (merges `ca549e8`, `3cf732b`, `9300cfe`, `82b198c`, `948c4a6`, `53dde02`). 13e in progress: 13e-01 shipped via #43 `171d7dc`; 13e-02..07 remain (#44, #45, #46, #47, #48, #49).
 
 **Queued (no open scope):** none — Phases 12 and 14 are complete; Phase 15+ not scoped.
 
