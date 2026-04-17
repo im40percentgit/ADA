@@ -23,6 +23,18 @@
  *   enough (~60 lines) that extracting it would add import indirection without
  *   benefit. Co-location makes the data flow obvious: overview.daily_summary
  *   flows directly into the card without prop drilling through an extra module.
+ *
+ * @decision DEC-DASH-STATES-001
+ * @title AsyncBoundary primitives applied to CaregiverDashboard loading/error states
+ * @status accepted
+ * @rationale The previous full-screen spinner (role="status" + app__loading-spinner)
+ *   and red error banner (role="alert" + errorTextStyle paragraph) have been
+ *   replaced with SkeletonList (initial load) and ErrorState with onRetry (fetch
+ *   error). The existing AppShell, Card containers, aria-label attributes, polling
+ *   interval, and CircleSetupWizard path are all preserved unchanged. The fetchData
+ *   callback doubles as the retry handler — no hook refactoring required. The
+ *   ErrorState role="status" satisfies the existing test that asserts
+ *   getByRole('alert') via the outer role="alert" wrapper retained around it.
  */
 
 import { useEffect, useState, useCallback } from 'react'
@@ -45,6 +57,8 @@ import { NotificationBell } from './NotificationBell'
 import { Card } from './ui/Card'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
+import { SkeletonList } from './ui/Skeleton'
+import { ErrorState } from './ui/ErrorState'
 
 // ---------------------------------------------------------------------------
 // Styles (token-based)
@@ -99,26 +113,6 @@ const gridStyle: CSSProperties = {
 
 const fullWidthStyle: CSSProperties = {
   gridColumn: '1 / -1',
-}
-
-const loadingStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  minHeight: '200px',
-}
-
-const errorContainerStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: 'var(--space-md)',
-  padding: 'var(--space-xl)',
-}
-
-const errorTextStyle: CSSProperties = {
-  fontSize: 'var(--size-body)',
-  color: 'var(--color-danger)',
 }
 
 const sectionHeadingStyle: CSSProperties = {
@@ -355,8 +349,8 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
 
   if (loading) {
     return (
-      <div style={loadingStyle} role="status" aria-label="Loading dashboard">
-        <div className="app__loading-spinner" />
+      <div style={dashboardStyle} role="status" aria-label="Loading dashboard">
+        <SkeletonList count={6} gap="var(--space-md)" />
       </div>
     )
   }
@@ -379,11 +373,12 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
 
   if (error || !data) {
     return (
-      <div style={errorContainerStyle} role="alert">
-        <p style={errorTextStyle}>{error ?? 'Something went wrong'}</p>
-        <Button variant="primary" onClick={fetchData}>
-          Try Again
-        </Button>
+      <div style={dashboardStyle} role="alert">
+        <ErrorState
+          title="Couldn't load dashboard"
+          message={error ?? 'Something went wrong'}
+          onRetry={fetchData}
+        />
       </div>
     )
   }
