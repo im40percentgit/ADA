@@ -5,6 +5,13 @@
  * Each tab displays an icon (emoji/text) above a label. The active tab
  * uses the primary-light colour; inactive tabs use text-muted.
  *
+ * Each tab button contains a `.ada-bottom-nav__indicator` span (2px underline).
+ * The indicator is always present in the DOM but visually hidden via
+ * `transform: scaleX(0)`. When the tab gains `ada-bottom-nav__tab--active`,
+ * base.css transitions `scaleX` to 1 using `--motion-duration-quick` and
+ * `--motion-ease-standard` (DEC-MOTION-003). The button's `position: relative`
+ * is needed to allow the absolutely-positioned indicator to anchor correctly.
+ *
  * All visual values come from CSS custom properties defined in
  * `styles/tokens.css`.
  *
@@ -54,6 +61,8 @@ const tabBaseStyle: CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'var(--font-body)',
   gap: '2px',
+  // position: relative required for absolutely-positioned indicator (DEC-MOTION-003)
+  position: 'relative',
 }
 
 const iconStyle: CSSProperties = {
@@ -94,11 +103,17 @@ export function BottomNav({ tabs, activeTab, onTabChange }: BottomNavProps) {
           const isActive = tab.id === activeTab
           const color = isActive ? 'var(--color-primary-light)' : 'var(--color-text-muted)'
 
+          const tabClass = [
+            'ada-bottom-nav__tab',
+            isActive ? 'ada-bottom-nav__tab--active' : '',
+          ].filter(Boolean).join(' ')
+
           return (
             <button
               key={tab.id}
               type="button"
               role="tab"
+              className={tabClass}
               style={{ ...tabBaseStyle, color }}
               onClick={() => onTabChange(tab.id)}
               aria-selected={isActive}
@@ -107,6 +122,8 @@ export function BottomNav({ tabs, activeTab, onTabChange }: BottomNavProps) {
             >
               <span style={iconStyle} aria-hidden="true">{tab.icon}</span>
               <span style={labelStyle}>{tab.label}</span>
+              {/* scaleX indicator — transitions via .ada-bottom-nav__indicator in base.css */}
+              <span className="ada-bottom-nav__indicator" aria-hidden="true" />
             </button>
           )
         })}
