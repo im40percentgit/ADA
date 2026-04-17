@@ -257,6 +257,85 @@ a {
     transform var(--motion-duration-base) var(--motion-ease-out);
 }
 
+/*
+ * @decision DEC-MOTION-005
+ * @title Onboarding step transition: two-phase fade-out/slide-in, direction-aware
+ * @status accepted
+ * @rationale Full-screen step swaps benefit from a brief spatial cue so the
+ *   user perceives forward / backward progress rather than an abrupt content
+ *   replacement. The two-phase approach keeps the outgoing step visible only
+ *   as long as necessary (120ms exit fade) before the incoming step slides in
+ *   from the appropriate edge (±8px translateX, 240ms entrance).
+ *
+ *   Exit uses --motion-duration-exit (120ms) with opacity only (no transform)
+ *   because the departing content has already been "read" — moving it would
+ *   compete visually with the incoming slide. Entrance uses --motion-duration-base
+ *   (240ms) with ease-out so the slide decelerates naturally into position.
+ *
+ *   Direction classes:
+ *     .onboarding-step--enter-forward  → start offset +8px (slide leftward into place)
+ *     .onboarding-step--enter-back     → start offset -8px (slide rightward into place)
+ *   Both resolve to translateX(0) when .onboarding-step--entering is present.
+ *
+ *   Reduced-motion: DEC-MOTION-002 blanket override zeroes both transition
+ *   durations; JS setTimeout values also collapse to ~0ms because the CSS
+ *   animation provides no further sequencing signal — the step swap is instant.
+ */
+
+/* Default idle state — fully visible, no offset */
+.onboarding-step {
+  opacity: 1;
+  transform: translateX(0);
+  will-change: transform, opacity;
+}
+
+/* Exit phase — fade out current content (opacity only, no spatial movement) */
+.onboarding-step--exiting {
+  opacity: 0;
+  transition: opacity 120ms var(--motion-ease-in);
+}
+
+/* Enter phase — incoming content slides in from ±8px */
+.onboarding-step--entering {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-out),
+    transform var(--motion-duration-base) var(--motion-ease-out);
+}
+
+/* Forward navigation: incoming content starts 8px to the right */
+.onboarding-step--enter-forward {
+  animation: onboarding-slide-forward var(--motion-duration-base) var(--motion-ease-out) both;
+}
+
+/* Back navigation: incoming content starts 8px to the left */
+.onboarding-step--enter-back {
+  animation: onboarding-slide-back var(--motion-duration-base) var(--motion-ease-out) both;
+}
+
+@keyframes onboarding-slide-forward {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes onboarding-slide-back {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* ── Reduced motion ────────────────────────────────────────────────── */
 /* @decision DEC-MOTION-002
  * @title Blanket prefers-reduced-motion override zeroes all motion durations
