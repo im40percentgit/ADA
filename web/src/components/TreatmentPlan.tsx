@@ -26,6 +26,9 @@ import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
 import { Input } from './ui/Input'
 import { ProgressBar } from './ui/ProgressBar'
+import { Skeleton } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 import {
   listTreatmentPlans,
   getTreatmentPlan,
@@ -335,7 +338,7 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
   if (loading) {
     return (
       <div aria-busy="true" style={{ padding: 'var(--space-md)' }}>
-        Loading...
+        <Skeleton variant="block" height="200px" aria-label="Loading treatment plan…" />
       </div>
     )
   }
@@ -343,8 +346,11 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
   if (error) {
     return (
       <div style={{ padding: 'var(--space-md)' }}>
-        <p role="alert" style={{ color: 'var(--color-danger)' }}>{error}</p>
-        <Button variant="ghost" onClick={onBack}>Back</Button>
+        <ErrorState
+          title="Could not load treatment plan"
+          message={error}
+          action={<Button variant="ghost" onClick={onBack}>Go back</Button>}
+        />
       </div>
     )
   }
@@ -376,7 +382,12 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
         <div id="export-treatment-plan">
 
         {selectedPlan.goals.length === 0 && (
-          <p style={{ color: 'var(--color-text-muted)' }}>No goals yet.</p>
+          <EmptyState
+            icon="🎯"
+            title="No goals yet"
+            description="Add a goal to begin tracking progress."
+            tone="info"
+          />
         )}
 
         {selectedPlan.goals.map((goal) => (
@@ -516,7 +527,12 @@ export function TreatmentPlan({ patientId, planId, onBack }: TreatmentPlanProps)
       )}
 
       {plans.length === 0 && (
-        <p style={{ color: 'var(--color-text-muted)' }}>No treatment plans yet.</p>
+        <EmptyState
+          icon="🎯"
+          title="No treatment plans yet"
+          description="Create a plan to begin tracking treatment goals and interventions."
+          tone="info"
+        />
       )}
 
       {plans.map((plan) => (

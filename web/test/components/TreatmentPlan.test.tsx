@@ -153,7 +153,8 @@ describe('TreatmentPlan', () => {
     renderPlan()
 
     await waitFor(() => {
-      expect(screen.getByText('No treatment plans yet.')).toBeInTheDocument()
+      // EmptyState title has no trailing period
+      expect(screen.getByText('No treatment plans yet')).toBeInTheDocument()
     })
   })
 
@@ -167,7 +168,13 @@ describe('TreatmentPlan', () => {
     renderPlan()
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument()
+      // ErrorState uses role="status" (polite live region), not role="alert"
+      expect(screen.getByRole('status', { name: /Error state/i })).toBeInTheDocument()
     })
+  })
+
+  it('loading container has aria-busy="true"', () => {
+    renderPlan()
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument()
   })
 })

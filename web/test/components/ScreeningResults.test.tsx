@@ -46,7 +46,10 @@ describe('ScreeningResults', () => {
 
   it('renders loading state initially', () => {
     renderResults()
-    expect(screen.getByText(/Loading screening results/i)).toBeInTheDocument()
+    // Skeleton renders aria-label, not text — query by role=status
+    expect(
+      screen.getByRole('status', { name: /Loading screening results/i }),
+    ).toBeInTheDocument()
   })
 
   it('renders overall score after data loads', async () => {
@@ -145,7 +148,8 @@ describe('ScreeningResults', () => {
     )
     renderResults()
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument()
+      // ErrorState uses role="status" (polite live region), not role="alert"
+      expect(screen.getByRole('status', { name: /Error state/i })).toBeInTheDocument()
     })
     expect(screen.getByText(/API 404/i)).toBeInTheDocument()
   })
@@ -170,6 +174,23 @@ describe('ScreeningResults', () => {
     await waitFor(() => {
       // Header paragraph: "1 tasks · 15m 0s"
       expect(screen.getAllByText(/1 tasks/i).length).toBeGreaterThan(0)
+    })
+  })
+
+  it('loading container has aria-busy="true"', () => {
+    renderResults()
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+  })
+
+  it('shows empty state when no screening data exists', async () => {
+    server.use(
+      http.get('/api/patients/:patientId/cognitive-screenings/:screeningId', () =>
+        HttpResponse.json(null, { status: 200 }),
+      ),
+    )
+    renderResults()
+    await waitFor(() => {
+      expect(screen.getByText('No screenings yet')).toBeInTheDocument()
     })
   })
 })

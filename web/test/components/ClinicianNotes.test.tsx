@@ -137,7 +137,8 @@ describe('ClinicianNotes', () => {
 
     renderNotes()
     await waitFor(() => {
-      expect(screen.getByText('No notes yet.')).toBeInTheDocument()
+      // EmptyState title: "No notes yet" (no trailing period)
+      expect(screen.getByText('No notes yet')).toBeInTheDocument()
     })
   })
 
@@ -150,6 +151,7 @@ describe('ClinicianNotes', () => {
 
     renderNotes()
     await waitFor(() => {
+      // ClinicianNotes uses an inline role="alert" paragraph for errors (not ErrorState)
       expect(screen.getByRole('alert')).toBeInTheDocument()
     })
   })
@@ -160,5 +162,16 @@ describe('ClinicianNotes', () => {
       expect(screen.getByText('Clinician Notes')).toBeInTheDocument()
     })
     expect(screen.getByText('Save')).toBeDisabled()
+  })
+
+  it('loading container has aria-busy="true"', () => {
+    renderNotes()
+    // ClinicianNotes sets aria-busy on its wrapper div while fetching
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+  })
+
+  it('renders a skeleton block while loading', () => {
+    renderNotes()
+    expect(document.querySelector('.ada-skeleton--block')).toBeInTheDocument()
   })
 })

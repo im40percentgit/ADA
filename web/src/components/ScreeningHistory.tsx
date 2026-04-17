@@ -20,6 +20,9 @@
 import { useState, useEffect } from 'react'
 import { listCognitiveScreenings } from '../api/client'
 import type { CognitiveScreening } from '../types'
+import { SkeletonList } from './ui/Skeleton'
+import { EmptyState } from './ui/EmptyState'
+import { ErrorState } from './ui/ErrorState'
 
 interface ScreeningHistoryProps {
   patientId: string
@@ -95,15 +98,18 @@ export function ScreeningHistory({ patientId, onViewScreening }: ScreeningHistor
   if (loading) {
     return (
       <div className="patient-dash" aria-busy="true">
-        Loading screening history...
+        <SkeletonList count={4} />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="patient-dash" role="alert">
-        <p className="patient-dash__error">{error}</p>
+      <div className="patient-dash">
+        <ErrorState
+          title="Could not load screening history"
+          message={error}
+        />
       </div>
     )
   }
@@ -111,7 +117,12 @@ export function ScreeningHistory({ patientId, onViewScreening }: ScreeningHistor
   if (screenings.length === 0) {
     return (
       <div className="patient-dash">
-        <p className="patient-dash__empty">No cognitive screenings yet</p>
+        <EmptyState
+          icon="📝"
+          title="No past screenings"
+          description="Cognitive screening history will appear here once assessments are completed."
+          tone="neutral"
+        />
       </div>
     )
   }
