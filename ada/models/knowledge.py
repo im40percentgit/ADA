@@ -17,11 +17,9 @@ full graph state at session-end for auditing and rollback.
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-
 
 # ---------------------------------------------------------------------------
 # Node
@@ -91,3 +89,17 @@ class KnowledgeGraph(BaseModel):
 
     nodes: list[KnowledgeNode] = Field(default_factory=list)
     edges: list[KnowledgeEdge] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Trend
+# ---------------------------------------------------------------------------
+
+class KnowledgeTrend(BaseModel):
+    """Per-node mention count delta vs a prior snapshot, for the /trends endpoint."""
+
+    node_id: str
+    label: str
+    current_count: int
+    prior_count: int
+    direction: Literal["improving", "declining", "stable"]
