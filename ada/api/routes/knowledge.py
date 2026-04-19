@@ -10,6 +10,8 @@ Routes:
       Returns the full graph (nodes + edges).
   GET /api/patients/{patient_id}/knowledge/insights
       Returns top nodes ordered by mention_count descending.
+  GET /api/patients/{patient_id}/knowledge/trends
+      Returns per-node mention count trends vs a prior snapshot.
 
 @decision DEC-KNOWLEDGE-002
 @title Knowledge endpoints are read-only REST; writes happen via EventBus
@@ -27,7 +29,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ada.api.auth import get_current_user
-from ada.models.knowledge import KnowledgeEdge, KnowledgeGraph, KnowledgeNode
+from ada.models.knowledge import KnowledgeEdge, KnowledgeGraph, KnowledgeNode, KnowledgeTrend
 from ada.models.user import User
 
 router = APIRouter(tags=["knowledge"])
@@ -118,3 +120,23 @@ async def get_node_neighborhood(
 
     rows = await _neighborhood(state, node_id, depth=depth)
     return [KnowledgeNode.model_validate(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Trends (per-node mention_count delta vs prior snapshot)
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/patients/{patient_id}/knowledge/trends",
+    response_model=list[KnowledgeTrend],
+)
+async def get_knowledge_trends(
+    patient_id: str,
+    request: Request,
+    range: str = "2w",
+    current_user: User = Depends(get_current_user),
+) -> list[KnowledgeTrend]:
+    """Return per-node mention count trends vs a prior snapshot."""
+    from ada.knowledge.queries import get_node_trends
+    rows = await get_node_trends(_state(request), patient_id, range)
+    return [KnowledgeTrend.model_validate(r) for r in rows]

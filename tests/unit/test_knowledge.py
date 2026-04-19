@@ -18,24 +18,23 @@ FastAPI auth dependency is overridden via dependency_overrides.
 from __future__ import annotations
 
 import json
-import pytest
-import pytest_asyncio
+from datetime import UTC
 
+import pytest_asyncio
 from fastapi.testclient import TestClient
 
+from ada.agents.registry import AgentRegistry
 from ada.api.app import create_app
 from ada.api.auth import get_current_user
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.events import EventTypes, SessionEndedEvent
 from ada.core.state import StateManager
-from ada.agents.registry import AgentRegistry
-from ada.llm.router import make_null_router
 from ada.knowledge.extractor import KnowledgeExtractor, _build_transcript, _parse_llm_response
 from ada.llm.base import LLMProvider, LLMResponse
+from ada.llm.router import make_null_router
 from ada.models.knowledge import KnowledgeEdge, KnowledgeGraph, KnowledgeNode, KnowledgeSnapshot
 from ada.models.user import User
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -494,3 +493,150 @@ class TestKnowledgeExtractor:
         assert received[0].event_type == EventTypes.KNOWLEDGE_INSIGHT_EXTRACTED
 
         await bus.stop()
+
+
+# ---------------------------------------------------------------------------
+# Trends API endpoint tests
+# ---------------------------------------------------------------------------
+
+class TestKnowledgeTrendsAPI:
+    """Tests for GET /api/patients/{id}/knowledge/trends."""
+
+    @pytest_asyncio.fixture
+    async def state(self):
+        sm = StateManager(":memory:")
+        await sm.initialize()
+        yield sm
+        await sm.close()
+
+    @pytest_asyncio.fixture
+    async def patient_id(self, state):
+        pid = "patient-trends-001"
+        await state.create_patient({
+            "id": pid,
+            "name": "Trends Test Patient",
+            "dob": None,
+            "preferences": {},
+            "emergency_contact": None,
+            "caregiver_id": None,
+        })
+        return pid
+
+    @pytest_asyncio.fixture
+    async def seeded_state(self, state, patient_id):
+        """State with two nodes and no snapshots."""
+        await state.upsert_knowledge_node_by_label(
+            patient_id=patient_id,
+            node_type="trigger",
+            label="work stress",
+            confidence=0.9,
+        )
+        await state.upsert_knowledge_node_by_label(
+            patient_id=patient_id,
+            node_type="coping_strategy",
+            label="deep breathing",
+            confidence=0.8,
+        )
+        return state
+
+    async def test_get_trends_empty(self, state, patient_id):
+        """Patient with no nodes returns empty list."""
+        with _make_client(state) as client:
+            resp = client.get(f"/api/patients/{patient_id}/knowledge/trends")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_get_trends_no_prior_snapshot(self, seeded_state, patient_id):
+        """Nodes exist but no snapshot older than cutoff — all prior_count==0, direction==stable."""
+        with _make_client(seeded_state) as client:
+            resp = client.get(f"/api/patients/{patient_id}/knowledge/trends?range=2w")
+        assert resp.status_code == 200
+        trends = resp.json()
+        # Should have one entry per seeded node
+        nodes = await seeded_state.get_knowledge_nodes(patient_id)
+        assert len(trends) == len(nodes)
+        for t in trends:
+            assert t["prior_count"] == 0
+            assert t["direction"] == "stable"
+
+    async def test_get_trends_with_prior_snapshot(self, seeded_state, patient_id):
+        """
+        Seed a snapshot older than 2w with adjusted mention counts.
+        Node A: current=3, prior=5  → improving (fewer mentions now)
+        Node B: current=2, prior=1  → declining (more mentions now)
+        """
+        import uuid
+        from datetime import datetime, timedelta
+
+        # Get the seeded node IDs
+        nodes = await seeded_state.get_knowledge_nodes(patient_id)
+        node_by_label = {n["label"]: n for n in nodes}
+        node_a = node_by_label["work stress"]
+        node_b = node_by_label["deep breathing"]
+
+        # Bump mention counts so current != 1
+        # upsert again to increment mention_count (each upsert +1)
+        for _ in range(2):  # work stress: 1 + 2 = 3
+            await seeded_state.upsert_knowledge_node_by_label(
+                patient_id=patient_id, node_type="trigger",
+                label="work stress", confidence=0.9,
+            )
+        for _ in range(1):  # deep breathing: 1 + 1 = 2
+            await seeded_state.upsert_knowledge_node_by_label(
+                patient_id=patient_id, node_type="coping_strategy",
+                label="deep breathing", confidence=0.8,
+            )
+
+        # Re-fetch updated node IDs (labels unchanged)
+        nodes = await seeded_state.get_knowledge_nodes(patient_id)
+        node_by_label = {n["label"]: n for n in nodes}
+        node_a = node_by_label["work stress"]   # current_count=3
+        node_b = node_by_label["deep breathing"]  # current_count=2
+
+        # Save a snapshot dated 3 weeks ago (older than the 2w cutoff)
+        old_ts = (datetime.now(UTC) - timedelta(weeks=3)).isoformat()
+        await seeded_state.save_knowledge_snapshot({
+            "id": str(uuid.uuid4()),
+            "patient_id": patient_id,
+            "session_id": None,
+            "snapshot": {
+                "nodes": [
+                    {"id": node_a["id"], "mention_count": 5},  # prior > current → improving
+                    {"id": node_b["id"], "mention_count": 1},  # prior < current → declining
+                ],
+                "edges": [],
+            },
+            "created_at": old_ts,
+        })
+
+        with _make_client(seeded_state) as client:
+            resp = client.get(f"/api/patients/{patient_id}/knowledge/trends?range=2w")
+        assert resp.status_code == 200
+        trends = resp.json()
+        trend_by_id = {t["node_id"]: t for t in trends}
+
+        t_a = trend_by_id[node_a["id"]]
+        assert t_a["current_count"] == 3
+        assert t_a["prior_count"] == 5
+        assert t_a["direction"] == "improving"
+
+        t_b = trend_by_id[node_b["id"]]
+        assert t_b["current_count"] == 2
+        assert t_b["prior_count"] == 1
+        assert t_b["direction"] == "declining"
+
+    def test_get_trends_auth_required(self, state, patient_id):
+        """Without dependency override the endpoint returns 401."""
+        from ada.agents.registry import AgentRegistry
+        from ada.core.bus import EventBus
+        from ada.core.config import AdaConfig
+        from ada.llm.router import make_null_router
+
+        config = AdaConfig()
+        bus = EventBus()
+        registry = AgentRegistry(bus, config, state, make_null_router(_NullLLM()))
+        app = create_app(config, bus, state, registry)
+        # No dependency_overrides — auth not bypassed
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get(f"/api/patients/{patient_id}/knowledge/trends")
+        assert resp.status_code == 401

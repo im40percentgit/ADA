@@ -16,9 +16,43 @@ to traverse the graph up to an arbitrary depth without loading all edges.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ada.core.state import StateManager
+
+# ---------------------------------------------------------------------------
+# Trend range constants
+# ---------------------------------------------------------------------------
+
+_RANGE_TO_DELTA: dict[str, timedelta] = {
+    "1d": timedelta(days=1),
+    "1w": timedelta(weeks=1),
+    "2w": timedelta(weeks=2),
+    "1m": timedelta(days=30),
+    "3m": timedelta(days=90),
+    "6m": timedelta(days=180),
+    "1y": timedelta(days=365),
+}
+
+
+def _parse_range(range_str: str) -> timedelta:
+    """Map a range string to a timedelta. Unknown strings default to 2w."""
+    return _RANGE_TO_DELTA.get(range_str, timedelta(weeks=2))
+
+
+def _to_datetime(value: Any) -> datetime | None:
+    """Coerce an ISO-8601 string or datetime to a timezone-aware datetime."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    # SQLite stores ISO8601 strings
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+    except Exception:
+        return None
 
 
 async def get_patient_graph(state: StateManager, patient_id: str) -> dict[str, Any]:
@@ -143,3 +177,90 @@ async def get_node_evolution(
         deserialised from JSON to a Python dict.
     """
     return await state.get_knowledge_snapshots_for_node(node_id)
+
+
+# ---------------------------------------------------------------------------
+# Trends (per-node mention_count delta vs prior snapshot)
+# ---------------------------------------------------------------------------
+
+async def get_node_trends(
+    state: StateManager,
+    patient_id: str,
+    range_str: str,
+) -> list[dict[str, Any]]:
+    """
+    Return per-node mention_count trend compared to the most recent
+    knowledge snapshot older than ``now - range``.
+
+    @decision DEC-KNOWLEDGE-003
+    @title Direction convention: fewer mentions = improving; no baseline = stable
+    @status accepted
+    @rationale In a therapeutic context, a node represents a concern
+        (trigger, cognitive pattern, etc.). Fewer mentions over time signals
+        the patient is encountering or dwelling on the issue less, which is
+        an improvement. This mirrors the msw mock at
+        web/test/msw/handlers.ts:330-334 so the frontend and backend agree
+        on semantics without a mapping layer. When no baseline snapshot exists
+        older than the requested range, direction is "stable" for all nodes —
+        a single data point cannot reveal a trend.
+
+    Args:
+        state: Initialised StateManager instance.
+        patient_id: Patient UUID.
+        range_str: One of "1d", "1w", "2w", "1m", "3m", "6m", "1y".
+            Unknown strings default to "2w".
+
+    Returns:
+        List of dicts with keys: node_id, label, current_count,
+        prior_count, direction. Empty list when the patient has no nodes.
+    """
+    current_rows = await state.get_knowledge_nodes(patient_id)
+    if not current_rows:
+        return []
+
+    snapshots = await state.list_knowledge_snapshots(patient_id)
+    # list_knowledge_snapshots returns DESC by created_at.
+    cutoff = datetime.now(UTC) - _parse_range(range_str)
+
+    # prior_counts maps node_id → mention_count from the baseline snapshot.
+    # _baseline_found is False when no snapshot older than the cutoff exists,
+    # in which case we report direction="stable" for all nodes (no baseline
+    # to compare against — we cannot infer trend from a single data point).
+    prior_counts: dict[str, int] = {}
+    _baseline_found = False
+    for snap in snapshots:
+        created = snap.get("created_at")
+        created_dt = _to_datetime(created)
+        if created_dt is None:
+            continue
+        if created_dt <= cutoff:
+            blob = snap.get("snapshot") or {}
+            for n in blob.get("nodes", []):
+                nid = n.get("id")
+                if nid is not None:
+                    prior_counts[nid] = int(n.get("mention_count", 0))
+            _baseline_found = True
+            break  # newest-before-cutoff wins
+
+    out: list[dict[str, Any]] = []
+    for row in current_rows:
+        current = int(row.get("mention_count", 0))
+        prior = prior_counts.get(row["id"], 0)
+        if not _baseline_found:
+            direction = "stable"
+        elif current < prior:
+            direction = "improving"
+        elif current > prior:
+            direction = "declining"
+        else:
+            direction = "stable"
+        out.append(
+            {
+                "node_id": row["id"],
+                "label": row["label"],
+                "current_count": current,
+                "prior_count": prior,
+                "direction": direction,
+            }
+        )
+    return out
