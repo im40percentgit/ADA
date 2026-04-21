@@ -64,6 +64,16 @@ vad_threshold = 0.5
 enabled = true
 debounce_seconds = 5.0
 
+# Development rate-limit overrides — intentionally generous.
+# One caregiver account creation fires POST /register + POST /login + GET /me
+# in sequence. With StrictMode double-mounting, a cold page load adds 2 more
+# /me calls. Production defaults (10 auth/min, 120 api/min) are too tight for
+# rapid iteration. These values stay in development.toml only; production.toml
+# is unchanged (DEC-SEC-001).
+[rate_limit]
+auth_requests_per_minute = 60
+api_requests_per_minute = 600
+
 [model_routing.agent_mapping]
 wellness_companion = "local"
 crisis_monitor = "local"
