@@ -36,8 +36,15 @@ class RateLimitMiddleware:
     Raw ASGI sliding window rate limiter.
 
     Limits are applied per client IP:
-      - Paths starting with ``/api/auth`` → ``auth_requests_per_minute``
-      - All other paths                  → ``api_requests_per_minute``
+      - Credential-handling ``/api/auth`` paths (register, login, refresh,
+        forgot-password, reset-password) → ``auth_requests_per_minute``
+      - ``/api/auth/me`` and all other paths → ``api_requests_per_minute``
+
+    ``/api/auth/me`` is a cheap read-only profile fetch called on every page
+    mount (and twice under React StrictMode). Counting it against the tight
+    auth bucket caused 429 errors during normal caregiver account creation
+    (one click = 3 auth requests; a few retries = exhausted budget).
+    See DEC-SEC-003 on ``_limit_for_path`` for the full rationale.
 
     Non-HTTP scopes (websocket, lifespan) pass through without incrementing
     any counter because they are long-lived connections, not per-request load.
@@ -86,8 +93,28 @@ class RateLimitMiddleware:
         await self.app(scope, receive, send)
 
     def _limit_for_path(self, path: str) -> int:
-        """Return the per-minute limit appropriate for *path*."""
-        if path.startswith("/api/auth"):
+        """
+        Return the per-minute request limit appropriate for *path*.
+
+        @decision DEC-SEC-003
+        @title Exclude /api/auth/me from the tight auth-bucket limit
+        @status accepted
+        @rationale ``/api/auth/me`` is a read-only profile fetch issued on
+            every page mount — it carries no credential material and poses no
+            brute-force risk. Counting it against the auth bucket (10/min in
+            production, per DEC-SEC-001) made caregiver account creation fail
+            with 429: one "Create account" click fires POST /register + POST
+            /login + GET /me in sequence, burning 3 of 10 slots. Two or three
+            retries (e.g. after a duplicate-email 409) exhausted the budget,
+            after which even a plain page reload was blocked. The fix routes
+            /me through the larger api bucket while keeping all
+            credential-handling paths (register, login, refresh,
+            forgot-password, reset-password) in the tighter auth bucket.
+        """
+        # /api/auth/me is a read-only profile fetch called on every page
+        # mount — don't starve the auth bucket with it. Credential-handling
+        # endpoints still use the tighter auth budget (DEC-SEC-001).
+        if path.startswith("/api/auth") and path != "/api/auth/me":
             return self._cfg.auth_requests_per_minute
         return self._cfg.api_requests_per_minute
 
