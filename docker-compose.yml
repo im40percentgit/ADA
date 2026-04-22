@@ -53,6 +53,10 @@ services:
     # Web container copies dist/ to the shared volume then exits.
     # Caddy serves the static files from web-dist.
     entrypoint: ["sh", "-c", "cp -r /app/dist/* /srv/web/ && echo 'Static files deployed'"]
+    # Run as root only for this one-shot cp step so the web-dist volume
+    # (owned by root by default) is writable. The image-level USER=node
+    # is overridden here; standalone `docker run` (no compose) stays non-root.
+    user: "0:0"
     # No restart — this is a one-shot init container.
     restart: "no"
     networks:

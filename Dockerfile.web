@@ -38,4 +38,10 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
+# node:20-slim ships with a built-in `node` user (uid 1000) — use it.
+# dist/ is world-readable so `serve` works without chown.
+# NOTE: docker-compose overrides this with `user: "0:0"` for its one-shot
+# cp entrypoint (web-dist volume write). Standalone `docker run` stays non-root.
+USER node
+
 CMD ["serve", "-s", "dist", "-l", "3000"]

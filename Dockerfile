@@ -68,6 +68,18 @@ RUN chmod +x /app/entrypoint.sh
 # In production this will be mounted as a named volume.
 RUN mkdir -p /app/data
 
+# @decision DEC-DOCKER-003
+# @title Run backend as dedicated non-root `ada` user (uid 1000)
+# @status accepted
+# @rationale Reduces blast radius of any RCE — process cannot write outside
+#     /app. chown happens after all content is laid down so the named volume
+#     mount (/app/data) is writable by the runtime user. /app/entrypoint.sh
+#     must already be chmod +x (done above). Identified by /cso audit 2026-04-21.
+RUN groupadd -r -g 1000 ada && useradd -r -u 1000 -g ada ada && \
+    chown -R ada:ada /app
+
+USER ada
+
 # ADA_ENV controls which config/production.toml layer is loaded.
 # ADA_LOGGING__FORMAT=json emits structured JSON logs for log aggregators.
 ENV ADA_ENV=production
