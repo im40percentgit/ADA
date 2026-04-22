@@ -15,6 +15,7 @@
  */
 
 import type { CSSProperties } from 'react'
+import { Button } from './Button'
 
 export interface TopBarProps {
   greeting: string
@@ -22,6 +23,7 @@ export interface TopBarProps {
   onNotification?: () => void
   onProfile?: () => void
   notificationCount?: number
+  onLogout?: () => void
 }
 
 const barStyle: CSSProperties = {
@@ -105,7 +107,7 @@ const avatarStyle: CSSProperties = {
   cursor: 'pointer',
 }
 
-export function TopBar({ greeting, subtitle, onNotification, onProfile, notificationCount }: TopBarProps) {
+export function TopBar({ greeting, subtitle, onNotification, onProfile, notificationCount, onLogout }: TopBarProps) {
   return (
     <header className="ada-topbar" style={barStyle}>
       <div style={leftStyle}>
@@ -113,6 +115,11 @@ export function TopBar({ greeting, subtitle, onNotification, onProfile, notifica
         <h2 style={titleStyle}>{greeting}</h2>
       </div>
       <div style={rightStyle}>
+        {onLogout && (
+          <Button variant="secondary" size="sm" onClick={onLogout}>
+            Sign out
+          </Button>
+        )}
         <button
           type="button"
           className="ada-topbar-icon-btn"

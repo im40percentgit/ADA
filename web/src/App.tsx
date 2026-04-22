@@ -61,6 +61,7 @@ import { AppShell } from './components/AppShell'
 import { SessionList } from './components/SessionList'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
 import { useAuth } from './hooks/useAuth'
+import { useCircles } from './hooks/useCircles'
 import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
 import { getOnboardingStatus } from './api/client'
 import './App.css'
@@ -89,6 +90,8 @@ const _initial = parseInitialAuthView()
 
 export default function App() {
   const { currentUser, isAuthenticated, loading, error, login, logout, register } = useAuth()
+  // Called unconditionally at the top (Rules of Hooks). Used only in the caregiver branch below.
+  const { selectedCircle } = useCircles()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [view, setView] = useState<View>('home')
   const [chatWsStatus, setChatWsStatus] = useState<ReconnectingWsStatus>('connecting')
@@ -184,7 +187,23 @@ export default function App() {
 
   // Caregiver role — show dedicated dashboard instead of chat/mood
   if (currentUser?.role === 'caregiver') {
-    const cgPatientId = currentUser?.patient_id ?? DEMO_PATIENT_ID
+    const cgPatientId = selectedCircle?.patient_id
+    // If no circle is selected yet (loading, or caregiver has no circles),
+    // skip all sub-views and fall through to CaregiverDashboard which has
+    // its own empty/loading state for this case.
+    if (!cgPatientId) {
+      return (
+        <div className="app">
+          {installBanner}
+          <CaregiverDashboard
+            onLogout={logout}
+            onNavigate={(v) => setView(v as View)}
+            onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
+            onViewDailySummary={(date) => { setSelectedSummaryDate(date); setView('daily-summary') }}
+          />
+        </div>
+      )
+    }
     return (
       <div className="app">
         {installBanner}
@@ -278,6 +297,7 @@ export default function App() {
         onTabChange={handleTabChange}
         greeting={greeting}
         subtitle="How are you today?"
+        onLogout={logout}
       >
         {view === 'knowledge-graph' ? (
           <KnowledgeGraph patientId={patientId} clinicalOverlay={currentUser?.role !== 'user'} onBack={() => setView('home')} />
