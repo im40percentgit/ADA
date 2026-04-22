@@ -2692,6 +2692,49 @@ class StateManager:
             {**fields, "id": intervention_id},
         )
 
+    async def get_patient_id_for_plan(self, plan_id: str) -> str | None:
+        """Return the patient_id that owns plan_id, or None if not found.
+
+        Used by require_plan_access to resolve a plan-scoped path parameter
+        up to its owning patient before delegating to _enforce_patient_access.
+        """
+        row = await self._fetchone(
+            "SELECT patient_id FROM treatment_plans WHERE id = :id",
+            {"id": plan_id},
+        )
+        return row["patient_id"] if row else None
+
+    async def get_patient_id_for_goal(self, goal_id: str) -> str | None:
+        """Return the patient_id that owns goal_id (via its plan), or None.
+
+        Joins treatment_goals -> treatment_plans to resolve in one query.
+        Used by require_goal_access.
+        """
+        row = await self._fetchone(
+            """SELECT p.patient_id
+               FROM treatment_plans p
+               JOIN treatment_goals g ON g.plan_id = p.id
+               WHERE g.id = :id""",
+            {"id": goal_id},
+        )
+        return row["patient_id"] if row else None
+
+    async def get_patient_id_for_intervention(self, intervention_id: str) -> str | None:
+        """Return the patient_id that owns intervention_id, or None.
+
+        Joins treatment_interventions -> treatment_goals -> treatment_plans to
+        resolve in one query. Used by require_intervention_access.
+        """
+        row = await self._fetchone(
+            """SELECT p.patient_id
+               FROM treatment_plans p
+               JOIN treatment_goals g ON g.plan_id = p.id
+               JOIN treatment_interventions i ON i.goal_id = g.id
+               WHERE i.id = :id""",
+            {"id": intervention_id},
+        )
+        return row["patient_id"] if row else None
+
     # ------------------------------------------------------------------
     # Prescribing notes (Phase 14b clinician portal)
     # ------------------------------------------------------------------

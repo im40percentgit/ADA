@@ -28,7 +28,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from ada.api.auth import get_current_user, require_patient_access
+from ada.api.auth import (
+    get_current_user,
+    require_patient_access,
+    require_plan_access,
+    require_goal_access,
+    require_intervention_access,
+)
 from ada.core.state import StateManager
 from ada.models.user import User
 
@@ -111,7 +117,9 @@ async def list_treatment_plans(
 @router.get("/treatment-plans/{plan_id}")
 async def get_treatment_plan(
     plan_id: str,
+    request: Request,
     user: User = Depends(get_current_user),
+    _access: None = Depends(require_plan_access),
     state: StateManager = Depends(_state),
 ) -> dict[str, Any]:
     """Return a treatment plan with nested goals and interventions."""
@@ -134,6 +142,7 @@ async def update_treatment_plan(
     plan_id: str,
     request: Request,
     user: User = Depends(get_current_user),
+    _access: None = Depends(require_plan_access),
     state: StateManager = Depends(_state),
 ) -> dict[str, Any]:
     """Update a treatment plan's title or status."""
@@ -175,6 +184,7 @@ async def create_treatment_goal(
     plan_id: str,
     request: Request,
     user: User = Depends(get_current_user),
+    _access: None = Depends(require_plan_access),
     state: StateManager = Depends(_state),
 ) -> dict[str, Any]:
     """Add a goal to a treatment plan."""
@@ -228,6 +238,7 @@ async def update_treatment_goal(
     goal_id: str,
     request: Request,
     user: User = Depends(get_current_user),
+    _access: None = Depends(require_goal_access),
     state: StateManager = Depends(_state),
 ) -> dict[str, Any]:
     """Update a treatment goal."""
@@ -264,6 +275,7 @@ async def create_treatment_intervention(
     goal_id: str,
     request: Request,
     user: User = Depends(get_current_user),
+    _access: None = Depends(require_goal_access),
     state: StateManager = Depends(_state),
 ) -> dict[str, Any]:
     """Add an intervention to a treatment goal."""
@@ -301,6 +313,7 @@ async def update_treatment_intervention(
     intervention_id: str,
     request: Request,
     user: User = Depends(get_current_user),
+    _access: None = Depends(require_intervention_access),
     state: StateManager = Depends(_state),
 ) -> dict[str, Any]:
     """Update a treatment intervention."""

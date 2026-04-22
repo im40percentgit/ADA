@@ -24,6 +24,19 @@ Provides:
     (3) shared non-null org in tenant mode (same method, UNION ALL query).
     Raises HTTP 403 — not 404 — to avoid leaking patient-ID existence.
 
+@decision DEC-AUTHZ-002
+@title Treatment-plan sub-resource authz deps resolve sub-resource -> patient, delegate to shared core
+@status accepted
+@rationale Six routes in treatment_plans.py expose {plan_id}/{goal_id}/{intervention_id}
+    in the path without a {patient_id}. An attacker with any valid JWT and a sub-resource
+    UUID could read or mutate a stranger's treatment data (secondary IDOR). The fix
+    factors require_patient_access's decision logic into _enforce_patient_access and adds
+    three thin deps — require_plan_access, require_goal_access, require_intervention_access
+    — each doing a single JOIN query to resolve the sub-resource ID up to its owning
+    patient_id, then calling _enforce_patient_access. Returns 404 for nonexistent
+    resources, 403 for exists-but-unauthorized, preserving the no-existence-leak
+    invariant from DEC-AUTHZ-001.
+
 @decision DEC-AUTH-002
 @title FastAPI Depends(get_current_user) — dependency override in tests
 @status accepted
@@ -287,8 +300,36 @@ async def resolve_circle_access(
 
 
 # ---------------------------------------------------------------------------
-# Patient access authorization (IDOR guard — DEC-AUTHZ-001)
+# Patient access authorization (IDOR guard — DEC-AUTHZ-001 / DEC-AUTHZ-002)
 # ---------------------------------------------------------------------------
+
+def _state(request: Request):
+    """Extract StateManager from app.state."""
+    return request.app.state.state_manager
+
+
+async def _enforce_patient_access(patient_id: str, user: User, state) -> None:
+    """Shared authz core — raises 403 if user cannot access patient_id.
+
+    Called by require_patient_access and all sub-resource deps so the access
+    decision is implemented exactly once.
+
+    Access is granted if any of the following is true:
+    1. user.patient_id == patient_id (self-access, no DB round-trip).
+    2. StateManager.user_can_access_patient returns True (circle/org membership).
+
+    Raises HTTP 403 on denial. Does NOT raise 404 — callers that need to check
+    existence should do so before calling this function.
+    """
+    if user.patient_id == patient_id:
+        return
+    if await state.user_can_access_patient(user.id, patient_id):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden",
+    )
+
 
 async def require_patient_access(
     patient_id: str,
@@ -320,18 +361,70 @@ async def require_patient_access(
             _access: None = Depends(require_patient_access),
         ) -> ...:
     """
-    # Fast path: self-access (no DB round-trip)
-    if user.patient_id == patient_id:
-        return
+    await _enforce_patient_access(patient_id, user, _state(request))
 
-    state_manager = request.app.state.state_manager
-    if await state_manager.user_can_access_patient(user.id, patient_id):
-        return
 
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Forbidden",
-    )
+async def require_plan_access(
+    plan_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> None:
+    """Authorize the caller for a treatment plan route using {plan_id}.
+
+    Resolves plan_id -> patient_id in one SQL query, then delegates to
+    _enforce_patient_access. Returns 404 if the plan does not exist (prevents
+    leaking whether the plan belongs to an inaccessible patient).
+    """
+    state = _state(request)
+    patient_id = await state.get_patient_id_for_plan(plan_id)
+    if patient_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Treatment plan not found",
+        )
+    await _enforce_patient_access(patient_id, user, state)
+
+
+async def require_goal_access(
+    goal_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> None:
+    """Authorize the caller for a treatment goal route using {goal_id}.
+
+    Resolves goal_id -> patient_id via treatment_goals JOIN treatment_plans,
+    then delegates to _enforce_patient_access. Returns 404 if the goal does
+    not exist.
+    """
+    state = _state(request)
+    patient_id = await state.get_patient_id_for_goal(goal_id)
+    if patient_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Treatment goal not found",
+        )
+    await _enforce_patient_access(patient_id, user, state)
+
+
+async def require_intervention_access(
+    intervention_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> None:
+    """Authorize the caller for a treatment intervention route using {intervention_id}.
+
+    Resolves intervention_id -> patient_id via a three-table JOIN, then
+    delegates to _enforce_patient_access. Returns 404 if the intervention does
+    not exist.
+    """
+    state = _state(request)
+    patient_id = await state.get_patient_id_for_intervention(intervention_id)
+    if patient_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Treatment intervention not found",
+        )
+    await _enforce_patient_access(patient_id, user, state)
 
 
 # ---------------------------------------------------------------------------
