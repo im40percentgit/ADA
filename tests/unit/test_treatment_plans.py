@@ -114,6 +114,11 @@ async def populated(state: StateManager):
         "caregiver_id": None,
     })
 
+    # Add all test users to a care circle so require_patient_access passes.
+    await state.create_care_circle("circle-tx-001", _PATIENT_ID)
+    for uid in (_CLINICIAN_ID, _ADMIN_ID, _PATIENT_USER_ID):
+        await state.add_circle_member(f"ccm-tx-{uid}", "circle-tx-001", uid, "member")
+
     await state.create_treatment_plan({
         "id": "plan-1",
         "patient_id": _PATIENT_ID,

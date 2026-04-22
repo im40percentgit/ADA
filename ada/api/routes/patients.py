@@ -17,7 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ada.api.auth import get_current_user
+from ada.api.auth import get_current_user, require_patient_access
 from ada.api.tenant import TenantContext, get_tenant_context
 from ada.models.patient import Patient, PatientCreate, PatientUpdate
 from ada.models.user import User
@@ -73,7 +73,7 @@ async def list_patients(
 async def get_patient(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Get a single patient by ID."""
     patient = await _state(request).get_patient(patient_id)
@@ -87,7 +87,7 @@ async def update_patient(
     patient_id: str,
     body: PatientUpdate,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Update patient fields."""
     existing = await _state(request).get_patient(patient_id)

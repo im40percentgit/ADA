@@ -1942,6 +1942,48 @@ class StateManager:
         )
         return [_patient_row(r) for r in rows]
 
+    async def user_can_access_patient(self, user_id: str, patient_id: str) -> bool:
+        """Return True if user_id is authorized to access patient_id.
+
+        Authorization is granted if any of the following holds:
+        1. The user is a member of a care circle that covers this patient.
+        2. Both user and patient belong to the same non-null organization
+           (tenant/org mode).
+
+        Self-access (user.patient_id == patient_id) is checked cheaply by the
+        caller before calling this method; it is NOT re-checked here to keep
+        the SQL tight.
+
+        A single SQL UNION query is used so this is one round-trip regardless
+        of how many circles or orgs exist.
+        """
+        row = await self._fetchone(
+            """
+            SELECT 1
+            FROM (
+                -- Case 1: user is a member of a circle that covers this patient
+                SELECT 1
+                FROM care_circle_members ccm
+                JOIN care_circles cc ON cc.id = ccm.circle_id
+                WHERE ccm.user_id = :user_id
+                  AND cc.patient_id = :patient_id
+
+                UNION ALL
+
+                -- Case 2: shared non-null organization (tenant mode)
+                SELECT 1
+                FROM users u
+                JOIN patients p ON p.organization_id = u.organization_id
+                WHERE u.id = :user_id
+                  AND p.id = :patient_id
+                  AND u.organization_id IS NOT NULL
+            )
+            LIMIT 1
+            """,
+            {"user_id": user_id, "patient_id": patient_id},
+        )
+        return row is not None
+
     # -- Boards (Phase 9b) ---------------------------------------------------
 
     async def create_board(self, board: dict[str, Any]) -> None:

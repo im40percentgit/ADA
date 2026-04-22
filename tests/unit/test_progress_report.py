@@ -219,11 +219,16 @@ class TestProgressReportEndpoint:
             resp = client.get("/api/patients/pat-pr-001/progress-report?range=6m")
         assert resp.status_code == 400
 
-    def test_nonexistent_patient_returns_404(self, state):
-        """Non-existent patient_id returns 404."""
+    def test_nonexistent_patient_returns_403(self, state):
+        """Accessing a patient_id the user has no access to returns 403.
+
+        Previously expected 404, but require_patient_access runs before the
+        patient-existence check and returns 403 to avoid leaking patient-ID
+        existence (per DEC-AUTHZ-001 spec).
+        """
         with _make_client(state) as client:
             resp = client.get("/api/patients/no-such-patient/progress-report")
-        assert resp.status_code == 404
+        assert resp.status_code == 403
 
     def test_empty_data_returns_defaults(self, state):
         """Patient with no sessions/assessments/meds returns empty aggregations."""

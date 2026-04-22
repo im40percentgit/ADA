@@ -18,7 +18,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ada.api.auth import get_current_user
+from ada.api.auth import get_current_user, require_patient_access
 from ada.assessment.instruments import score_instrument
 from ada.models.assessment import AssessmentCreate, AssessmentResult
 from ada.models.user import User
@@ -65,7 +65,7 @@ async def get_assessments(
     patient_id: str,
     request: Request,
     instrument: str | None = None,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[dict[str, Any]]:
     """Get assessment history for a patient, optionally filtered by instrument."""
     if instrument and instrument not in ("phq9", "gad7", "who5"):
@@ -80,7 +80,7 @@ async def get_assessments(
 async def get_mood_history(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[dict[str, Any]]:
     """
     Get mood history for a patient derived from WHO-5 assessments.
@@ -104,7 +104,7 @@ async def get_mood_history(
 async def get_crisis_alerts(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[dict[str, Any]]:
     """Get crisis alert history for a patient."""
     return await _state(request).get_crisis_alerts(patient_id)

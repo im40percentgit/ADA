@@ -20,9 +20,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ada.api.auth import get_current_user
+from ada.api.auth import require_patient_access
 from ada.models.cognitive import CognitiveScreening
-from ada.models.user import User
 
 router = APIRouter(tags=["cognitive"])
 
@@ -38,7 +37,7 @@ def _state(request: Request):
 async def list_cognitive_screenings(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[dict[str, Any]]:
     """List all cognitive screenings for a patient, newest first."""
     patient = await _state(request).get_patient(patient_id)
@@ -55,7 +54,7 @@ async def get_cognitive_screening(
     patient_id: str,
     screening_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Get a single cognitive screening record."""
     screening = await _state(request).get_cognitive_screening(screening_id)

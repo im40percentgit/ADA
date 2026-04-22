@@ -150,6 +150,14 @@ async def state() -> StateManager:
         "role": "user",
         "patient_id": "pat-001",
     })
+    # Add all test users to a care circle for pat-001 so require_patient_access
+    # authorizes them. The patient-user also has patient_id="pat-001" on their
+    # User model, so they pass via the fast-path; the circle covers the rest.
+    await sm.create_care_circle("circle-pat-001", "pat-001")
+    for uid in ("clinician-001", "admin-001", "caregiver-001", "patient-user-001"):
+        await sm.add_circle_member(
+            f"ccm-{uid}", "circle-pat-001", uid, "member"
+        )
     yield sm
     await sm.close()
 

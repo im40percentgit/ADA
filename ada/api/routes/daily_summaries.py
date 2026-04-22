@@ -27,9 +27,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ada.api.auth import get_current_user
+from ada.api.auth import require_patient_access
 from ada.core.state import StateManager
-from ada.models.user import User
 
 router = APIRouter(
     prefix="/patients/{patient_id}/daily-summaries",
@@ -47,7 +46,7 @@ async def get_daily_summary(
     patient_id: str,
     date: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Return the daily summary for a patient on a specific date.
 

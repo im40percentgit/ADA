@@ -23,10 +23,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
-from ada.api.auth import get_current_user
+from ada.api.auth import require_patient_access
 from ada.core.events import AppointmentCreatedEvent
 from ada.models.appointment import Appointment, AppointmentCreate, AppointmentUpdate
-from ada.models.user import User
 
 router = APIRouter(tags=["appointments"])
 
@@ -48,7 +47,7 @@ async def create_appointment(
     patient_id: str,
     body: AppointmentCreate,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """
     Create a new appointment for a patient.
@@ -111,7 +110,7 @@ async def list_appointments(
     patient_id: str,
     request: Request,
     status: str | None = None,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[dict[str, Any]]:
     """List all appointments for a patient, optionally filtered by status."""
     patient = await _state(request).get_patient(patient_id)
@@ -128,7 +127,7 @@ async def get_appointment(
     patient_id: str,
     appointment_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Get a single appointment record."""
     appt = await _state(request).get_appointment(appointment_id)
@@ -146,7 +145,7 @@ async def update_appointment(
     appointment_id: str,
     body: AppointmentUpdate,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Update appointment fields."""
     appt = await _state(request).get_appointment(appointment_id)
@@ -179,7 +178,7 @@ async def delete_appointment(
     patient_id: str,
     appointment_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> Response:
     """Hard-delete an appointment record."""
     appt = await _state(request).get_appointment(appointment_id)

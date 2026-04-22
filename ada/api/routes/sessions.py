@@ -17,7 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ada.api.auth import get_current_user
+from ada.api.auth import get_current_user, require_patient_access
 from ada.models.session import Session, SessionCreate, SessionEnd
 from ada.models.user import User
 
@@ -69,7 +69,7 @@ async def get_session(
 async def list_sessions(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[dict[str, Any]]:
     """List all sessions for a patient."""
     return await _state(request).list_sessions(patient_id)

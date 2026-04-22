@@ -102,6 +102,17 @@ async def state() -> StateManager:
         "emergency_contact": None,
         "caregiver_id": None,
     })
+    # Add _TEST_USER to the DB and give them circle membership for _PATIENT_ID
+    # so require_patient_access authorises the injected clinician user.
+    # Fix the fixture, not the auth code (per spec: Sacred Practice #5).
+    await sm.create_user({
+        "id": _TEST_USER.id,
+        "email": _TEST_USER.email,
+        "hashed_password": "hashed",
+        "role": _TEST_USER.role,
+    })
+    await sm.create_care_circle("circle-ds-001", _PATIENT_ID)
+    await sm.add_circle_member("ccm-ds-001", "circle-ds-001", _TEST_USER.id, "clinician")
     yield sm
     await sm.close()
 

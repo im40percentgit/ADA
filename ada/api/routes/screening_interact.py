@@ -32,7 +32,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from ada.api.auth import get_current_user
+from ada.api.auth import get_current_user, require_patient_access
 from ada.core.events import AssessmentTriggeredEvent, CognitiveTaskResponseEvent
 from ada.models.user import User
 
@@ -66,7 +66,7 @@ class RespondBody(BaseModel):
 async def start_screening(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, str]:
     """
     Create a new cognitive screening record and trigger the assessor agent.
