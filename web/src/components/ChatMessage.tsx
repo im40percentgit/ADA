@@ -37,7 +37,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     background: isUser ? 'var(--color-primary-subtle)' : 'var(--color-bg-card)',
     borderRadius: 'var(--radius-card)',
     padding: 'var(--space-sm) var(--space-md)',
-    maxWidth: '80%',
+    maxWidth: '85%',
   }
 
   return (

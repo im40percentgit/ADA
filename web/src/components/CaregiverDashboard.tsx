@@ -107,7 +107,7 @@ const patientNameStyle: CSSProperties = {
 
 const gridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(2, 1fr)',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
   gap: 'var(--space-md)',
 }
 
@@ -358,7 +358,7 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
   if (!selectedCircle) {
     return (
       <div style={dashboardStyle}>
-        <header style={headerStyle}>
+        <header style={headerStyle} className="ada-caregiver-header">
           <div style={headerLeftStyle}>
             <h1 style={titleStyle}>Ada Caregiver Dashboard</h1>
           </div>
@@ -388,7 +388,7 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
   return (
     <div style={dashboardStyle}>
       {/* Header */}
-      <header style={headerStyle}>
+      <header style={headerStyle} className="ada-caregiver-header">
         <div style={headerLeftStyle}>
           <h1 style={titleStyle}>Ada Caregiver Dashboard</h1>
           <p style={patientNameStyle}>{data.patient.name}</p>
