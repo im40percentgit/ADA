@@ -53,6 +53,7 @@ import { Button } from './ui/Button'
 import { SkeletonCard } from './ui/Skeleton'
 import { EmptyState } from './ui/EmptyState'
 import { ErrorState } from './ui/ErrorState'
+import { BoardView } from './BoardView'
 import type { Medication, Appointment, Board, CareCircleMember, MoodDataPoint } from '../types'
 
 interface PatientDashboardProps {
@@ -265,6 +266,7 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
   const [boards, setBoards] = useState<Board[]>([])
   const [boardsLoading, setBoardsLoading] = useState(false)
   const [boardsError, setBoardsError] = useState<string | null>(null)
+  const [activeBoardId, setActiveBoardId] = useState<string | null>(null)
 
   // -- Care team -----------------------------------------------------------
   const [members, setMembers] = useState<CareCircleMember[]>([])
@@ -418,6 +420,16 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
+
+  // Drill-down: when a board is selected, replace the full dashboard with BoardView
+  if (activeBoardId) {
+    return (
+      <div style={dashboardStyle} role="main" aria-label="Board detail">
+        <BoardView boardId={activeBoardId} onBack={() => setActiveBoardId(null)} />
+      </div>
+    )
+  }
+
   return (
     <div style={dashboardStyle} role="main" aria-label="Patient Dashboard">
       <h1 className="sr-only">Patient Dashboard</h1>
@@ -676,9 +688,24 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
         ) : (
           <ul style={listStyle}>
             {boards.map(board => (
-              <li key={board.id} style={listItemStyle}>
-                <span style={itemNameStyle}>{board.name}</span>
-                <Badge variant="neutral">{board.board_type}</Badge>
+              <li key={board.id}>
+                <button
+                  style={{
+                    ...listItemStyle,
+                    width: '100%',
+                    minHeight: '44px',
+                    cursor: 'pointer',
+                    background: 'var(--color-bg-elevated)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-input)',
+                    textAlign: 'left',
+                  }}
+                  onClick={() => setActiveBoardId(board.id)}
+                  aria-label={`Open board: ${board.name}`}
+                >
+                  <span style={itemNameStyle}>{board.name}</span>
+                  <Badge variant="neutral">{board.board_type}</Badge>
+                </button>
               </li>
             ))}
           </ul>

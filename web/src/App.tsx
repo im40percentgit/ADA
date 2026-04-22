@@ -44,13 +44,11 @@ import { MoodChart } from './components/MoodChart'
 import { Login } from './components/Login'
 import { ForgotPassword } from './components/ForgotPassword'
 import { ResetPassword } from './components/ResetPassword'
-import { CaregiverDashboard } from './components/CaregiverDashboard'
+import { CaregiverApp } from './components/CaregiverApp'
 import { PatientDashboard } from './components/PatientDashboard'
 import { KnowledgeGraph } from './components/KnowledgeGraph'
 import { ProgressReport } from './components/ProgressReport'
 import { SessionSummary } from './components/SessionSummary'
-import { TreatmentPlan } from './components/TreatmentPlan'
-import { PrescribingNotes } from './components/PrescribingNotes'
 import { DailySummaryDetail } from './components/DailySummaryDetail'
 import { CognitiveScreening } from './components/CognitiveScreening'
 import { ScreeningResults } from './components/ScreeningResults'
@@ -62,7 +60,6 @@ import { SettingsPage } from './components/SettingsPage'
 import { SessionList } from './components/SessionList'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
 import { useAuth } from './hooks/useAuth'
-import { useCircles } from './hooks/useCircles'
 import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
 import { getOnboardingStatus } from './api/client'
 import './App.css'
@@ -91,8 +88,6 @@ const _initial = parseInitialAuthView()
 
 export default function App() {
   const { currentUser, isAuthenticated, loading, error, login, logout, register } = useAuth()
-  // Called unconditionally at the top (Rules of Hooks). Used only in the caregiver branch below.
-  const { selectedCircle } = useCircles()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [view, setView] = useState<View>('home')
   const [chatWsStatus, setChatWsStatus] = useState<ReconnectingWsStatus>('connecting')
@@ -186,78 +181,25 @@ export default function App() {
     )
   }
 
-  // Caregiver role — show dedicated dashboard instead of chat/mood
+  // Caregiver role — delegate entirely to CaregiverApp which owns useCircles()
+  // internally (mounted only after auth gate, so the hook always fires with a
+  // valid token — see DEC-FRONTEND-020 in CaregiverApp.tsx).
   if (currentUser?.role === 'caregiver') {
-    const cgPatientId = selectedCircle?.patient_id
-    // If no circle is selected yet (loading, or caregiver has no circles),
-    // skip all sub-views and fall through to CaregiverDashboard which has
-    // its own empty/loading state for this case.
-    if (!cgPatientId) {
-      return (
-        <div className="app">
-          {installBanner}
-          <CaregiverDashboard
-            onLogout={logout}
-            onNavigate={(v) => setView(v as View)}
-            onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
-            onViewDailySummary={(date) => { setSelectedSummaryDate(date); setView('daily-summary') }}
-          />
-        </div>
-      )
-    }
     return (
-      <div className="app">
-        {installBanner}
-        {view === 'knowledge-graph' ? (
-          <KnowledgeGraph patientId={cgPatientId} clinicalOverlay onBack={() => setView('home')} />
-        ) : view === 'progress' ? (
-          <ProgressReport patientId={cgPatientId} onBack={() => setView('home')} />
-        ) : view === 'session-summary' && selectedSessionId ? (
-          <SessionSummary sessionId={selectedSessionId} onBack={() => setView('home')} />
-        ) : view === 'daily-summary' && selectedSummaryDate ? (
-          <DailySummaryDetail
-            patientId={cgPatientId}
-            date={selectedSummaryDate}
-            onBack={() => setView('home')}
-            onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
-          />
-        ) : view === 'cognitive-screening' ? (
-          <CognitiveScreening
-            patientId={cgPatientId}
-            onBack={() => setView('home')}
-            onComplete={(id) => { setSelectedScreeningId(id); setView('screening-results') }}
-          />
-        ) : view === 'screening-results' ? (
-          <ScreeningResults
-            patientId={cgPatientId}
-            screeningId={selectedScreeningId!}
-            onBack={() => setView('screening-history')}
-          />
-        ) : view === 'screening-history' ? (
-          <ScreeningHistory
-            patientId={cgPatientId}
-            onViewScreening={(id) => { setSelectedScreeningId(id); setView('screening-results') }}
-          />
-        ) : view === 'treatment-plan' ? (
-          <TreatmentPlan
-            patientId={cgPatientId}
-            planId={selectedPlanId ?? undefined}
-            onBack={() => setView('home')}
-          />
-        ) : view === 'prescribing-notes' ? (
-          <PrescribingNotes
-            patientId={cgPatientId}
-            onBack={() => setView('home')}
-          />
-        ) : (
-          <CaregiverDashboard
-            onLogout={logout}
-            onNavigate={(v) => setView(v as View)}
-            onViewSession={(id) => { setSelectedSessionId(id); setView('session-summary') }}
-            onViewDailySummary={(date) => { setSelectedSummaryDate(date); setView('daily-summary') }}
-          />
-        )}
-      </div>
+      <CaregiverApp
+        currentUser={currentUser}
+        logout={logout}
+        view={view}
+        setView={setView}
+        selectedSessionId={selectedSessionId}
+        setSelectedSessionId={setSelectedSessionId}
+        selectedSummaryDate={selectedSummaryDate}
+        setSelectedSummaryDate={setSelectedSummaryDate}
+        selectedScreeningId={selectedScreeningId}
+        setSelectedScreeningId={setSelectedScreeningId}
+        selectedPlanId={selectedPlanId}
+        installBanner={installBanner}
+      />
     )
   }
 
