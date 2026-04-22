@@ -113,7 +113,7 @@ export function useNotifications(): UseNotificationsResult {
       // Subscribe to push
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(public_key),
+        applicationServerKey: urlBase64ToUint8Array(public_key) as BufferSource,
       })
 
       // Send subscription to backend
