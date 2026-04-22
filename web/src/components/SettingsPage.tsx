@@ -5,7 +5,7 @@
  *   1. Companion — name input, voice selection, personality toggles (warmth,
  *      verbosity, formality). Changes are batched and submitted via the Save
  *      button, which calls useCompanionPreferences().update().
- *   2. Account — read-only email display and a logout button.
+ *   2. Account — read-only email display.
  *   3. Organization — create or manage an organization with member invites.
  *
  * Local form state mirrors the remote CompanionPreferences so the user can
@@ -63,8 +63,6 @@ import {
 // ---------------------------------------------------------------------------
 
 export interface SettingsPageProps {
-  /** Called when the user clicks the Logout button. */
-  onLogout: () => void
   /** Email address to display in the Account section. */
   email?: string
   /** Patient ID for CSV export section (optional — hidden when absent). */
@@ -310,7 +308,7 @@ function VoiceButton({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function SettingsPage({ onLogout, email, patientId }: SettingsPageProps) {
+export function SettingsPage({ email, patientId }: SettingsPageProps) {
   const { preferences, loading, update } = useCompanionPreferences()
 
   // Local form state — seeded from fetched preferences
@@ -529,14 +527,6 @@ export function SettingsPage({ onLogout, email, patientId }: SettingsPageProps) 
               <span style={emailStyle} data-testid="account-email">{email}</span>
             </div>
           )}
-
-          <Button
-            variant="ghost"
-            onClick={onLogout}
-            className="ada-settings-logout"
-          >
-            Log out
-          </Button>
         </div>
       </Card>
 

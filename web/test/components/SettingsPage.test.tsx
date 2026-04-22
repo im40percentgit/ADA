@@ -12,23 +12,23 @@
  *   - Voice option buttons are all present
  *   - Personality control rows are all present
  *   - Save button fires a PUT to /api/companion/preferences via the hook
- *   - Logout button fires the onLogout callback
+ *   - Account card shows email (no logout button — sign-out is in TopBar)
  *   - Org loading state renders SkeletonCard (DEC-SETTINGS-STATES-001)
  *   - Solo mode renders EmptyState with correct copy (DEC-SETTINGS-STATES-001)
  *
  * @decision DEC-TEST-018
- * @title SettingsPage tests use MSW for hook data, vi.fn() for callbacks
+ * @title SettingsPage tests use MSW for hook data
  * @status accepted
  * @rationale The real useCompanionPreferences hook is exercised end-to-end
  *   through MSW network interception so all async state transitions are covered.
- *   The onLogout callback is a thin prop — tested with vi.fn() rather than
- *   asserting on the auth module to keep the test focused on the component.
+ *   The onLogout prop was removed in feat/settings-wiring — sign-out now lives
+ *   exclusively in TopBar, so no callback testing is needed here.
  */
 
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { SettingsPage } from '../../src/components/SettingsPage'
 import { server } from '../msw/handlers'
 
@@ -37,14 +37,12 @@ import { server } from '../msw/handlers'
 // ---------------------------------------------------------------------------
 
 function renderSettings({
-  onLogout = vi.fn(),
   email = 'user@example.com',
 }: {
-  onLogout?: () => void
   email?: string
 } = {}) {
   localStorage.setItem('ADA_ACCESS_TOKEN', 'test-token')
-  return render(<SettingsPage onLogout={onLogout} email={email} />)
+  return render(<SettingsPage email={email} />)
 }
 
 // ---------------------------------------------------------------------------
@@ -163,18 +161,9 @@ describe('SettingsPage', () => {
     expect(screen.getByText('alice@example.com')).toBeInTheDocument()
   })
 
-  it('renders the logout button', async () => {
+  it('does not render a logout button (sign-out is in TopBar)', async () => {
     renderSettings()
-    expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument()
-  })
-
-  it('logout button fires the onLogout callback', async () => {
-    const onLogout = vi.fn()
-    const user = userEvent.setup()
-    renderSettings({ onLogout })
-
-    await user.click(screen.getByRole('button', { name: /log out/i }))
-    expect(onLogout).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument()
   })
 
   // ── Organization loading state (DEC-SETTINGS-STATES-001) ─────────────────
