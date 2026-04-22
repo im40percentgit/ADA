@@ -128,8 +128,8 @@ const contentStyle: CSSProperties = {
 
 function dotStyle(state: 'completed' | 'current' | 'future'): CSSProperties {
   const base: CSSProperties = {
-    width: '10px',
-    height: '10px',
+    width: '20px',
+    height: '20px',
     borderRadius: '50%',
     display: 'inline-block',
   }
