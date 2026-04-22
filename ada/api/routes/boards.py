@@ -5,7 +5,9 @@ REST endpoints:
   GET    /api/circles/{circle_id}/boards              -- list boards
   POST   /api/circles/{circle_id}/boards              -- create board (201)
   GET    /api/boards/{board_id}                       -- get board + items
+  DELETE /api/boards/{board_id}                       -- delete board (204)
   POST   /api/boards/{board_id}/items                 -- add item (201)
+  DELETE /api/boards/{board_id}/items                 -- clear all items (204)
   PATCH  /api/boards/{board_id}/items/{item_id}       -- update item
   DELETE /api/boards/{board_id}/items/{item_id}       -- delete item (204)
   POST   /api/boards/{board_id}/items/{item_id}/approve -- approve Ada suggestion
@@ -194,6 +196,39 @@ async def delete_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     await state.delete_board_item(item_id)
+    return Response(status_code=204)
+
+
+@router.delete("/boards/{board_id}/items")
+async def clear_items(
+    board_id: str,
+    user: User = Depends(get_current_user),
+    state: StateManager = Depends(_state),
+) -> Response:
+    """Delete all items on a board. Caller must be a circle member.
+
+    Broadcasts board_cleared to all connected WS clients so they can reset
+    their local item list without a refetch.
+    """
+    await _verify_board_access(board_id, user, state)
+    await state.clear_board_items(board_id)
+    await _broadcast(board_id, {"type": "board_cleared"})
+    return Response(status_code=204)
+
+
+@router.delete("/boards/{board_id}")
+async def delete_board(
+    board_id: str,
+    user: User = Depends(get_current_user),
+    state: StateManager = Depends(_state),
+) -> Response:
+    """Hard-delete a board and all its items. Caller must be a circle member.
+
+    No WS broadcast is issued on delete per DEC-BOARDS-014 rationale: board
+    create/delete is low-frequency and disconnected clients get 404 on reconnect.
+    """
+    await _verify_board_access(board_id, user, state)
+    await state.delete_board(board_id)
     return Response(status_code=204)
 
 

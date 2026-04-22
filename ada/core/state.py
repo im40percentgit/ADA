@@ -2026,6 +2026,25 @@ class StateManager:
         """Hard-delete a single board item."""
         await self._exec("DELETE FROM board_items WHERE id = ?", (item_id,))
 
+    async def clear_board_items(self, board_id: str) -> int:
+        """Delete all items on a board. Returns the count of deleted rows.
+
+        @decision DEC-BOARDS-016
+        @title clear_board_items counts via SELECT before DELETE (SQLite has no ROW_COUNT)
+        @status accepted
+        @rationale SQLite's aiosqlite cursor does not reliably expose rowcount for
+            DELETE statements in all driver versions. We fetch the IDs first to get
+            an accurate count, then issue a single bulk DELETE. The two-query approach
+            is safe because board item operations are not latency-critical, and the
+            count is only informational (returned to the caller for logging).
+        """
+        rows = await self._fetchall(
+            "SELECT id FROM board_items WHERE board_id = ?", (board_id,)
+        )
+        count = len(rows)
+        await self._exec("DELETE FROM board_items WHERE board_id = ?", (board_id,))
+        return count
+
     async def get_next_board_position(self, board_id: str) -> float:
         """Return MAX(position) + 1.0 for the given board, or 0.0 if empty."""
         row = await self._fetchone(

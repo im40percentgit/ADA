@@ -25,7 +25,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { getBoard } from '../api/client'
+import { getBoard, clearBoardItems } from '../api/client'
 import { useBoardWebSocket } from './useBoardWebSocket'
 import type { Board, BoardItem, WsBoardMessage } from '../types'
 import type { ReconnectingWsStatus } from './useReconnectingWebSocket'
@@ -42,6 +42,7 @@ interface UseBoardResult {
   deleteItem: (itemId: string) => void
   reorderItem: (itemId: string, afterItemId: string | null) => void
   approveItem: (itemId: string) => void
+  clearBoard: () => Promise<void>
 }
 
 export function useBoard(boardId: string): UseBoardResult {
@@ -103,6 +104,9 @@ export function useBoard(boardId: string): UseBoardResult {
           prev.map(i => i.id === msg.item_id ? { ...i, approved: true } : i),
         )
         break
+      case 'board_cleared':
+        setItems([])
+        break
     }
   }, [])
 
@@ -152,6 +156,12 @@ export function useBoard(boardId: string): UseBoardResult {
     [send],
   )
 
+  const clearBoard = useCallback(async () => {
+    // Optimistic: clear locally immediately; WS board_cleared echo will confirm
+    setItems([])
+    await clearBoardItems(boardId)
+  }, [boardId])
+
   return {
     board,
     items,
@@ -164,5 +174,6 @@ export function useBoard(boardId: string): UseBoardResult {
     deleteItem,
     reorderItem,
     approveItem,
+    clearBoard,
   }
 }

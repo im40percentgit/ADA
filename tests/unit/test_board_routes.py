@@ -326,3 +326,58 @@ def test_non_member_denied(state):
     with _client(state, _OUTSIDER_USER) as client:
         resp = client.get(f"/api/boards/{_BOARD_ID}")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Test 9: DELETE /api/boards/{board_id}/items  (clear all)
+# ---------------------------------------------------------------------------
+
+def test_clear_board_items(state):
+    """Member clears all items from a board (204); items are gone afterward."""
+    with _client(state, _MEMBER_USER) as client:
+        # Confirm items exist before clear
+        pre = client.get(f"/api/boards/{_BOARD_ID}")
+        assert pre.status_code == 200
+        assert len(pre.json()["items"]) == 2
+
+        resp = client.delete(f"/api/boards/{_BOARD_ID}/items")
+        assert resp.status_code == 204
+
+        # Items should be gone
+        post = client.get(f"/api/boards/{_BOARD_ID}")
+        assert post.status_code == 200
+        assert post.json()["items"] == []
+
+
+def test_clear_board_items_outsider_denied(state):
+    """Outsider cannot clear items (404)."""
+    with _client(state, _OUTSIDER_USER) as client:
+        resp = client.delete(f"/api/boards/{_BOARD_ID}/items")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Test 10: DELETE /api/boards/{board_id}  (delete board)
+# ---------------------------------------------------------------------------
+
+def test_delete_board(state):
+    """Member deletes a board (204); board and items are gone afterward."""
+    with _client(state, _MEMBER_USER) as client:
+        resp = client.delete(f"/api/boards/{_BOARD_ID}")
+        assert resp.status_code == 204
+
+        # Board should return 404
+        gone = client.get(f"/api/boards/{_BOARD_ID}")
+        assert gone.status_code == 404
+
+        # Board list should be empty
+        boards = client.get(f"/api/circles/{_CIRCLE_ID}/boards")
+        assert boards.status_code == 200
+        assert boards.json() == []
+
+
+def test_delete_board_outsider_denied(state):
+    """Outsider cannot delete a board (404)."""
+    with _client(state, _OUTSIDER_USER) as client:
+        resp = client.delete(f"/api/boards/{_BOARD_ID}")
+    assert resp.status_code == 404
