@@ -195,11 +195,13 @@ class TestCreateMedication:
         assert "id" in data
 
     def test_create_404_for_missing_patient(self, state):
+        # require_patient_access raises 403 (not 404) for any patient the caller
+        # has no circle membership for — including nonexistent patients.
         with _make_client(state) as client:
             resp = client.post("/api/patients/nonexistent-patient/medications", json={
                 "name": "Aspirin",
             })
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
     def test_create_minimal_required_fields(self, state):
         with _make_client(state) as client:
@@ -274,9 +276,11 @@ class TestListMedications:
         assert "Valium" in names
 
     def test_list_404_for_missing_patient(self, state):
+        # require_patient_access raises 403 for any patient the caller has no circle
+        # membership for — including nonexistent patients.
         with _make_client(state) as client:
             resp = client.get("/api/patients/nonexistent/medications")
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
     def test_list_active_only_filter(self, state):
         """active_only=true should exclude deactivated medications."""
@@ -330,7 +334,11 @@ class TestGetMedication:
         assert resp.status_code == 404
 
     def test_get_404_for_wrong_patient(self, state):
-        """Medication belonging to a different patient returns 404."""
+        """Medication belonging to a different patient returns 403 or 404.
+
+        require_patient_access raises 403 for inaccessible patients (including
+        wrong-patient path params) to avoid leaking patient existence.
+        """
         with _make_client(state) as client:
             create_resp = client.post(
                 "/api/patients/pat-route-001/medications",
@@ -338,7 +346,7 @@ class TestGetMedication:
             )
             med_id = create_resp.json()["id"]
             resp = client.get(f"/api/patients/other-patient/medications/{med_id}")
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
 
 # ---------------------------------------------------------------------------

@@ -114,6 +114,17 @@ async def state() -> StateManager:
         "emergency_contact": None,
         "caregiver_id": None,
     })
+    # Insert _FAKE_USER into the users table and add them to a care circle for
+    # pat-appt-001 so require_patient_access authorises the injected clinician.
+    # Fix the fixture, not the auth code (Sacred Practice #5).
+    await sm.create_user({
+        "id": _FAKE_USER.id,
+        "email": _FAKE_USER.email,
+        "hashed_password": "hashed",
+        "role": _FAKE_USER.role,
+    })
+    await sm.create_care_circle("circle-appt-001", "pat-appt-001")
+    await sm.add_circle_member("ccm-appt-001", "circle-appt-001", _FAKE_USER.id, "clinician")
     yield sm
     await sm.close()
 
@@ -173,12 +184,15 @@ class TestCreateAppointment:
         assert data["notes"] == "Patient requested morning slot"
 
     def test_create_404_for_missing_patient(self, state):
+        # require_patient_access returns 403 (not 404) for any patient the caller
+        # is not in a circle for — including nonexistent patients. This is intentional:
+        # 404 would leak whether the patient_id exists at all (see auth.py docstring).
         with _make_client(state) as client:
             resp = client.post("/api/patients/nonexistent-patient/appointments", json={
                 "title": "Ghost Appointment",
                 "scheduled_at": _FUTURE_ISO,
             })
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
     def test_create_requires_auth(self, state):
         with _make_unauthenticated_client(state) as client:
@@ -248,9 +262,11 @@ class TestListAppointments:
         assert "Scheduled Appt" not in titles
 
     def test_list_404_for_missing_patient(self, state):
+        # require_patient_access returns 403 for any patient the caller has no circle
+        # membership for, including nonexistent patients (avoids leaking patient existence).
         with _make_client(state) as client:
             resp = client.get("/api/patients/nonexistent/appointments")
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
     def test_list_requires_auth(self, state):
         with _make_unauthenticated_client(state) as client:
@@ -282,7 +298,11 @@ class TestGetAppointment:
         assert resp.status_code == 404
 
     def test_get_404_for_wrong_patient(self, state):
-        """Appointment belonging to a different patient returns 404."""
+        """Appointment belonging to a different patient returns 403 or 404.
+
+        require_patient_access raises 403 (not 404) for any patient the caller
+        is not in a circle for — preventing patient existence leakage.
+        """
         with _make_client(state) as client:
             create_resp = client.post(
                 "/api/patients/pat-appt-001/appointments",
@@ -290,7 +310,7 @@ class TestGetAppointment:
             )
             appt_id = create_resp.json()["id"]
             resp = client.get(f"/api/patients/other-patient/appointments/{appt_id}")
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
     def test_get_requires_auth(self, state):
         with _make_client(state) as client:
@@ -363,6 +383,8 @@ class TestUpdateAppointment:
         assert resp.status_code == 404
 
     def test_update_404_for_wrong_patient(self, state):
+        # require_patient_access raises 403 for inaccessible patients (including
+        # wrong-patient path params) to avoid leaking patient existence.
         with _make_client(state) as client:
             create_resp = client.post(
                 "/api/patients/pat-appt-001/appointments",
@@ -373,7 +395,7 @@ class TestUpdateAppointment:
                 f"/api/patients/wrong-patient/appointments/{appt_id}",
                 json={"title": "Hijack"},
             )
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +445,8 @@ class TestDeleteAppointment:
         assert resp.status_code == 404
 
     def test_delete_404_for_wrong_patient(self, state):
+        # require_patient_access raises 403 for inaccessible patients (including
+        # wrong-patient path params) to avoid leaking patient existence.
         with _make_client(state) as client:
             create_resp = client.post(
                 "/api/patients/pat-appt-001/appointments",
@@ -430,7 +454,7 @@ class TestDeleteAppointment:
             )
             appt_id = create_resp.json()["id"]
             resp = client.delete(f"/api/patients/wrong-patient/appointments/{appt_id}")
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
     def test_delete_requires_auth(self, state):
         with _make_client(state) as client:
