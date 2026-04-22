@@ -157,6 +157,19 @@ async def state() -> StateManager:
         "emergency_contact": None,
         "caregiver_id": None,
     })
+    # Insert _FAKE_USER into the users table and add them to a care circle
+    # for pat-route-001. require_patient_access does a real SQL check, so the
+    # fixture must set up proper membership (Sacred Practice #5 — no weakening
+    # of auth code to make tests pass).
+    await sm._exec(
+        "INSERT INTO users (id, email, hashed_password, role, created_at, is_active)"
+        " VALUES (?, ?, ?, ?, datetime('now'), 1)",
+        (_FAKE_USER.id, _FAKE_USER.email, "hashed", _FAKE_USER.role),
+    )
+    await sm.create_care_circle("circle-route-001", "pat-route-001")
+    await sm.add_circle_member(
+        "ccm-route-001", "circle-route-001", _FAKE_USER.id, "clinician"
+    )
     yield sm
     await sm.close()
 

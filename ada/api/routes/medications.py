@@ -25,9 +25,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
-from ada.api.auth import get_current_user
+from ada.api.auth import require_patient_access
 from ada.models.medication import Medication, MedicationCreate, MedicationUpdate
-from ada.models.user import User
 
 router = APIRouter(tags=["medications"])
 
@@ -49,7 +48,7 @@ async def create_medication(
     patient_id: str,
     body: MedicationCreate,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """
     Add a medication to a patient's record.
@@ -116,7 +115,7 @@ async def list_medications(
     patient_id: str,
     request: Request,
     active_only: bool = False,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[dict[str, Any]]:
     """List all medications for a patient."""
     patient = await _state(request).get_patient(patient_id)
@@ -133,7 +132,7 @@ async def get_medication(
     patient_id: str,
     medication_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Get a single medication record."""
     med = await _state(request).get_medication(medication_id)
@@ -151,7 +150,7 @@ async def update_medication(
     medication_id: str,
     body: MedicationUpdate,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Update medication fields."""
     med = await _state(request).get_medication(medication_id)
@@ -183,7 +182,7 @@ async def deactivate_medication(
     patient_id: str,
     medication_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> Response:
     """Deactivate (soft-delete) a medication record."""
     med = await _state(request).get_medication(medication_id)
@@ -201,7 +200,7 @@ async def log_medication(
     patient_id: str,
     medication_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict:
     """Log that a medication was taken."""
     state = _state(request)
@@ -228,7 +227,7 @@ async def get_medication_logs_endpoint(
     medication_id: str,
     request: Request,
     date: str | None = None,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[dict]:
     """Get medication logs, optionally filtered by date (YYYY-MM-DD prefix)."""
     state = _state(request)

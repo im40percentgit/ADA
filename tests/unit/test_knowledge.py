@@ -166,6 +166,18 @@ class TestKnowledgeAPI:
             "emergency_contact": None,
             "caregiver_id": None,
         })
+        # Add _FAKE_USER to the users table and a care circle so
+        # require_patient_access authorises the injected user.
+        await state._exec(
+            "INSERT OR IGNORE INTO users"
+            " (id, email, hashed_password, role, created_at, is_active)"
+            " VALUES (?, ?, ?, ?, datetime('now'), 1)",
+            (_FAKE_USER.id, _FAKE_USER.email, "hashed", _FAKE_USER.role),
+        )
+        await state.create_care_circle("circle-kg-001", pid)
+        await state.add_circle_member(
+            "ccm-kg-001", "circle-kg-001", _FAKE_USER.id, "clinician"
+        )
         return pid
 
     @pytest_asyncio.fixture
@@ -520,6 +532,17 @@ class TestKnowledgeTrendsAPI:
             "emergency_contact": None,
             "caregiver_id": None,
         })
+        # Add _FAKE_USER to DB and care circle so require_patient_access passes.
+        await state._exec(
+            "INSERT OR IGNORE INTO users"
+            " (id, email, hashed_password, role, created_at, is_active)"
+            " VALUES (?, ?, ?, ?, datetime('now'), 1)",
+            (_FAKE_USER.id, _FAKE_USER.email, "hashed", _FAKE_USER.role),
+        )
+        await state.create_care_circle("circle-trends-001", pid)
+        await state.add_circle_member(
+            "ccm-trends-001", "circle-trends-001", _FAKE_USER.id, "clinician"
+        )
         return pid
 
     @pytest_asyncio.fixture

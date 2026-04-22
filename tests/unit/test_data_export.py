@@ -140,9 +140,13 @@ async def state() -> StateManager:
         {"id": _ORG_B_ID, "name": "Org B", "slug": "org-b", "ca": now, "ua": now},
     )
 
-    # Users
-    for uid, email in [(_USER_A_ID, _USER_A_EMAIL), (_USER_B_ID, _USER_B_EMAIL)]:
-        await sm.create_user({"id": uid, "email": email, "hashed_password": "x", "role": "user", "created_at": now})
+    # Users — set organization_id so require_patient_access org-match path works.
+    # User A belongs to org A, user B to org B. Patient A is in org A, patient B
+    # in org B — so the org-based check grants same-org access and denies cross-org.
+    await sm.create_user({"id": _USER_A_ID, "email": _USER_A_EMAIL, "hashed_password": "x", "role": "user", "created_at": now})
+    await sm.create_user({"id": _USER_B_ID, "email": _USER_B_EMAIL, "hashed_password": "x", "role": "user", "created_at": now})
+    await sm._exec("UPDATE users SET organization_id = ? WHERE id = ?", (_ORG_A_ID, _USER_A_ID))
+    await sm._exec("UPDATE users SET organization_id = ? WHERE id = ?", (_ORG_B_ID, _USER_B_ID))
 
     # Org memberships
     await sm._exec(
@@ -281,17 +285,21 @@ def test_export_assessments_no_auth(state):
 
 
 def test_export_assessments_tenant_isolation(state):
-    """User from org B cannot export org A patient — returns 404."""
+    """User from org B cannot export org A patient — returns 403.
+
+    require_patient_access now runs before _resolve_patient, so cross-org
+    access is denied with 403 (not 404) to avoid leaking patient existence.
+    """
     with _client(state, _USER_B) as client:
         resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/assessments")
-    assert resp.status_code == 404
+    assert resp.status_code == 403
 
 
 def test_export_assessments_patient_not_found(state):
-    """Nonexistent patient returns 404."""
+    """Accessing a nonexistent patient returns 403 (authz runs before existence check)."""
     with _client(state, _USER_A) as client:
         resp = client.get("/api/patients/no-such-patient/export/assessments")
-    assert resp.status_code == 404
+    assert resp.status_code == 403
 
 
 def test_export_assessments_empty(state):
@@ -325,10 +333,10 @@ def test_export_mood_no_auth(state):
 
 
 def test_export_mood_tenant_isolation(state):
-    """User from org B cannot export org A patient mood — returns 404."""
+    """User from org B cannot export org A patient mood — returns 403."""
     with _client(state, _USER_B) as client:
         resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/mood")
-    assert resp.status_code == 404
+    assert resp.status_code == 403
 
 
 def test_export_mood_empty(state):
@@ -371,10 +379,10 @@ def test_export_medications_no_auth(state):
 
 
 def test_export_medications_tenant_isolation(state):
-    """User from org B cannot export org A patient medications — returns 404."""
+    """User from org B cannot export org A patient medications — returns 403."""
     with _client(state, _USER_B) as client:
         resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/medications")
-    assert resp.status_code == 404
+    assert resp.status_code == 403
 
 
 def test_export_medications_no_logs(state):
@@ -413,10 +421,10 @@ def test_export_sessions_no_auth(state):
 
 
 def test_export_sessions_tenant_isolation(state):
-    """User from org B cannot export org A patient sessions — returns 404."""
+    """User from org B cannot export org A patient sessions — returns 403."""
     with _client(state, _USER_B) as client:
         resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/sessions")
-    assert resp.status_code == 404
+    assert resp.status_code == 403
 
 
 def test_export_sessions_empty(state):
@@ -428,10 +436,10 @@ def test_export_sessions_empty(state):
 
 
 def test_export_sessions_patient_not_found(state):
-    """Nonexistent patient returns 404."""
+    """Accessing a nonexistent patient returns 403 (authz runs before existence check)."""
     with _client(state, _USER_A) as client:
         resp = client.get("/api/patients/no-such-patient/export/sessions")
-    assert resp.status_code == 404
+    assert resp.status_code == 403
 
 
 # ===========================================================================
@@ -479,17 +487,17 @@ def test_export_wellbeing_no_auth(state):
 
 
 def test_export_wellbeing_tenant_isolation(state):
-    """User from org B cannot export org A patient wellbeing — returns 404."""
+    """User from org B cannot export org A patient wellbeing — returns 403."""
     with _client(state, _USER_B) as client:
         resp = client.get(f"/api/patients/{_PATIENT_A_ID}/export/wellbeing")
-    assert resp.status_code == 404
+    assert resp.status_code == 403
 
 
 def test_export_wellbeing_patient_not_found(state):
-    """Nonexistent patient returns 404."""
+    """Accessing a nonexistent patient returns 403 (authz runs before existence check)."""
     with _client(state, _USER_A) as client:
         resp = client.get("/api/patients/no-such-patient/export/wellbeing")
-    assert resp.status_code == 404
+    assert resp.status_code == 403
 
 
 def test_export_wellbeing_empty(state):

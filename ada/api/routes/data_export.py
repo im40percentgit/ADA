@@ -53,10 +53,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from ada.api.auth import get_current_user
+from ada.api.auth import require_patient_access
 from ada.api.tenant import TenantContext, get_tenant_context
 from ada.core.state import StateManager
-from ada.models.user import User
 
 router = APIRouter(tags=["data-export"])
 
@@ -126,7 +125,7 @@ async def _resolve_patient(
 async def export_assessments(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
     tenant: TenantContext = Depends(get_tenant_context),
     state: StateManager = Depends(_state),
 ) -> StreamingResponse:
@@ -163,7 +162,7 @@ async def export_assessments(
 async def export_mood(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
     tenant: TenantContext = Depends(get_tenant_context),
     state: StateManager = Depends(_state),
 ) -> StreamingResponse:
@@ -205,7 +204,7 @@ async def export_mood(
 async def export_medications(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
     tenant: TenantContext = Depends(get_tenant_context),
     state: StateManager = Depends(_state),
 ) -> StreamingResponse:
@@ -250,7 +249,7 @@ async def export_medications(
 async def export_sessions(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
     tenant: TenantContext = Depends(get_tenant_context),
     state: StateManager = Depends(_state),
 ) -> StreamingResponse:
@@ -304,7 +303,7 @@ async def export_sessions(
 async def export_wellbeing(
     patient_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
     tenant: TenantContext = Depends(get_tenant_context),
     state: StateManager = Depends(_state),
 ) -> StreamingResponse:

@@ -7,6 +7,22 @@ Provides:
   - decode_token (verification + expiry check)
   - get_current_user (FastAPI Depends — injects authenticated User)
   - require_role (role-scoped FastAPI dependency factory)
+  - require_patient_access (FastAPI Depends — authorizes patient-scoped routes)
+
+@decision DEC-AUTHZ-001
+@title require_patient_access — single dependency closes IDOR on all patient routes
+@status accepted
+@rationale Every route under /patients/{patient_id}/ previously checked
+    authentication (get_current_user) but not authorization. Any authenticated
+    user could read or modify any other patient's records — a textbook IDOR
+    and a HIPAA violation in a mental-health product.
+
+    require_patient_access is a FastAPI dependency co-located with
+    resolve_circle_access (the existing circle-level guard). It performs a
+    three-way check: (1) self-access when user.patient_id matches the path,
+    (2) care-circle membership via StateManager.user_can_access_patient,
+    (3) shared non-null org in tenant mode (same method, UNION ALL query).
+    Raises HTTP 403 — not 404 — to avoid leaking patient-ID existence.
 
 @decision DEC-AUTH-002
 @title FastAPI Depends(get_current_user) — dependency override in tests
@@ -268,6 +284,54 @@ async def resolve_circle_access(
     if require_roles and member["role"] not in require_roles:
         raise HTTPException(status_code=403, detail="Insufficient circle role")
     return member
+
+
+# ---------------------------------------------------------------------------
+# Patient access authorization (IDOR guard — DEC-AUTHZ-001)
+# ---------------------------------------------------------------------------
+
+async def require_patient_access(
+    patient_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> None:
+    """Authorize the caller for a specific patient_id path parameter.
+
+    Access is granted if any of the following is true:
+    1. The user's own user.patient_id matches the path patient_id
+       (role=user self-access — checked without a DB query).
+    2. The user is a member of a care circle that covers this patient
+       (caregiver, clinician, family access).
+    3. The user and the patient share the same non-null organization_id
+       (tenant / org mode).
+
+    Cases 2 and 3 are resolved by a single SQL UNION ALL query via
+    StateManager.user_can_access_patient.
+
+    Raises HTTP 403 (not 404) when authenticated but unauthorized —
+    404 would leak whether the patient_id exists at all.
+
+    Usage in route handlers::
+
+        @router.get("/patients/{patient_id}/something")
+        async def get_something(
+            patient_id: str,
+            request: Request,
+            _access: None = Depends(require_patient_access),
+        ) -> ...:
+    """
+    # Fast path: self-access (no DB round-trip)
+    if user.patient_id == patient_id:
+        return
+
+    state_manager = request.app.state.state_manager
+    if await state_manager.user_can_access_patient(user.id, patient_id):
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden",
+    )
 
 
 # ---------------------------------------------------------------------------

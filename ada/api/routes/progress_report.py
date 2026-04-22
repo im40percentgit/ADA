@@ -25,8 +25,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from starlette.requests import Request
 
-from ada.api.auth import get_current_user
-from ada.models.user import User
+from ada.api.auth import require_patient_access
 
 logger = logging.getLogger(__name__)
 
@@ -335,7 +334,7 @@ async def get_progress_report(
     request: Request,
     patient_id: str,
     range: str = Query("2w", alias="range"),
-    current_user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> dict[str, Any]:
     """Generate a progress report for a patient over a time range.
 

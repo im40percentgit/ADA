@@ -26,7 +26,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from ada.api.auth import get_current_user
+from ada.api.auth import get_current_user, require_patient_access
 from ada.core.state import StateManager
 from ada.models.user import User
 
@@ -46,6 +46,7 @@ async def create_prescribing_note(
     patient_id: str,
     request: Request,
     user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
     state: StateManager = Depends(_state),
 ) -> dict[str, Any]:
     """Create a prescribing note for a patient.
@@ -109,6 +110,7 @@ async def list_prescribing_notes(
     patient_id: str,
     request: Request,
     user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
     state: StateManager = Depends(_state),
 ) -> list[dict[str, Any]]:
     """List prescribing notes for a patient, newest first.

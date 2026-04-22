@@ -143,6 +143,18 @@ async def state() -> StateManager:
         "emergency_contact": None,
         "caregiver_id": None,
     })
+    # Add _FAKE_USER to DB and a care circle so require_patient_access passes.
+    # Fix the fixture, not the auth code (per spec: fix fixtures, not dependency).
+    await sm.create_user({
+        "id": _FAKE_USER.id,
+        "email": _FAKE_USER.email,
+        "hashed_password": "hashed",
+        "role": _FAKE_USER.role,
+    })
+    await sm.create_care_circle("circle-screen-001", PATIENT_ID)
+    await sm.add_circle_member(
+        "ccm-screen-001", "circle-screen-001", _FAKE_USER.id, "clinician"
+    )
     yield sm
     await sm.close()
 

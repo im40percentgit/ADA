@@ -28,9 +28,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from ada.api.auth import get_current_user
+from ada.api.auth import require_patient_access
 from ada.models.knowledge import KnowledgeEdge, KnowledgeGraph, KnowledgeNode, KnowledgeTrend
-from ada.models.user import User
 
 router = APIRouter(tags=["knowledge"])
 
@@ -50,7 +49,7 @@ def _state(request: Request):
 async def get_knowledge_graph(
     patient_id: str,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> KnowledgeGraph:
     """Return the full knowledge graph for a patient."""
     state = _state(request)
@@ -72,7 +71,7 @@ async def get_knowledge_insights(
     patient_id: str,
     request: Request,
     limit: int = 10,
-    current_user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[KnowledgeNode]:
     """Return top knowledge nodes ordered by mention_count descending."""
     state = _state(request)
@@ -94,7 +93,7 @@ async def get_node_neighborhood(
     node_id: str,
     request: Request,
     depth: int = 2,
-    current_user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[KnowledgeNode]:
     """
     Return all knowledge nodes within ``depth`` hops of ``node_id``.
@@ -134,7 +133,7 @@ async def get_knowledge_trends(
     patient_id: str,
     request: Request,
     range: str = "2w",
-    current_user: User = Depends(get_current_user),
+    _access: None = Depends(require_patient_access),
 ) -> list[KnowledgeTrend]:
     """Return per-node mention count trends vs a prior snapshot."""
     from ada.knowledge.queries import get_node_trends
