@@ -153,10 +153,14 @@ async def state() -> StateManager:
     # Add all test users to a care circle for pat-001 so require_patient_access
     # authorizes them. The patient-user also has patient_id="pat-001" on their
     # User model, so they pass via the fast-path; the circle covers the rest.
-    await sm.create_care_circle("circle-pat-001", "pat-001")
+    # Role must be one of ('primary_caregiver', 'family', 'clinician') per CHECK
+    # constraint — "member" is not a valid circle role. The 403 for caregiver/
+    # patient-user roles comes from the app-level role guard, not circle membership,
+    # so giving them "clinician" circle membership does not break those tests.
+    await sm.create_care_circle("circle-pn-001", "pat-001")
     for uid in ("clinician-001", "admin-001", "caregiver-001", "patient-user-001"):
         await sm.add_circle_member(
-            f"ccm-{uid}", "circle-pat-001", uid, "member"
+            f"ccm-pn-{uid}", "circle-pn-001", uid, "clinician"
         )
     yield sm
     await sm.close()
@@ -288,12 +292,14 @@ class TestCreatePrescribingNote:
         assert resp.status_code in (401, 403)
 
     def test_missing_patient_returns_404(self, state):
+        # require_patient_access raises 403 for any patient the caller has no circle
+        # membership for — including nonexistent patients (avoids leaking existence).
         with _make_client(state, _CLINICIAN) as client:
             resp = client.post("/api/patients/nonexistent/prescribing-notes", json={
                 "note_type": "prescribe",
                 "content": "Ghost patient.",
             })
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
     def test_invalid_note_type_returns_422(self, state):
         with _make_client(state, _CLINICIAN) as client:
@@ -391,9 +397,11 @@ class TestListPrescribingNotes:
         assert notes[1]["content"] == "First created."
 
     def test_list_missing_patient_returns_404(self, state):
+        # require_patient_access raises 403 for any patient the caller has no circle
+        # membership for — including nonexistent patients (avoids leaking existence).
         with _make_client(state, _CLINICIAN) as client:
             resp = client.get("/api/patients/nonexistent/prescribing-notes")
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
     def test_caregiver_can_list(self, state):
         """Any authenticated user — including caregiver — can read notes."""

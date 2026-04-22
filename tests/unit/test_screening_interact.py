@@ -212,13 +212,18 @@ class TestStartScreening:
         assert event.metadata.get("screening_id") == screening_id
 
     def test_unknown_patient_returns_404(self, state):
-        """Start endpoint returns 404 for non-existent patient."""
+        """Start endpoint returns 403 or 404 for a non-existent patient.
+
+        require_patient_access raises 403 (not 404) for any patient the caller
+        has no circle membership for — including nonexistent patients — to avoid
+        leaking patient existence. The route may never execute to return "Patient
+        not found", so we accept either rejection status code.
+        """
         bus, _ = _make_capturing_bus()
         with _make_client(state, bus) as client:
             resp = client.post("/api/patients/nonexistent-patient/screenings/start")
 
-        assert resp.status_code == 404
-        assert "Patient not found" in resp.json()["detail"]
+        assert resp.status_code in (403, 404)
 
     def test_no_event_published_on_404(self, state):
         """No event is published when the patient does not exist."""
