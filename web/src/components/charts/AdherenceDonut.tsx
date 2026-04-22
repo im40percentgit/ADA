@@ -75,10 +75,10 @@ export function AdherenceDonut({ data }: AdherenceDonutProps) {
       </div>
       {missed_dates.length > 0 && (
         <div style={{ marginTop: '8px' }}>
-          <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '4px' }}>
+          <p style={{ fontSize: 'var(--size-sm)', color: '#6b7280', marginBottom: '4px' }}>
             Missed dates:
           </p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '13px' }}>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 'var(--size-sm)' }}>
             {missed_dates.map((date) => (
               <li key={date} style={{ color: '#ef4444' }}>
                 {date}

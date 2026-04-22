@@ -101,13 +101,13 @@ export function MoodChart({ patientId }: MoodChartProps) {
           <CartesianGrid strokeDasharray="3 3" stroke="#e8eaf0" />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 12, fill: '#6b7280' }}
+            tick={{ fontSize: 14, fill: '#6b7280' }}
             tickLine={false}
           />
           <YAxis
             domain={[1, 10]}
             ticks={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
-            tick={{ fontSize: 12, fill: '#6b7280' }}
+            tick={{ fontSize: 14, fill: '#6b7280' }}
             tickLine={false}
             axisLine={false}
             width={24}
@@ -117,7 +117,7 @@ export function MoodChart({ patientId }: MoodChartProps) {
               background: '#fff',
               border: '1px solid #e8eaf0',
               borderRadius: '8px',
-              fontSize: '13px',
+              fontSize: 'var(--size-sm)',
             }}
             formatter={(value: number) => [`${value}/10`, 'Mood']}
           />

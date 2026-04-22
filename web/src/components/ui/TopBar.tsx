@@ -133,7 +133,7 @@ export function TopBar({ greeting, subtitle, onNotification, onProfile, notifica
         >
           🔔
           {notificationCount != null && notificationCount > 0 && (
-            <span style={badgeStyle} aria-hidden="true">
+            <span style={badgeStyle} className="ada-topbar-badge" aria-hidden="true">
               {notificationCount > 9 ? '9+' : notificationCount}
             </span>
           )}

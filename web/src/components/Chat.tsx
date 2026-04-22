@@ -451,7 +451,7 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
       )}
 
       {/* Input area */}
-      <div className="chat__input-area" style={{ background: 'var(--color-bg-elevated)', borderTop: '1px solid var(--color-border)', padding: 'var(--space-sm) var(--space-md)', display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-end' }}>
+      <div className="chat__input-area" style={{ background: 'var(--color-bg-elevated)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-sm)', paddingLeft: 'var(--space-md)', paddingRight: 'var(--space-md)', paddingBottom: 'calc(var(--space-sm) + env(safe-area-inset-bottom, 0px))', display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-end' }}>
         <label htmlFor="chat-input" className="visually-hidden">
           Type your message
         </label>

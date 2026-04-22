@@ -131,7 +131,7 @@ export function ClinicianNotes({ entityType, entityId, role }: ClinicianNotesPro
               marginBottom: '12px',
             }}
           >
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+            <div style={{ fontSize: 'var(--size-sm)', color: '#6b7280', marginBottom: '4px' }}>
               <span data-testid="note-author">{note.user_id}</span>
               {' — '}
               <span data-testid="note-timestamp">{formatTimestamp(note.updated_at)}</span>
