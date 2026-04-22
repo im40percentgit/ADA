@@ -413,7 +413,7 @@ export function SettingsPage({ email, patientId }: SettingsPageProps) {
   }
 
   return (
-    <div style={pageStyle} data-testid="settings-page">
+    <div style={pageStyle} className="ada-settings-page" data-testid="settings-page">
       <h1 className="sr-only">Settings</h1>
 
       {/* ─��� Companion Section ───────────────────��─────────────── */}
@@ -463,7 +463,7 @@ export function SettingsPage({ email, patientId }: SettingsPageProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
 
               <div style={personalityRowStyle}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--size-body)', color: 'var(--color-text-primary)', minWidth: '80px' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--size-body)', color: 'var(--color-text-primary)' }}>
                   Warmth
                 </span>
                 <TwoOptionToggle
@@ -476,7 +476,7 @@ export function SettingsPage({ email, patientId }: SettingsPageProps) {
               </div>
 
               <div style={personalityRowStyle}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--size-body)', color: 'var(--color-text-primary)', minWidth: '80px' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--size-body)', color: 'var(--color-text-primary)' }}>
                   Verbosity
                 </span>
                 <TwoOptionToggle
@@ -489,7 +489,7 @@ export function SettingsPage({ email, patientId }: SettingsPageProps) {
               </div>
 
               <div style={personalityRowStyle}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--size-body)', color: 'var(--color-text-primary)', minWidth: '80px' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--size-body)', color: 'var(--color-text-primary)' }}>
                   Formality
                 </span>
                 <TwoOptionToggle

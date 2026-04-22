@@ -223,7 +223,7 @@ export function ScreeningHistory({ patientId, onViewScreening }: ScreeningHistor
                     >
                       {pct}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280' }}>score</div>
+                    <div className="ada-screening-score-label" style={{ fontSize: '11px', color: '#6b7280' }}>score</div>
                   </div>
                 )}
               </div>

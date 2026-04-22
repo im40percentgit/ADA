@@ -103,7 +103,7 @@ const TREND_VARIANT: Record<'up' | 'down' | 'stable', 'success' | 'danger' | 'ne
 
 const dashboardStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(2, 1fr)',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
   gap: 'var(--space-md)',
   padding: 'var(--space-md)',
   maxWidth: '900px',
