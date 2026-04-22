@@ -58,6 +58,7 @@ import { ScreeningHistory } from './components/ScreeningHistory'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { InstallBanner } from './components/InstallBanner'
 import { AppShell } from './components/AppShell'
+import { SettingsPage } from './components/SettingsPage'
 import { SessionList } from './components/SessionList'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
 import { useAuth } from './hooks/useAuth'
@@ -342,10 +343,7 @@ export default function App() {
             />
           )
         ) : view === 'settings' ? (
-          <div style={{ padding: 'var(--space-lg)' }}>
-            <h2 style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-heading)' }}>Settings</h2>
-            <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--space-sm)' }}>Settings coming soon</p>
-          </div>
+          <SettingsPage email={currentUser?.email} patientId={patientId} />
         ) : (
           <div className="app__mood-view">
             <h2 className="app__mood-title">Your Mood History</h2>
