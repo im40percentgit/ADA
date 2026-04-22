@@ -43,7 +43,10 @@ const mockRaf = vi.fn((cb: FrameRequestCallback) => {
 const mockCancelRaf = vi.fn()
 
 beforeEach(() => {
-  vi.stubGlobal('AudioContext', vi.fn(() => mockAudioContext))
+  // vitest 4.x requires a real function/class for constructors — arrow functions
+  // cannot be called with `new`. Use a regular function so `new AudioContext()`
+  // works in the component under test.
+  vi.stubGlobal('AudioContext', vi.fn(function () { return mockAudioContext }))
   vi.stubGlobal('requestAnimationFrame', mockRaf)
   vi.stubGlobal('cancelAnimationFrame', mockCancelRaf)
   mockGetByteFrequencyData.mockImplementation((arr: Uint8Array) => arr.fill(128))
