@@ -54,6 +54,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useBoard } from '../hooks/useBoard'
 import { BoardItem } from './BoardItem'
+import { ConfirmDialog } from './ConfirmDialog'
 import { SkeletonList } from './ui/Skeleton'
 import { EmptyState } from './ui/EmptyState'
 import { ErrorState } from './ui/ErrorState'
@@ -76,8 +77,10 @@ export function BoardView({ boardId, onBack }: BoardViewProps) {
     editItem,
     deleteItem,
     approveItem,
+    clearBoard,
   } = useBoard(boardId)
   const [newText, setNewText] = useState('')
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   // DEC-MOTION-007: track IDs seen at initial load to distinguish WS-inserted items
   const seenIds = useRef<Set<string>>(new Set())
@@ -153,6 +156,17 @@ export function BoardView({ boardId, onBack }: BoardViewProps) {
         </button>
         <h2 className="board-view__title">{board?.name}</h2>
         <span className="board-view__type">{board?.board_type}</span>
+        <div className="board-view__header-actions">
+          {items.length > 0 && (
+            <button
+              className="board-view__clear-btn"
+              type="button"
+              onClick={() => setShowClearConfirm(true)}
+            >
+              Clear board
+            </button>
+          )}
+        </div>
       </div>
 
       <ul className="board-view__items">
@@ -196,6 +210,19 @@ export function BoardView({ boardId, onBack }: BoardViewProps) {
           Add
         </button>
       </div>
+
+      {showClearConfirm && (
+        <ConfirmDialog
+          title="Clear board"
+          message={`Remove all ${items.length} item${items.length === 1 ? '' : 's'} from "${board?.name}"? This cannot be undone.`}
+          confirmLabel="Clear all"
+          onConfirm={async () => {
+            setShowClearConfirm(false)
+            await clearBoard()
+          }}
+          onCancel={() => setShowClearConfirm(false)}
+        />
+      )}
     </div>
   )
 }

@@ -354,6 +354,7 @@ export type WsBoardMessage =
   | { type: 'item_reordered'; item_id: string; position: number; by: string }
   | { type: 'item_suggested'; item: BoardItem; by: 'ada' }
   | { type: 'item_approved'; item_id: string; by: string }
+  | { type: 'board_cleared' }
   | { type: 'error'; message: string }
 
 // -- Medications --------------------------------------------------------

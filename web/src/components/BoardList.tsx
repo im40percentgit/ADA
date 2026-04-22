@@ -5,6 +5,10 @@
  *   BoardView. Board creation re-fetches the list via REST — no WS needed
  *   since board creation is an infrequent, admin-level operation.
  *
+ *   Each board card has a "..." overflow button that opens a small dropdown
+ *   with a "Delete board" action. Deletion calls DELETE /api/boards/{id} and
+ *   refetches the list. A ConfirmDialog prevents accidental deletion.
+ *
  * @decision DEC-BOARDS-014
  * @title BoardList fetches via REST; no WS subscription for board-list changes
  * @status accepted
@@ -14,11 +18,21 @@
  *   UX benefit. REST refetch after local mutations is sufficient. If multi-tab
  *   or multi-user board creation becomes a real use case, add a circle WS
  *   channel at that point.
+ *
+ * @decision DEC-BOARDS-016
+ * @title Overflow menu anchored on card; close on outside click via useEffect
+ * @status accepted
+ * @rationale A lightweight click-outside handler (document mousedown) dismisses
+ *   the menu without a portal or popover library. Each card tracks its own
+ *   openMenuId via shared state in the parent, ensuring only one menu is open
+ *   at a time without per-card state. If a richer dropdown is needed later,
+ *   replace with Radix DropdownMenu.
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import { createBoard, getCircleBoards } from '../api/client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createBoard, deleteBoard, getCircleBoards } from '../api/client'
 import type { Board } from '../types'
+import { ConfirmDialog } from './ConfirmDialog'
 import { EmptyState } from './ui/EmptyState'
 
 interface BoardListProps {
@@ -33,6 +47,11 @@ export function BoardList({ circleId, onSelectBoard }: BoardListProps) {
   const [boardType, setBoardType] = useState('custom')
   const [creating, setCreating] = useState(false)
 
+  // Overflow menu + delete dialog state
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
   const fetchBoards = useCallback(async () => {
     try {
       setBoards(await getCircleBoards(circleId))
@@ -44,6 +63,18 @@ export function BoardList({ circleId, onSelectBoard }: BoardListProps) {
   useEffect(() => {
     fetchBoards()
   }, [fetchBoards])
+
+  // Close overflow menu on outside click
+  useEffect(() => {
+    if (!openMenuId) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openMenuId])
 
   const handleCreate = async () => {
     if (!name.trim()) return
@@ -57,6 +88,20 @@ export function BoardList({ circleId, onSelectBoard }: BoardListProps) {
       setCreating(false)
     }
   }
+
+  const handleDeleteConfirmed = async () => {
+    if (!confirmDeleteId) return
+    const boardId = confirmDeleteId
+    setConfirmDeleteId(null)
+    try {
+      await deleteBoard(boardId)
+      await fetchBoards()
+    } catch {
+      // Non-fatal: refetch will show current state
+    }
+  }
+
+  const boardToDelete = boards.find((b) => b.id === confirmDeleteId)
 
   return (
     <div className="board-list">
@@ -103,15 +148,46 @@ export function BoardList({ circleId, onSelectBoard }: BoardListProps) {
 
       <div className="board-list__cards">
         {boards.map((b) => (
-          <button
-            key={b.id}
-            className="board-list__card"
-            onClick={() => onSelectBoard(b.id)}
-            type="button"
-          >
-            <span className="board-list__card-name">{b.name}</span>
-            <span className="board-list__card-type">{b.board_type}</span>
-          </button>
+          <div key={b.id} className="board-list__card-container">
+            <button
+              className="board-list__card"
+              onClick={() => onSelectBoard(b.id)}
+              type="button"
+            >
+              <span className="board-list__card-name">{b.name}</span>
+              <span className="board-list__card-type">{b.board_type}</span>
+            </button>
+
+            {/* Overflow menu trigger */}
+            <button
+              className="board-list__overflow-btn"
+              aria-label={`More options for ${b.name}`}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpenMenuId(openMenuId === b.id ? null : b.id)
+              }}
+            >
+              &#8230;
+            </button>
+
+            {/* Overflow menu dropdown */}
+            {openMenuId === b.id && (
+              <div className="board-list__overflow-menu" ref={menuRef}>
+                <button
+                  className="board-list__overflow-menu-item"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setOpenMenuId(null)
+                    setConfirmDeleteId(b.id)
+                  }}
+                >
+                  Delete board
+                </button>
+              </div>
+            )}
+          </div>
         ))}
         {boards.length === 0 && !showCreate && (
           <EmptyState
@@ -131,6 +207,17 @@ export function BoardList({ circleId, onSelectBoard }: BoardListProps) {
           />
         )}
       </div>
+
+      {/* Delete board confirmation dialog */}
+      {confirmDeleteId && boardToDelete && (
+        <ConfirmDialog
+          title="Delete board"
+          message={`Delete "${boardToDelete.name}"? This will permanently remove the board and all its items.`}
+          confirmLabel="Delete"
+          onConfirm={handleDeleteConfirmed}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
     </div>
   )
 }

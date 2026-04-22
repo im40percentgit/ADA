@@ -258,6 +258,14 @@ export function approveBoardItem(boardId: string, itemId: string): Promise<Board
   return request<BoardItem>(`/boards/${boardId}/items/${itemId}/approve`, { method: 'POST' })
 }
 
+export function clearBoardItems(boardId: string): Promise<void> {
+  return request<void>(`/boards/${boardId}/items`, { method: 'DELETE' })
+}
+
+export function deleteBoard(boardId: string): Promise<void> {
+  return request<void>(`/boards/${boardId}`, { method: 'DELETE' })
+}
+
 export function boardWsUrl(boardId: string): string {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${location.host}/ws/board/${boardId}`
