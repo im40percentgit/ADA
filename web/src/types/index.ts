@@ -88,7 +88,8 @@ export interface WsAssessmentPrompt {
 
 export interface WsErrorMessage {
   type: 'error'
-  message: string
+  message?: string   // ws-error shape (backend may omit when detail is present)
+  detail?: string    // HTTP-error shape; backend sometimes sends {type:"error", detail:"..."}
 }
 
 export interface WsEmotionUpdate {

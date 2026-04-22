@@ -97,7 +97,7 @@ export default function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [selectedSummaryDate, setSelectedSummaryDate] = useState<string | null>(null)
   const [selectedScreeningId, setSelectedScreeningId] = useState<string | null>(null)
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
+  const [selectedPlanId] = useState<string | null>(null)
   const [onboardingComplete, setOnboardingComplete] = useState(true)
 
   // Check onboarding status when user becomes authenticated
