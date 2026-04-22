@@ -49,6 +49,7 @@ export interface AppShellProps {
   subtitle?: string
   companionName?: string
   onNotification?: () => void
+  onLogout?: () => void
 }
 
 // --- Styles ---
@@ -161,6 +162,7 @@ export function AppShell({
   subtitle,
   companionName,
   onNotification,
+  onLogout,
 }: AppShellProps) {
   const isDesktop = useIsDesktop()
 
@@ -207,6 +209,7 @@ export function AppShell({
             greeting={greeting}
             subtitle={subtitle}
             onNotification={onNotification}
+            onLogout={onLogout}
           />
           <main id="main-content" className="ada-shell__content" style={desktopContentStyle}>
             {children}
@@ -224,6 +227,7 @@ export function AppShell({
         greeting={greeting}
         subtitle={subtitle}
         onNotification={onNotification}
+        onLogout={onLogout}
       />
       <main id="main-content" className="ada-shell__content" style={mainMobileStyle}>
         {children}
