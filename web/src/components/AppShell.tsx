@@ -57,12 +57,14 @@ export interface AppShellProps {
 const shellMobileStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  height: '100%',
+  height: '100dvh',          // dynamic viewport height — handles iOS URL bar show/hide
+  minHeight: '100dvh',       // fallback guarantee when dvh behaves unexpectedly
   overflow: 'hidden',
 }
 
 const mainMobileStyle: CSSProperties = {
   flex: 1,
+  minHeight: 0,              // allow flex child to shrink below content height (standard pattern)
   overflowY: 'auto',
   paddingBottom: '60px',
 }
