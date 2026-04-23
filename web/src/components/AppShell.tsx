@@ -4,9 +4,11 @@
  * Provides two distinct layouts depending on viewport width:
  *
  * Mobile (< 768px):
- *   - TopBar at top
- *   - Main content area (flex: 1, scrollable, bottom-padded for nav)
- *   - BottomNav fixed at bottom
+ *   - TopBar sticky at top (position: sticky, top: 0)
+ *   - Main content area — normal document flow, body scrolls naturally
+ *   - BottomNav fixed at bottom (position: fixed, already was)
+ *   - Shell is display:block with min-height:100dvh and padding-bottom:60px
+ *     to reserve space for the fixed BottomNav
  *
  * Desktop (>= 768px):
  *   - Flex row: sidebar left (240px) + main area right
@@ -26,6 +28,17 @@
  *   renders completely different DOM structures for mobile and
  *   desktop, keeping each layout clean and avoiding hidden-but-mounted
  *   elements.
+ *
+ * @decision DEC-UI-MOBILESCROLL-002
+ * @title Mobile scroll: body-scroll pattern over nested-flex-scroll
+ * @status accepted
+ * @rationale Prior fix (a2093f6) used 100dvh + flex minHeight:0 on the
+ *   inner <main> to create a scroll container inside a fixed-height shell.
+ *   iOS Safari loses touch-scroll propagation in nested-flex-scroll setups
+ *   even with -webkit-overflow-scrolling. The standard mobile web pattern
+ *   (body scrolls, chrome is position:sticky/fixed) avoids this entirely.
+ *   BottomNav was already position:fixed. TopBar is now position:sticky.
+ *   The shell becomes display:block so the body scroll chain is unbroken.
  */
 
 import { useState, useEffect } from 'react'
@@ -55,19 +68,14 @@ export interface AppShellProps {
 // --- Styles ---
 
 const shellMobileStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  height: '100dvh',          // dynamic viewport height — handles iOS URL bar show/hide
-  minHeight: '100dvh',       // fallback guarantee when dvh behaves unexpectedly
-  overflow: 'hidden',
+  display: 'block',          // normal document flow — body scrolls, no flex scroll trap
+  minHeight: '100dvh',       // fill viewport without hard-capping it
+  paddingBottom: '60px',     // reserve space for the fixed BottomNav
 }
 
-const mainMobileStyle: CSSProperties = {
-  flex: 1,
-  minHeight: 0,              // allow flex child to shrink below content height (standard pattern)
-  overflowY: 'auto',
-  paddingBottom: '60px',
-}
+// mainMobileStyle intentionally empty — body handles scrolling naturally.
+// Kept as a named constant for API stability (callers may reference it in tests).
+const mainMobileStyle: CSSProperties = {}
 
 const shellDesktopStyle: CSSProperties = {
   display: 'flex',
@@ -221,16 +229,21 @@ export function AppShell({
     )
   }
 
-  // Mobile layout
+  // Mobile layout — body-scroll pattern:
+  // Shell is display:block so the document scroll chain is unbroken.
+  // TopBar is position:sticky so it stays visible while content scrolls.
+  // BottomNav is position:fixed (unchanged). Body carries all scroll momentum.
   return (
     <div className="ada-shell ada-shell--mobile" style={shellMobileStyle}>
       <a href="#main-content" className="skip-link">Skip to main content</a>
-      <TopBar
-        greeting={greeting}
-        subtitle={subtitle}
-        onNotification={onNotification}
-        onLogout={onLogout}
-      />
+      <div className="ada-shell__mobile-topbar" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+        <TopBar
+          greeting={greeting}
+          subtitle={subtitle}
+          onNotification={onNotification}
+          onLogout={onLogout}
+        />
+      </div>
       <main id="main-content" className="ada-shell__content" style={mainMobileStyle}>
         {children}
       </main>

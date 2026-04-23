@@ -47,7 +47,10 @@
 }
 
 html, body, #root {
-  height: 100%;
+  /* min-height instead of height so the body can grow taller than the viewport
+     on mobile (enabling natural body-scroll), while still filling the full
+     viewport on desktop where content is always shorter than 100%. */
+  min-height: 100%;
   font-family: var(--font-body);
   background: var(--color-bg);
   color: var(--color-text);
@@ -73,9 +76,18 @@ html, body, #root {
 --------------------------------------------------------------------------- */
 
 .app {
+  /* On mobile the AppShell uses body-scroll; .app must not clip it.
+     Desktop restores the flex/overflow-hidden inner-scroll pattern via
+     the media query below. */
   display: flex;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100dvh;
+}
+
+@media (min-width: 768px) {
+  .app {
+    height: 100%;
+    overflow: hidden;
+  }
 }
 
 .app__sidebar {
