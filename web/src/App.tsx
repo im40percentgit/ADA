@@ -44,7 +44,7 @@ import { MoodChart } from './components/MoodChart'
 import { Login } from './components/Login'
 import { ForgotPassword } from './components/ForgotPassword'
 import { ResetPassword } from './components/ResetPassword'
-import { CaregiverApp } from './components/CaregiverApp'
+import { CaregiverApp, type CaregiverAppProps } from './components/CaregiverApp'
 import { PatientDashboard } from './components/PatientDashboard'
 import { KnowledgeGraph } from './components/KnowledgeGraph'
 import { ProgressReport } from './components/ProgressReport'
@@ -59,6 +59,7 @@ import { AppShell } from './components/AppShell'
 import { SettingsPage } from './components/SettingsPage'
 import { SessionList } from './components/SessionList'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
+import { SolitairePage } from './games/solitaire/SolitairePage'
 import { useAuth } from './hooks/useAuth'
 import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
 import { getOnboardingStatus } from './api/client'
@@ -67,7 +68,7 @@ import './App.css'
 // Fallback patient ID for clinician/admin accounts in development
 const DEMO_PATIENT_ID = 'demo-patient-001'
 
-type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history' | 'settings' | 'treatment-plan' | 'prescribing-notes'
+type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history' | 'settings' | 'treatment-plan' | 'prescribing-notes' | 'solitaire'
 type AuthView = 'login' | 'forgot-password' | 'reset-password'
 
 /** Parse the initial auth view from the URL hash (e.g. /#/reset-password?token=...) */
@@ -189,8 +190,8 @@ export default function App() {
       <CaregiverApp
         currentUser={currentUser}
         logout={logout}
-        view={view}
-        setView={setView}
+        view={view as CaregiverAppProps['view']}
+        setView={setView as CaregiverAppProps['setView']}
         selectedSessionId={selectedSessionId}
         setSelectedSessionId={setSelectedSessionId}
         selectedSummaryDate={selectedSummaryDate}
@@ -224,6 +225,16 @@ export default function App() {
       settings: 'settings',
     }
     setView(tabToView[tabId] ?? 'home')
+  }
+
+  // Solitaire renders full-bleed outside AppShell — intercept before the shell render
+  if (view === 'solitaire') {
+    return (
+      <>
+        {installBanner}
+        <SolitairePage onBack={() => setView('home')} />
+      </>
+    )
   }
 
   const greeting = currentUser?.email

@@ -514,6 +514,21 @@ export function PatientDashboard({ patientId, onNavigate }: PatientDashboardProp
         </div>
       </Card>
 
+      {/* Quick Action: Solitaire */}
+      <Card
+        onClick={() => onNavigate('solitaire')}
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => e.key === 'Enter' && onNavigate('solitaire')}
+          aria-label="Play Solitaire"
+        >
+          <h2 style={sectionHeadingStyle}>Solitaire</h2>
+          <p style={cardDescStyle}>A card game to help you unwind</p>
+        </div>
+      </Card>
+
       {/* Medications Card */}
       <section aria-label="Medications">
       <Card style={fullWidthCardStyle}>

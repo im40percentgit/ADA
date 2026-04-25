@@ -1,0 +1,298 @@
+/*
+ * Solitaire layout — follows Ada design token conventions.
+ *
+ * Layout strategy:
+ * - Full-bleed green felt background
+ * - Fixed 7-column tableau + 4-foundation / stock / talon row at top
+ * - Cards maintain ~70:100 aspect ratio (standard playing card)
+ * - Pointer Events handle drag on both mouse and touch
+ *
+ * @decision DEC-GAMES-002
+ * @title Pointer Events API — no dnd-kit, no HTML5 drag events
+ * @status accepted
+ * @rationale CSS cursor: grabbing only applies; actual drag is handled by
+ *   JS Pointer Events. touch-action: none prevents browser scroll from
+ *   interfering with card drag on mobile.
+ */
+
+/* -------------------------------------------------------------------------
+   Page shell
+------------------------------------------------------------------------- */
+
+.solitaire-page {
+  min-height: 100dvh;
+  background: #1a5c1a;  /* classic felt green */
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* -------------------------------------------------------------------------
+   Header bar
+------------------------------------------------------------------------- */
+
+.solitaire-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.solitaire-header__back {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.solitaire-header__title {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.solitaire-header__actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.solitaire-header__btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.solitaire-header__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.solitaire-header__deck-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.solitaire-header__deck-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.solitaire-header__deck-btn--active {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* -------------------------------------------------------------------------
+   Win banner
+------------------------------------------------------------------------- */
+
+.solitaire-win-banner {
+  text-align: center;
+  padding: 12px;
+  background: rgba(255, 215, 0, 0.15);
+  border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Board
+------------------------------------------------------------------------- */
+
+.solitaire-board {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+/* Top row: stock, talon, spacer, 4 foundations */
+.solitaire-top-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+/* Tableau row: 7 columns */
+.solitaire-tableau {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  flex: 1;
+  align-items: start;
+}
+
+/* -------------------------------------------------------------------------
+   Pile slot (empty placeholder)
+------------------------------------------------------------------------- */
+
+.solitaire-pile-slot {
+  aspect-ratio: 70 / 100;
+  border: 1.5px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  min-height: 0;
+}
+
+.solitaire-pile-slot--droppable {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* -------------------------------------------------------------------------
+   Card
+------------------------------------------------------------------------- */
+
+.solitaire-card {
+  aspect-ratio: 70 / 100;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: grab;
+  position: relative;
+  touch-action: none;       /* prevent browser scroll during drag */
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.solitaire-card:active {
+  cursor: grabbing;
+}
+
+.solitaire-card--face-down {
+  background: linear-gradient(135deg, #1a3a8a 25%, #2255cc 25%, #2255cc 50%, #1a3a8a 50%, #1a3a8a 75%, #2255cc 75%);
+  background-size: 8px 8px;
+  cursor: default;
+}
+
+.solitaire-card--dragging {
+  opacity: 0.75;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.solitaire-card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  border-radius: 5px;
+}
+
+/* Classic (text) card face */
+.solitaire-card__classic {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 2px 4px;
+  width: 100%;
+  height: 100%;
+  font-weight: 700;
+}
+
+.solitaire-card__classic--red {
+  color: #cc1111;
+}
+
+.solitaire-card__classic--black {
+  color: #111;
+}
+
+.solitaire-card__rank {
+  font-size: clamp(0.55rem, 1.8cqw, 1rem);
+  line-height: 1;
+}
+
+.solitaire-card__suit {
+  font-size: clamp(0.5rem, 1.5cqw, 0.85rem);
+  line-height: 1;
+}
+
+/* -------------------------------------------------------------------------
+   Tableau column
+------------------------------------------------------------------------- */
+
+.solitaire-column {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 60px;
+}
+
+/* Stacked face-down cards — tighter overlap */
+.solitaire-column .solitaire-card + .solitaire-card--face-down {
+  margin-top: -82%;
+}
+
+/* Face-up cards — slightly more reveal */
+.solitaire-column .solitaire-card + .solitaire-card:not(.solitaire-card--face-down) {
+  margin-top: -60%;
+}
+
+/* First face-up after face-down — slightly more gap */
+.solitaire-column .solitaire-card--face-down + .solitaire-card:not(.solitaire-card--face-down) {
+  margin-top: -55%;
+}
+
+/* -------------------------------------------------------------------------
+   Stock / talon
+------------------------------------------------------------------------- */
+
+.solitaire-stock {
+  cursor: pointer;
+}
+
+.solitaire-stock--empty {
+  font-size: 1.2rem;
+}
+
+/* -------------------------------------------------------------------------
+   Drag ghost (absolute positioned during drag)
+------------------------------------------------------------------------- */
+
+.solitaire-drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.85;
+  transform: rotate(2deg);
+  display: flex;
+  flex-direction: column;
+}
