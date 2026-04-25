@@ -32,6 +32,19 @@
  * @status accepted
  * @rationale Dogfood feedback: Classic mode rendered smaller than Corgi mode.
  *   Both modes now use the same card dimensions via shared CSS classes.
+ *
+ * @decision DEC-GAMES-026
+ * @title Corner suit symbol shown only on J/Q/K face cards
+ * @status accepted
+ * @rationale Founder iteration:
+ *   - A's image IS the suit symbol — corner suit is redundant
+ *   - 2's image clearly shows the suit — corner suit is redundant
+ *   - 3-10 procedural rendering has a LARGE central suit symbol — corner suit muddles
+ *   - J/Q/K's image is a face character (Jack/Queen/King figure) that doesn't
+ *     clearly indicate suit — corner suit IS necessary
+ *   Rank text color (red/black) plus center decoration is enough for A/2/3-10.
+ *   Only J/Q/K need the corner suit indicator. Reduces visual noise on small
+ *   mobile cards, especially for older patients.
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react'
@@ -86,12 +99,18 @@ function CardFace({ card }: CardFaceProps) {
     card.suit === 'diamonds' ? '♦' : '♣'
   const colorClass = card.color === 'red' ? 'solitaire-card__classic--red' : 'solitaire-card__classic--black'
 
+  // J/Q/K face cards need corner suit — their center image is a face character
+  // that doesn't clearly indicate suit. A/2 images show suit directly; 3-10
+  // have a large central suit symbol. See DEC-GAMES-026.
+  const isFaceCard = card.rank === 11 || card.rank === 12 || card.rank === 13
+
   return (
     <div className={`solitaire-card__face ${colorClass}`}>
-      {/* Corner indicator — always present, top-left */}
+      {/* Corner indicator — rank always shown; suit only for J/Q/K face cards.
+          See DEC-GAMES-026. */}
       <span className="solitaire-card__corner">
         <span className="solitaire-card__rank">{rankName}</span>
-        <span className="solitaire-card__suit">{suitSymbol}</span>
+        {isFaceCard && <span className="solitaire-card__suit">{suitSymbol}</span>}
       </span>
       {/* Center decoration — image for A/2/J/Q/K, large suit symbol for 3-10 */}
       {imgSrc !== null ? (
@@ -295,21 +314,26 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         const face = document.createElement('div')
         face.className = `solitaire-card__face ${colorClass}`
 
-        // Corner indicator
+        // Center decoration — must be resolved before corner so we can gate corner suit.
+        // See DEC-GAMES-026: suit omitted from corner on procedural cards (3-10).
+        const imgSrc = classicImagePath(card)
+
+        // Corner indicator — rank always present; suit only for J/Q/K face cards.
+        // See DEC-GAMES-026.
+        const isFaceCard = card.rank === 11 || card.rank === 12 || card.rank === 13
         const corner = document.createElement('span')
         corner.className = 'solitaire-card__corner'
         const rankSpan = document.createElement('span')
         rankSpan.className = 'solitaire-card__rank'
         rankSpan.textContent = rankName
-        const suitSpan = document.createElement('span')
-        suitSpan.className = 'solitaire-card__suit'
-        suitSpan.textContent = suitSymbol
         corner.appendChild(rankSpan)
-        corner.appendChild(suitSpan)
+        if (isFaceCard) {
+          const suitSpan = document.createElement('span')
+          suitSpan.className = 'solitaire-card__suit'
+          suitSpan.textContent = suitSymbol
+          corner.appendChild(suitSpan)
+        }
         face.appendChild(corner)
-
-        // Center decoration
-        const imgSrc = classicImagePath(card)
         if (imgSrc !== null) {
           const img = document.createElement('img')
           img.src = imgSrc
