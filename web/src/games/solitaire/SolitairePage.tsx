@@ -34,10 +34,11 @@
  *   Both modes now use the same card dimensions via shared CSS classes.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { useSolitaire } from './useSolitaire'
 import { corgiImagePath, classicBackPath, classicImagePath } from './engine'
 import { startSession, endSession, resetIdle } from './telemetry'
+import { getMuted, setMuted } from './audio'
 import type { Card, CardSource, CardTarget, DeckStyle } from './types'
 import './SolitairePage.css'
 
@@ -154,6 +155,10 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
   const dragRef = useRef<DragState | null>(null)
   const ghostRef = useRef<HTMLDivElement | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
+
+  // Mute toggle: React state mirrors audio module state so the button re-renders.
+  // getMuted() reads from localStorage on first call (lazy init).
+  const [muted, setMutedState] = useState<boolean>(() => getMuted())
 
   // -------------------------------------------------------------------------
   // Session lifecycle
@@ -504,6 +509,21 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         <span className="solitaire-header__title">Solitaire</span>
 
         <div className="solitaire-header__actions">
+          {/* Sound mute toggle */}
+          <button
+            className="solitaire-header__btn solitaire-header__btn--icon"
+            onClick={() => {
+              const next = !muted
+              setMuted(next)
+              setMutedState(next)
+            }}
+            aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
+            aria-pressed={muted}
+            title={muted ? 'Sound off — click to enable' : 'Sound on — click to mute'}
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
+
           {/* Deck back toggle — faces are always standard art; this controls backs only */}
           <div className="solitaire-header__deck-toggle" role="group" aria-label="Card back style">
             <button

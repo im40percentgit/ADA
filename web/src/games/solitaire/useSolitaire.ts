@@ -45,6 +45,7 @@ import {
   newGame,
 } from './engine'
 import { recordMoveMade } from './telemetry'
+import { play } from './audio'
 import type { CardSource, CardTarget, DeckStyle, GameState } from './types'
 
 // ---------------------------------------------------------------------------
@@ -184,7 +185,10 @@ export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireRetu
   const stateRef = useRef(state)
   stateRef.current = state
 
-  const deal = useCallback(() => dispatch({ type: 'DEAL' }), [])
+  const deal = useCallback(() => {
+    dispatch({ type: 'DEAL' })
+    play('shuffle')
+  }, [])
 
   const draw = useCallback(() => {
     const prevGame = stateRef.current.game
@@ -194,6 +198,7 @@ export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireRetu
 
     // Determine if this was a recycle (stock was empty → talon recycled)
     const wasRecycle = prevGame.stock.cards.length === 0
+    play(wasRecycle ? 'shuffle' : 'flip')
     void recordMoveMade({
       moveType: wasRecycle ? 'recycle' : 'stock-flip',
       wasValid: true,
@@ -217,6 +222,16 @@ export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireRetu
       // we call applyMove speculatively just to check legality — same args, no side effects.
       const specNext = applyMove(prevGame, source, target)
       const wasValid = specNext !== null && specNext.errorCount === prevGame.errorCount
+      if (wasValid) {
+        // Play 'move' as the primary feedback. Tableau auto-flip (if any) is
+        // a secondary effect — we deliberately avoid a double-fire by not
+        // playing 'flip' here; the move swoosh is the dominant UX signal.
+        if (specNext?.won) {
+          play('win')
+        } else {
+          play('move')
+        }
+      }
       void recordMoveMade({
         moveType: getMoveType(source, target),
         wasValid,
@@ -238,6 +253,15 @@ export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireRetu
 
       // autoMove always targets foundation — infer target from card suit
       const target: CardTarget = { type: 'foundation', pileIndex: 0 }
+      // Check speculative result to detect win before state updates
+      const specAutoNext = autoMoveToFoundation(prevGame, source)
+      if (specAutoNext !== null) {
+        if (specAutoNext.won) {
+          play('win')
+        } else {
+          play('move')
+        }
+      }
       void recordMoveMade({
         moveType: getMoveType(source, target),
         wasValid: true,  // AUTO_MOVE is only dispatched when legal
