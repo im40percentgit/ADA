@@ -33,6 +33,18 @@
  * @status accepted
  * @rationale lastRenderTime is set to Date.now() after each dispatch so the
  *   measurement matches when the patient saw the new game state.
+ *
+ * @decision DEC-GAMES-025
+ * @title Double-click auto-move audio gated on actual move success
+ * @status accepted
+ * @rationale Founder reported the 'move' sound playing even when double-clicking
+ *   a card with no valid foundation target. Root cause: autoMoveToFoundation()
+ *   calls applyMove() which returns { ...state, errorCount+1 } (not null) for an
+ *   illegal placement — so the speculative result was non-null and play() fired
+ *   unconditionally. Fix: check specAutoNext.errorCount === prevGame.errorCount
+ *   (same validity pattern as move()), and only play sound when the move was
+ *   actually applied. No sound plays on failed auto-move; the card simply
+ *   doesn't move, which is clear enough feedback without a shake animation.
  */
 
 import { useCallback, useReducer, useRef } from 'react'
@@ -253,10 +265,13 @@ export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireRetu
 
       // autoMove always targets foundation — infer target from card suit
       const target: CardTarget = { type: 'foundation', pileIndex: 0 }
-      // Check speculative result to detect win before state updates
+      // Check speculative result to detect win and verify the move was actually
+      // applied. applyMove returns { ...state, errorCount+1 } for illegal moves
+      // (not null), so we must check errorCount to distinguish success from failure.
       const specAutoNext = autoMoveToFoundation(prevGame, source)
-      if (specAutoNext !== null) {
-        if (specAutoNext.won) {
+      const wasValid = specAutoNext !== null && specAutoNext.errorCount === prevGame.errorCount
+      if (wasValid) {
+        if (specAutoNext!.won) {
           play('win')
         } else {
           play('move')
@@ -264,7 +279,7 @@ export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireRetu
       }
       void recordMoveMade({
         moveType: getMoveType(source, target),
-        wasValid: true,  // AUTO_MOVE is only dispatched when legal
+        wasValid,
         wasUndo: false,
         decisionTimeMs,
         cardValue,

@@ -12,6 +12,7 @@
  * - Empty tableau column: only Kings (rank 13)
  * - Empty foundation: only Aces (rank 1)
  * - Win: all 52 cards on foundations
+ * - Foundation→Tableau: top card of any foundation can be moved back to tableau
  *
  * @decision DEC-GAMES-001
  * @title Solitaire engine is a pure TS module, not a port of Swift UIKit code
@@ -19,6 +20,16 @@
  * @rationale The Swift game is UIKit/MVC with shared singletons — not portable.
  *   A clean React-idiomatic re-implementation is shorter, testable, and avoids
  *   carrying over the Swift multitouch race bugs. The Swift code is reference spec.
+ *
+ * @decision DEC-GAMES-024
+ * @title Foundation cards can be moved back to tableau
+ * @status accepted
+ * @rationale Standard Klondike rule: the top card of any foundation pile may be
+ *   dragged back to a tableau column if it forms a legal alternating-color
+ *   descending sequence. This is essential when a card is needed to bridge a
+ *   tableau column during play. Foundation-to-foundation moves are NOT supported
+ *   (same suit ascending order means the only legal target would be itself, which
+ *   is a no-op). A new 'foundation-to-tableau' MoveType is added for telemetry.
  */
 
 import type { Card, CardSource, CardTarget, GameState, Pile, Suit } from './types'
@@ -387,6 +398,7 @@ export type MoveType =
   | 'tableau-to-foundation'
   | 'talon-to-tableau'
   | 'talon-to-foundation'
+  | 'foundation-to-tableau'
   | 'stock-flip'
   | 'recycle'
   | 'invalid'
@@ -417,7 +429,7 @@ export function getMoveType(
   if (source.type === 'talon' && target?.type === 'foundation') return 'talon-to-foundation'
   if (source.type === 'tableau' && target?.type === 'tableau') return 'tableau-to-tableau'
   if (source.type === 'tableau' && target?.type === 'foundation') return 'tableau-to-foundation'
-  if (source.type === 'foundation' && target?.type === 'tableau') return 'tableau-to-tableau'
+  if (source.type === 'foundation' && target?.type === 'tableau') return 'foundation-to-tableau'
   return 'invalid'
 }
 
