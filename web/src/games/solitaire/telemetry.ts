@@ -3,8 +3,9 @@
  *
  * Session lifecycle:
  * 1. Call `startSession()` when the patient opens the game.
- * 2. Call `recordHandCompleted()` each time they win a hand.
- * 3. Session ends automatically via:
+ * 2. Call `recordMoveMade()` on every card interaction (valid or invalid).
+ * 3. Call `recordHandCompleted()` each time they win a hand.
+ * 4. Session ends automatically via:
  *    (a) `endSession('quit')` — explicit navigation away
  *    (b) visibilitychange → hidden — tab switch, app switch, lock screen
  *    (c) 5-minute idle — no card interaction for IDLE_TIMEOUT_MS
@@ -25,9 +26,19 @@
  * @rationale Payload fields match GameSessionEndEvent/GameHandCompletedEvent
  *   dataclasses in ada/core/events.py. Any new fields added here must be
  *   reflected in the backend dataclass to avoid silent data loss.
+ *
+ * @decision DEC-GAMES-008
+ * @title Idle gap threshold 30s and 5-min cap for total_idle_ms
+ * @status accepted
+ * @rationale 30s threshold filters out normal thinking pauses mid-play.
+ *   5-min cap aligns with the existing idle-timer's session_end trigger —
+ *   gaps longer than 5 min end the session, so uncapped gaps would double-
+ *   count idle time that already caused a session boundary.
  */
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000   // 5 minutes
+const IDLE_GAP_THRESHOLD_MS = 30 * 1000  // 30 seconds — gaps shorter than this are normal play
+const IDLE_GAP_CAP_MS = 5 * 60 * 1000   // 5-min cap per gap — aligns with session_end idle trigger
 
 // ---------------------------------------------------------------------------
 // Event type constants (must match ada/core/events.py EventTypes)
@@ -37,6 +48,16 @@ const ET_SESSION_START = 'game.session_start'
 const ET_SESSION_END = 'game.session_end'
 const ET_HAND_COMPLETED = 'game.hand_completed'
 const ET_STREAK = 'game.engagement_streak'
+const ET_MOVE_MADE = 'game.move_made'
+
+// ---------------------------------------------------------------------------
+// Restart count (today) — localStorage keys
+//
+// Maintained per "New Game" press. Date math in patient's local timezone.
+// ---------------------------------------------------------------------------
+
+const RESTART_COUNT_KEY = 'ada.solitaire.restartCountToday'
+const RESTART_DATE_KEY = 'ada.solitaire.restartCountDate'
 
 // ---------------------------------------------------------------------------
 // Internal session state
@@ -49,6 +70,12 @@ interface SessionState {
   errorCount: number
   deck: string
   ended: boolean
+  // M1 v0.5 per-move accumulators
+  moveIndex: number
+  totalUndoCount: number
+  totalInvalidClickCount: number
+  totalIdleMs: number
+  lastMoveTime: number    // timestamp of last move attempt (for gap measurement)
 }
 
 let _session: SessionState | null = null
@@ -117,13 +144,20 @@ export async function startSession(deck: string = 'corgi'): Promise<void> {
   }
 
   const gameSessionId = `gs-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  const now = Date.now()
   _session = {
     gameSessionId,
-    startTime: Date.now(),
+    startTime: now,
     completedHands: 0,
     errorCount: 0,
     deck,
     ended: false,
+    // M1 v0.5 per-move accumulators
+    moveIndex: 0,
+    totalUndoCount: 0,
+    totalInvalidClickCount: 0,
+    totalIdleMs: 0,
+    lastMoveTime: now,   // baseline: session start time
   }
 
   // Register visibilitychange handler
@@ -170,6 +204,105 @@ export function incrementErrorCount(): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Per-move telemetry (M1 v0.5)
+// ---------------------------------------------------------------------------
+
+export interface MoveMadeParams {
+  moveType: string
+  wasValid: boolean
+  wasUndo: boolean
+  /** Time since last render commit (ms). Caller computes via Date.now() - lastRenderTime. */
+  decisionTimeMs: number
+  /** Card value 1–52, or null for stock-flip / recycle. */
+  cardValue: number | null
+}
+
+/**
+ * Emit a game.move_made event and update per-session accumulators.
+ *
+ * Call after every card interaction — valid moves, invalid clicks, undos,
+ * stock-flips, and recycles all count as "a move was attempted."
+ *
+ * @decision DEC-GAMES-007
+ * @title decision_time_ms measured from last render commit, not session start
+ * @status accepted
+ * @rationale The patient perceives "when did the new state become visible" as
+ *   the decision baseline. Measuring from the last render commit (Date.now()
+ *   captured in useSolitaire after each dispatch) matches that perception.
+ */
+export async function recordMoveMade(params: MoveMadeParams): Promise<void> {
+  if (!_session || _session.ended) return
+
+  const now = Date.now()
+
+  // Accumulate idle gap if this move comes after a long pause
+  const gap = now - _session.lastMoveTime
+  if (gap > IDLE_GAP_THRESHOLD_MS) {
+    _session.totalIdleMs += Math.min(gap, IDLE_GAP_CAP_MS)
+  }
+  _session.lastMoveTime = now
+
+  // Update per-session accumulators
+  if (params.wasUndo) _session.totalUndoCount += 1
+  if (!params.wasValid) _session.totalInvalidClickCount += 1
+
+  const currentIndex = _session.moveIndex
+  _session.moveIndex += 1
+
+  await postEvent(ET_MOVE_MADE, {
+    game_session_id: _session.gameSessionId,
+    move_index: currentIndex,
+    move_type: params.moveType,
+    was_valid: params.wasValid,
+    was_undo: params.wasUndo,
+    decision_time_ms: params.decisionTimeMs,
+    card_value: params.cardValue,
+  })
+
+  resetIdle()
+}
+
+// ---------------------------------------------------------------------------
+// Restart count (today) — localStorage, patient-local timezone
+// ---------------------------------------------------------------------------
+
+/**
+ * Increment today's restart counter. Call on every "New Game" press.
+ * Resets automatically when the calendar date changes in patient-local TZ.
+ */
+export function incrementRestartCount(): void {
+  const todayLocal = todayLocalDate()
+  try {
+    const storedDate = localStorage.getItem(RESTART_DATE_KEY)
+    const storedCount = localStorage.getItem(RESTART_COUNT_KEY)
+    if (storedDate === todayLocal && storedCount !== null) {
+      localStorage.setItem(RESTART_COUNT_KEY, String(parseInt(storedCount, 10) + 1))
+    } else {
+      // New day (or first ever) — reset to 1
+      localStorage.setItem(RESTART_DATE_KEY, todayLocal)
+      localStorage.setItem(RESTART_COUNT_KEY, '1')
+    }
+  } catch {
+    // localStorage unavailable — silently skip
+  }
+}
+
+/** Return today's restart count (0 if never pressed or localStorage unavailable). */
+export function getRestartCountToday(): number {
+  try {
+    const todayLocal = todayLocalDate()
+    const storedDate = localStorage.getItem(RESTART_DATE_KEY)
+    const storedCount = localStorage.getItem(RESTART_COUNT_KEY)
+    if (storedDate === todayLocal && storedCount !== null) {
+      return parseInt(storedCount, 10)
+    }
+    return 0
+  } catch {
+    return 0
+  }
+}
+
 /**
  * End the current session and emit session_end + engagement_streak events.
  *
@@ -194,6 +327,12 @@ export async function endSession(reason: string): Promise<void> {
     error_count: _session.errorCount,
     end_reason: reason,
     deck: _session.deck,
+    // M1 v0.5 per-move aggregates
+    total_moves: _session.moveIndex,
+    total_undo_count: _session.totalUndoCount,
+    total_invalid_click_count: _session.totalInvalidClickCount,
+    total_idle_ms: _session.totalIdleMs,
+    restart_count_today: getRestartCountToday(),
   })
 
   // Emit streak — compute from local storage to avoid a round-trip.

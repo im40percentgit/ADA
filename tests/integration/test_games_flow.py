@@ -300,3 +300,87 @@ async def test_get_game_session_events_filter_by_type(state):
     )
     assert len(end_rows) == 1
     assert end_rows[0]["event_type"] == EventTypes.GAME_SESSION_END
+
+
+@pytest.mark.asyncio
+async def test_move_made_flow_five_rows(state):
+    """
+    End-to-end M1 v0.5 flow:
+      session_start → 3× move_made → session_end (with aggregates)
+    Produces exactly 5 rows in game_sessions; move_made rows have correct
+    move_type and decision_time_ms; session_end row carries v0.5 aggregates.
+    """
+    session_id = "gs-move-flow-001"
+
+    def _move_body(idx: int, move_type: str, valid: bool, undo: bool, card_val: int | None) -> dict:
+        return {
+            "event_type": EventTypes.GAME_MOVE_MADE,
+            "occurred_at": _OCCURRED_AT,
+            "payload": {
+                "game_session_id": session_id,
+                "move_index": idx,
+                "move_type": move_type,
+                "was_valid": valid,
+                "was_undo": undo,
+                "decision_time_ms": 800 + idx * 100,
+                "card_value": card_val,
+            },
+        }
+
+    events: list[dict[str, Any]] = [
+        {
+            "event_type": EventTypes.GAME_SESSION_START,
+            "occurred_at": _OCCURRED_AT,
+            "payload": {"game_session_id": session_id, "deck": "corgi"},
+        },
+        _move_body(0, "stock-flip", True, False, None),
+        _move_body(1, "talon-to-tableau", True, False, 14),
+        _move_body(2, "invalid", False, False, 7),
+        {
+            "event_type": EventTypes.GAME_SESSION_END,
+            "occurred_at": _OCCURRED_AT,
+            "payload": {
+                "game_session_id": session_id,
+                "duration_ms": 45000,
+                "completed_hands": 0,
+                "error_count": 1,
+                "end_reason": "quit",
+                "deck": "corgi",
+                "total_moves": 3,
+                "total_undo_count": 0,
+                "total_invalid_click_count": 1,
+                "total_idle_ms": 0,
+                "restart_count_today": 1,
+            },
+        },
+    ]
+
+    with _make_client(state, _PATIENT_USER) as (client, _bus):
+        for evt in events:
+            resp = client.post("/api/games/solitaire/event", json=evt)
+            assert resp.status_code == 201, f"Failed for {evt['event_type']}: {resp.text}"
+
+    # 5 rows total
+    all_rows = await state.get_game_session_events(_PATIENT_ID)
+    assert len(all_rows) == 5
+
+    stored_types = [r["event_type"] for r in all_rows]
+    assert stored_types.count(EventTypes.GAME_MOVE_MADE) == 3
+    assert stored_types.count(EventTypes.GAME_SESSION_START) == 1
+    assert stored_types.count(EventTypes.GAME_SESSION_END) == 1
+
+    # move_made rows have correct shapes
+    move_rows = [r for r in all_rows if r["event_type"] == EventTypes.GAME_MOVE_MADE]
+    move_rows.sort(key=lambda r: r["payload"]["move_index"])
+
+    assert move_rows[0]["payload"]["move_type"] == "stock-flip"
+    assert move_rows[0]["payload"]["card_value"] is None
+    assert move_rows[1]["payload"]["move_type"] == "talon-to-tableau"
+    assert move_rows[1]["payload"]["card_value"] == 14
+    assert move_rows[2]["payload"]["was_valid"] is False
+
+    # session_end has v0.5 aggregates
+    end_row = next(r for r in all_rows if r["event_type"] == EventTypes.GAME_SESSION_END)
+    assert end_row["payload"]["total_moves"] == 3
+    assert end_row["payload"]["total_invalid_click_count"] == 1
+    assert end_row["payload"]["restart_count_today"] == 1

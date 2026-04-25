@@ -337,3 +337,112 @@ async def test_unknown_patient_returns_404(state):
     with _make_client(state, ghost_user, raise_server_exceptions=False) as (client, _):
         resp = client.post("/api/games/solitaire/event", json=_SESSION_START_BODY)
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Tests: game.move_made (M1 v0.5)
+# ---------------------------------------------------------------------------
+
+_MOVE_MADE_BODY: dict[str, Any] = {
+    "event_type": "game.move_made",
+    "occurred_at": _NOW_ISO,
+    "payload": {
+        "game_session_id": "gs-001",
+        "move_index": 0,
+        "move_type": "tableau-to-foundation",
+        "was_valid": True,
+        "was_undo": False,
+        "decision_time_ms": 1250,
+        "card_value": 1,
+    },
+}
+
+
+def test_move_made_full_payload_accepted(state):
+    """move_made event with all required fields returns 201."""
+    with _make_client(state, _USER_WITH_PATIENT) as (client, _bus):
+        resp = client.post("/api/games/solitaire/event", json=_MOVE_MADE_BODY)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["status"] == "accepted"
+    assert isinstance(data["id"], int)
+
+
+def test_move_made_was_valid_false_accepted(state):
+    """move_made with was_valid=False (invalid click) is accepted — no error_rate enforcement at event level."""
+    body = {
+        **_MOVE_MADE_BODY,
+        "payload": {**_MOVE_MADE_BODY["payload"], "was_valid": False},
+    }
+    with _make_client(state, _USER_WITH_PATIENT) as (client, _bus):
+        resp = client.post("/api/games/solitaire/event", json=body)
+    assert resp.status_code == 201
+
+
+def test_move_made_null_card_value_accepted(state):
+    """move_made with card_value=null (stock-flip / recycle) is accepted."""
+    body = {
+        **_MOVE_MADE_BODY,
+        "payload": {**_MOVE_MADE_BODY["payload"], "card_value": None},
+    }
+    with _make_client(state, _USER_WITH_PATIENT) as (client, _bus):
+        resp = client.post("/api/games/solitaire/event", json=body)
+    assert resp.status_code == 201
+
+
+def test_move_made_missing_required_field_rejected(state):
+    """move_made missing a required field (decision_time_ms) is rejected with 422."""
+    incomplete_payload = {k: v for k, v in _MOVE_MADE_BODY["payload"].items()
+                          if k != "decision_time_ms"}
+    body = {**_MOVE_MADE_BODY, "payload": incomplete_payload}
+    with _make_client(state, _USER_WITH_PATIENT, raise_server_exceptions=False) as (client, _):
+        resp = client.post("/api/games/solitaire/event", json=body)
+    assert resp.status_code == 422
+    assert "decision_time_ms" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: extended game.session_end payload (M1 v0.5)
+# ---------------------------------------------------------------------------
+
+_SESSION_END_EXTENDED_BODY: dict[str, Any] = {
+    "event_type": "game.session_end",
+    "occurred_at": _NOW_ISO,
+    "payload": {
+        "game_session_id": "gs-001",
+        "duration_ms": 180000,
+        "completed_hands": 1,
+        "error_count": 2,
+        "end_reason": "quit",
+        "deck": "corgi",
+        # M1 v0.5 aggregate fields
+        "total_moves": 47,
+        "total_undo_count": 3,
+        "total_invalid_click_count": 5,
+        "total_idle_ms": 12000,
+        "restart_count_today": 2,
+    },
+}
+
+
+def test_session_end_with_v05_aggregates_accepted(state):
+    """Extended session_end payload including M1 v0.5 aggregate fields returns 201."""
+    with _make_client(state, _USER_WITH_PATIENT) as (client, _bus):
+        resp = client.post("/api/games/solitaire/event", json=_SESSION_END_EXTENDED_BODY)
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_session_end_v05_aggregates_round_trip(state):
+    """M1 v0.5 aggregate fields are stored in the JSON payload and readable from DB."""
+    with _make_client(state, _USER_WITH_PATIENT) as (client, _bus):
+        client.post("/api/games/solitaire/event", json=_SESSION_END_EXTENDED_BODY)
+
+    rows = await state.get_game_session_events(_PATIENT_ID, event_type="game.session_end")
+    assert len(rows) == 1
+    payload = rows[0]["payload"]
+    assert payload["total_moves"] == 47
+    assert payload["total_undo_count"] == 3
+    assert payload["total_invalid_click_count"] == 5
+    assert payload["total_idle_ms"] == 12000
+    assert payload["restart_count_today"] == 2

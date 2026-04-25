@@ -314,3 +314,87 @@ export function countFaceDownCards(state: GameState): number {
     0,
   )
 }
+
+// ---------------------------------------------------------------------------
+// Move metadata helpers — M1 v0.5 per-move telemetry
+//
+// @decision DEC-GAMES-006
+// @title move_made event captured per move, not per drag
+// @status accepted
+// @rationale A drag that returns to origin still counts as a move attempt
+//   for the invalid-click signal. One event per pointerdown/pointerup pair
+//   matches the cognitive effort model better than only counting completed drops.
+// ---------------------------------------------------------------------------
+
+/**
+ * MoveType string enum — matches the move_type field in game.move_made events.
+ * Must stay in sync with the backend GameMoveMadeEvent.move_type comment.
+ */
+export type MoveType =
+  | 'tableau-to-tableau'
+  | 'tableau-to-foundation'
+  | 'talon-to-tableau'
+  | 'talon-to-foundation'
+  | 'stock-flip'
+  | 'recycle'
+  | 'invalid'
+
+/**
+ * Derive the move_type string from a source+target pair.
+ *
+ * drawFromStock uses 'stock-flip' when stock has cards, 'recycle' when empty.
+ * Pass wasRecycle=true when the stock was empty before the draw call.
+ * For applyMove calls, source and target fully determine the type.
+ * For undo, pass source=null — the caller sets was_undo=true and move_type
+ * can be derived post-hoc or left as 'invalid' since undo payloads are
+ * informational only.
+ */
+export function getMoveType(
+  source: CardSource | null,
+  target: CardTarget | null,
+  wasRecycle?: boolean,
+): MoveType {
+  if (source === null) {
+    // undo — no meaningful source/target
+    return 'invalid'
+  }
+  if (source.type === 'tableau' && target === null) {
+    return wasRecycle ? 'recycle' : 'stock-flip'
+  }
+  if (source.type === 'talon' && target?.type === 'tableau') return 'talon-to-tableau'
+  if (source.type === 'talon' && target?.type === 'foundation') return 'talon-to-foundation'
+  if (source.type === 'tableau' && target?.type === 'tableau') return 'tableau-to-tableau'
+  if (source.type === 'tableau' && target?.type === 'foundation') return 'tableau-to-foundation'
+  if (source.type === 'foundation' && target?.type === 'tableau') return 'tableau-to-tableau'
+  return 'invalid'
+}
+
+/**
+ * Return the card value (1–52) of the card being moved, or null for
+ * non-card moves (stock-flip, recycle).
+ *
+ * For tableau→* moves, the card at source.cardIndex is the moving card.
+ * For talon→* moves, the top talon card is moving.
+ * For stock-flip / recycle, there is no single "moving card" to report.
+ */
+export function getMovedCardValue(
+  state: GameState,
+  source: CardSource | null,
+): number | null {
+  if (source === null) return null
+  if (source.type === 'talon') {
+    const top = state.talon.cards[state.talon.cards.length - 1]
+    return top ? top.value : null
+  }
+  if (source.type === 'tableau') {
+    const pile = state.tableau[source.pileIndex]
+    const card = pile?.cards[source.cardIndex]
+    return card ? card.value : null
+  }
+  if (source.type === 'foundation') {
+    const pile = state.foundations[source.pileIndex]
+    const top = pile?.cards[pile.cards.length - 1]
+    return top ? top.value : null
+  }
+  return null
+}

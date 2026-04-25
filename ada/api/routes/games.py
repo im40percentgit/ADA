@@ -1,5 +1,5 @@
 """
-Game telemetry ingest endpoint — Phase 15+ Milestone 1.
+Game telemetry ingest endpoint — Phase 15+ Milestone 1 v0.5.
 
 POST /api/games/solitaire/event receives telemetry events emitted by the
 React solitaire game, persists them to game_sessions, and publishes them
@@ -7,9 +7,10 @@ to the EventBus so downstream agents can subscribe.
 
 Accepted event types:
   - game.session_start
-  - game.session_end
+  - game.session_end       (extended in v0.5 with per-move aggregates)
   - game.hand_completed
   - game.engagement_streak
+  - game.move_made         (new in v0.5 — per-move granularity for M3)
 
 Auth: standard JWT bearer (require_patient_access or require_auth).
 The patient_id comes from the authenticated user's linked patient record;
@@ -47,6 +48,7 @@ from ada.core.events import (
     EventTypes,
     GameEngagementStreakEvent,
     GameHandCompletedEvent,
+    GameMoveMadeEvent,
     GameSessionEndEvent,
     GameSessionStartEvent,
 )
@@ -63,6 +65,17 @@ _ALLOWED_EVENT_TYPES = {
     EventTypes.GAME_SESSION_END,
     EventTypes.GAME_HAND_COMPLETED,
     EventTypes.GAME_ENGAGEMENT_STREAK,
+    EventTypes.GAME_MOVE_MADE,
+}
+
+# Required payload fields for move_made — validated before DB write.
+_MOVE_MADE_REQUIRED_FIELDS = {
+    "game_session_id",
+    "move_index",
+    "move_type",
+    "was_valid",
+    "was_undo",
+    "decision_time_ms",
 }
 
 
@@ -108,6 +121,16 @@ def _bus(request: Request):
     return request.app.state.bus
 
 
+def _validate_move_made_payload(payload: dict[str, Any]) -> None:
+    """Raise HTTPException(422) if a move_made payload is missing required fields."""
+    missing = _MOVE_MADE_REQUIRED_FIELDS - payload.keys()
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"game.move_made payload missing required fields: {sorted(missing)}",
+        )
+
+
 def _build_domain_event(
     event_type: str,
     patient_id: str,
@@ -132,6 +155,12 @@ def _build_domain_event(
             error_count=payload.get("error_count", 0),
             end_reason=payload.get("end_reason", ""),
             deck=deck,
+            # M1 v0.5 per-move aggregates (None if absent — backward-compatible)
+            total_moves=payload.get("total_moves"),
+            total_undo_count=payload.get("total_undo_count"),
+            total_invalid_click_count=payload.get("total_invalid_click_count"),
+            total_idle_ms=payload.get("total_idle_ms"),
+            restart_count_today=payload.get("restart_count_today"),
         )
     if event_type == EventTypes.GAME_HAND_COMPLETED:
         return GameHandCompletedEvent(
@@ -146,6 +175,17 @@ def _build_domain_event(
             patient_id=patient_id,
             current_streak_days=payload.get("current_streak_days", 0),
             broken_streak=payload.get("broken_streak", False),
+        )
+    if event_type == EventTypes.GAME_MOVE_MADE:
+        return GameMoveMadeEvent(
+            patient_id=patient_id,
+            game_session_id=game_session_id,
+            move_index=payload.get("move_index", 0),
+            move_type=payload.get("move_type", ""),
+            was_valid=payload.get("was_valid", True),
+            was_undo=payload.get("was_undo", False),
+            decision_time_ms=payload.get("decision_time_ms", 0),
+            card_value=payload.get("card_value"),
         )
     raise ValueError(f"Unhandled event_type: {event_type}")
 
@@ -183,6 +223,10 @@ async def ingest_game_event(
     patient = await state.get_patient(patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Per-type payload validation (move_made requires specific fields)
+    if body.event_type == EventTypes.GAME_MOVE_MADE:
+        _validate_move_made_payload(body.payload)
 
     # Persist to DB
     record = {
