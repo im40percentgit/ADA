@@ -23,6 +23,21 @@
  *   modes use CardFace (image or CSS text fallback) with the same .solitaire-card
  *   dimensions. The .solitaire-card--face-down gradient class is removed; all
  *   face-down cards now render via CardBack which fills the same container.
+ *
+ * @decision DEC-GAMES-016
+ * @title Card text sizing — container-type + raised clamp floors
+ * @status accepted
+ * @rationale Dogfood feedback: rank/suit text was effectively invisible.
+ *   Root cause: .solitaire-card__rank used `1.8cqw` but no ancestor had
+ *   `container-type: inline-size`, so cqw resolved to 0 and the clamp fell
+ *   to its 0.55rem (~9px) floor — unreadable on any card size. Fix adds
+ *   `container-type: inline-size` to .solitaire-card itself so cqw is
+ *   relative to card width. Multipliers raised to 18cqw (rank) / 16cqw
+ *   (suit) so at ~85px card width the text lands ~15px. Floors raised to
+ *   0.95rem (rank) / 0.85rem (suit) to guarantee readability even in
+ *   browsers without container query support. Grid columns given
+ *   minmax(60px, 1fr) floor so cards never shrink below ~60px on mobile;
+ *   desktop cards reach ~120-160px in a typical viewport.
  */
 
 /* -------------------------------------------------------------------------
@@ -93,6 +108,13 @@
   cursor: default;
 }
 
+/* Icon-only variant — square button, slightly larger emoji font */
+.solitaire-header__btn--icon {
+  padding: 4px 8px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .solitaire-header__deck-toggle {
   display: flex;
   gap: 0;
@@ -146,14 +168,14 @@
 /* Top row: stock, talon, spacer, 4 foundations */
 .solitaire-top-row {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(60px, 1fr));
   gap: 4px;
 }
 
 /* Tableau row: 7 columns */
 .solitaire-tableau {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(60px, 1fr));
   gap: 4px;
   flex: 1;
   align-items: start;
@@ -199,6 +221,7 @@
   touch-action: none;       /* prevent browser scroll during drag */
   background: #fff;
   flex-shrink: 0;
+  container-type: inline-size; /* enables cqw units on rank/suit text */
 }
 
 .solitaire-card:active {
@@ -231,7 +254,7 @@
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 2px 4px;
+  padding: 4px 6px;
   width: 100%;
   height: 100%;
   font-weight: 700;
@@ -246,12 +269,12 @@
 }
 
 .solitaire-card__rank {
-  font-size: clamp(0.55rem, 1.8cqw, 1rem);
+  font-size: clamp(0.95rem, 18cqw, 1.4rem);
   line-height: 1;
 }
 
 .solitaire-card__suit {
-  font-size: clamp(0.5rem, 1.5cqw, 0.85rem);
+  font-size: clamp(0.85rem, 16cqw, 1.2rem);
   line-height: 1;
 }
 
