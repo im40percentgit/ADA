@@ -383,11 +383,20 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
   // Render helpers
   // -------------------------------------------------------------------------
 
+  /**
+   * @decision DEC-GAMES-029
+   * @title Double-click is enabled on any face-up tableau card, not just the top
+   * @status accepted
+   * @rationale Sequence auto-move (DEC-GAMES-027) requires the UI to fire
+   *   onDoubleClick with the clicked card's cardIndex so the engine can move
+   *   that card plus everything above it. Restricting onDoubleClick to the top
+   *   card disables sequence auto-move entirely from the user's perspective —
+   *   the engine path works but is unreachable. Patient dogfood 2026-04-25.
+   */
   function renderCard(
     card: Card,
     source: CardSource,
     cardIndex: number,
-    isTopOfPile: boolean,
   ) {
     if (!card.faceUp) {
       return (
@@ -415,7 +424,7 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         onPointerDown={(e) => handleCardPointerDown(e, sourceForDrag, run)}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onDoubleClick={isTopOfPile ? () => handleCardDoubleClick(sourceForDrag) : undefined}
+        onDoubleClick={() => handleCardDoubleClick(sourceForDrag)}
       >
         <CardFace card={card} />
       </div>
@@ -446,7 +455,6 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
               card,
               { type: 'tableau', pileIndex: colIndex, cardIndex: idx },
               idx,
-              idx === pile.cards.length - 1,
             )
           )
         )}

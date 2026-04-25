@@ -358,6 +358,122 @@ export function autoMoveToFoundation(
   return applyMove(state, source, target)
 }
 
+/**
+ * Find the best auto-move target for a source card (or sequence).
+ *
+ * Priority: foundation first, then tableau (tie-break: non-empty piles
+ * over empty; leftmost among same-type ties).
+ *
+ * Returns null when there is no legal destination (caller treats this as
+ * a no-op — no state change, no error bump).
+ *
+ * @decision DEC-GAMES-027
+ * @title Foundation-first auto-move target resolution
+ * @status accepted
+ * @rationale Foundation first, then tableau. Tie-break: prefer non-empty
+ *   tableau piles over empty (don't park Kings unnecessarily on empty
+ *   columns when a sequence move is available). Leftmost wins among
+ *   same-type ties. Confirmed with founder during patient dogfood, 2026-04-25.
+ */
+export function findAutoMoveTarget(
+  state: GameState,
+  source: CardSource,
+): CardTarget | null {
+  // Resolve the card whose rules determine legality.
+  // For sequences the bottom card of the moving group is what gets placed.
+  let bottomCard: Card | null = null
+
+  if (source.type === 'talon') {
+    const talon = state.talon
+    if (talon.cards.length === 0) return null
+    bottomCard = talon.cards[talon.cards.length - 1]
+  } else if (source.type === 'tableau') {
+    const pile = state.tableau[source.pileIndex]
+    if (pile.cards.length === 0) return null
+    const card = pile.cards[source.cardIndex]
+    if (!card || !card.faceUp) return null
+    bottomCard = card
+  } else {
+    // Foundation source — auto-move out of foundation not supported
+    return null
+  }
+
+  // 1. Try foundation
+  const fIdx = foundationIndexForSuit(bottomCard.suit)
+  if (canPlaceOnFoundation(bottomCard, state.foundations[fIdx])) {
+    // Foundation moves are always single-card; sequences can't go to foundation.
+    // For tableau sources: only the top card (cardIndex === pile.length-1) can go.
+    const isTopCard = source.type === 'talon' ||
+      source.cardIndex === state.tableau[source.pileIndex].cards.length - 1
+    if (isTopCard) {
+      return { type: 'foundation', pileIndex: fIdx }
+    }
+  }
+
+  // 2. Try tableau piles — prefer non-empty over empty, leftmost wins ties
+  let nonEmptyMatch: CardTarget | null = null
+  let emptyMatch: CardTarget | null = null
+
+  for (let i = 0; i < state.tableau.length; i++) {
+    // Skip moving onto the source pile itself
+    if (source.type === 'tableau' && source.pileIndex === i) continue
+
+    const tPile = state.tableau[i]
+    const topCard = tPile.cards.length > 0 ? tPile.cards[tPile.cards.length - 1] : null
+    if (canPlaceOnTableau(bottomCard, topCard)) {
+      const target: CardTarget = { type: 'tableau', pileIndex: i }
+      if (topCard !== null) {
+        if (nonEmptyMatch === null) nonEmptyMatch = target
+      } else {
+        if (emptyMatch === null) emptyMatch = target
+      }
+    }
+  }
+
+  return nonEmptyMatch ?? emptyMatch ?? null
+}
+
+/**
+ * Auto-move the top card (or sequence) from source to the best available
+ * destination — foundation first, then tableau.
+ *
+ * Return contract (same as autoMoveToFoundation):
+ * - Valid move   → new GameState with unchanged errorCount
+ * - No valid dst → { ...state, errorCount: state.errorCount + 1 }
+ * - Empty/invalid source → null (caller treats as no-op without pushing history)
+ *
+ * The reducer detects success via `next.errorCount === prev.errorCount`.
+ *
+ * @decision DEC-GAMES-027
+ * @title autoMoveAny composes on top of autoMoveToFoundation via findAutoMoveTarget
+ * @status accepted
+ * @rationale Keeps autoMoveToFoundation intact (existing tests + callers
+ *   unaffected). autoMoveAny is a pure extension — it delegates target
+ *   resolution to findAutoMoveTarget and applies via applyMove, matching
+ *   the errorCount-based failure contract used throughout the engine.
+ */
+export function autoMoveAny(
+  state: GameState,
+  source: CardSource,
+): GameState | null {
+  const target = findAutoMoveTarget(state, source)
+  if (target === null) {
+    // No valid destination at all — bump errorCount per failure contract
+    // But first guard: if source itself is empty/invalid, return null (no history push)
+    if (source.type === 'talon' && state.talon.cards.length === 0) return null
+    if (source.type === 'tableau') {
+      const pile = state.tableau[source.pileIndex]
+      if (pile.cards.length === 0) return null
+      if (source.cardIndex >= pile.cards.length) return null
+      const card = pile.cards[source.cardIndex]
+      if (!card.faceUp) return null
+    }
+    if (source.type === 'foundation') return null
+    return { ...state, errorCount: state.errorCount + 1 }
+  }
+  return applyMove(state, source, target)
+}
+
 // ---------------------------------------------------------------------------
 // Win detection
 // ---------------------------------------------------------------------------
