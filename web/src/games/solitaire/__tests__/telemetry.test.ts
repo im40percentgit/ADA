@@ -1,0 +1,367 @@
+/**
+ * telemetry.test.ts — unit tests for the Solitaire session telemetry bridge.
+ *
+ * Mocks `fetch` at the global level (the only acceptable external boundary mock
+ * per Sacred Practice #5). Fake timers test idle timeout behavior.
+ *
+ * Tests:
+ * - startSession() POSTs session_start with correct shape
+ * - endSession('quit') POSTs session_end with duration_ms, completed_hands, error_rate fields
+ * - visibilitychange to hidden triggers endSession('visibility')
+ * - 5-minute idle triggers endSession('idle')
+ * - recordHandCompleted() POSTs hand_completed with hand_outcome and error_count
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  startSession,
+  endSession,
+  recordHandCompleted,
+  resetIdle,
+  computeStreak,
+  dateDiffDays,
+} from '../telemetry'
+
+// ---------------------------------------------------------------------------
+// fetch mock
+// ---------------------------------------------------------------------------
+
+interface CapturedCall {
+  url: string
+  body: {
+    event_type: string
+    occurred_at: string
+    payload: Record<string, unknown>
+  }
+}
+
+let capturedCalls: CapturedCall[] = []
+
+function mockFetch() {
+  capturedCalls = []
+  ;(globalThis as unknown as { fetch: typeof fetch }).fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse((init?.body as string) ?? '{}')
+    capturedCalls.push({ url: String(url), body })
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  })
+}
+
+function callsOfType(eventType: string): CapturedCall[] {
+  return capturedCalls.filter(c => c.body.event_type === eventType)
+}
+
+// ---------------------------------------------------------------------------
+// Setup / teardown
+// ---------------------------------------------------------------------------
+
+beforeEach(() => {
+  mockFetch()
+  localStorage.clear()
+  // Reset any lingering session by ending it silently before each test
+  // We can't import _session directly, so just call endSession — it's a no-op if none active
+})
+
+afterEach(async () => {
+  // Clean up any open sessions
+  await endSession('quit')
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
+
+// ---------------------------------------------------------------------------
+// startSession
+// ---------------------------------------------------------------------------
+
+describe('startSession()', () => {
+  it('POSTs game.session_start event', async () => {
+    await startSession('corgi')
+
+    const calls = callsOfType('game.session_start')
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('/api/games/solitaire/event')
+  })
+
+  it('session_start payload includes game_session_id and deck', async () => {
+    await startSession('classic')
+
+    const call = callsOfType('game.session_start')[0]
+    expect(call.body.payload).toMatchObject({
+      deck: 'classic',
+    })
+    expect(typeof call.body.payload.game_session_id).toBe('string')
+    expect(call.body.payload.game_session_id).toMatch(/^gs-/)
+  })
+
+  it('session_start payload has occurred_at ISO timestamp', async () => {
+    await startSession('corgi')
+
+    const call = callsOfType('game.session_start')[0]
+    expect(call.body.occurred_at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('calling startSession twice ends prior session first', async () => {
+    await startSession('corgi')
+    const firstId = callsOfType('game.session_start')[0].body.payload.game_session_id
+
+    // Second call should end first session then start a new one
+    await startSession('classic')
+
+    const endCalls = callsOfType('game.session_end')
+    expect(endCalls.length).toBeGreaterThanOrEqual(1)
+    expect(endCalls[0].body.payload.game_session_id).toBe(firstId)
+
+    const startCalls = callsOfType('game.session_start')
+    expect(startCalls).toHaveLength(2)
+    expect(startCalls[1].body.payload.game_session_id).not.toBe(firstId)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// endSession
+// ---------------------------------------------------------------------------
+
+describe('endSession()', () => {
+  it("POSTs game.session_end with reason 'quit'", async () => {
+    await startSession('corgi')
+    capturedCalls = []   // Reset to only capture the end
+
+    await endSession('quit')
+
+    const call = callsOfType('game.session_end')[0]
+    expect(call).toBeDefined()
+    expect(call.body.payload.end_reason).toBe('quit')
+  })
+
+  it('session_end includes duration_ms as a number', async () => {
+    await startSession('corgi')
+    await endSession('quit')
+
+    const call = callsOfType('game.session_end')[0]
+    expect(typeof call.body.payload.duration_ms).toBe('number')
+    expect(call.body.payload.duration_ms).toBeGreaterThanOrEqual(0)
+  })
+
+  it('session_end includes completed_hands', async () => {
+    await startSession('corgi')
+    await endSession('quit')
+
+    const call = callsOfType('game.session_end')[0]
+    expect(call.body.payload.completed_hands).toBe(0)
+  })
+
+  it('session_end includes error_count', async () => {
+    await startSession('corgi')
+    await endSession('quit')
+
+    const call = callsOfType('game.session_end')[0]
+    expect(typeof call.body.payload.error_count).toBe('number')
+  })
+
+  it('calling endSession twice is a no-op on the second call', async () => {
+    await startSession('corgi')
+    await endSession('quit')
+    const countAfterFirst = capturedCalls.length
+
+    await endSession('quit')
+    expect(capturedCalls.length).toBe(countAfterFirst)  // no additional calls
+  })
+})
+
+// ---------------------------------------------------------------------------
+// visibilitychange triggers endSession
+// ---------------------------------------------------------------------------
+
+describe('visibilitychange', () => {
+  it("triggers endSession with reason 'visibility' when hidden", async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    // Simulate visibilitychange to hidden
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    })
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    // Give the async endSession a tick to run
+    await new Promise(r => setTimeout(r, 10))
+
+    const endCalls = callsOfType('game.session_end')
+    expect(endCalls.length).toBeGreaterThanOrEqual(1)
+    expect(endCalls[0].body.payload.end_reason).toBe('visibility')
+
+    // Restore
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    })
+  })
+
+  it('does not trigger when tab becomes visible', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    })
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    await new Promise(r => setTimeout(r, 10))
+
+    const endCalls = callsOfType('game.session_end')
+    expect(endCalls).toHaveLength(0)
+
+    // Clean up
+    await endSession('quit')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 5-minute idle triggers endSession
+// ---------------------------------------------------------------------------
+
+describe('idle timeout', () => {
+  it("triggers endSession with reason 'idle' after 5 minutes of inactivity", async () => {
+    vi.useFakeTimers()
+    mockFetch()
+
+    await startSession('corgi')
+    capturedCalls = []
+
+    // Advance 5 minutes — the idle timer fires its setTimeout callback synchronously
+    vi.advanceTimersByTime(5 * 60 * 1000)
+
+    // Flush microtasks so the async endSession() Promise chain (postEvent → fetch → response)
+    // resolves before we assert. Do NOT use setTimeout(0) — under fake timers it never fires.
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const endCalls = callsOfType('game.session_end')
+    expect(endCalls.length).toBeGreaterThanOrEqual(1)
+    expect(endCalls[0].body.payload.end_reason).toBe('idle')
+
+    vi.useRealTimers()
+  })
+
+  it('resetIdle extends the idle timer — no session_end before 5 min after last reset', async () => {
+    vi.useFakeTimers()
+    mockFetch()
+
+    await startSession('corgi')
+    capturedCalls = []
+
+    // Advance 4 minutes — no end yet
+    vi.advanceTimersByTime(4 * 60 * 1000)
+    resetIdle()  // Reset at 4 min — idle now scheduled for 9 min wall-clock
+
+    // Advance another 4 minutes (8 total wall-clock; only 4 min since last reset)
+    vi.advanceTimersByTime(4 * 60 * 1000)
+
+    // Flush microtasks only — do NOT runAllTimersAsync, which would drain the
+    // 9-min idle timer that hasn't yet fired and produce a false positive.
+    await Promise.resolve()
+
+    // Should NOT have ended yet — only 4 min since reset
+    const endCalls = callsOfType('game.session_end')
+    expect(endCalls).toHaveLength(0)
+
+    // Clean up cleanly via explicit endSession rather than letting idle fire
+    await endSession('quit')
+
+    vi.useRealTimers()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// recordHandCompleted
+// ---------------------------------------------------------------------------
+
+describe('recordHandCompleted()', () => {
+  it('POSTs game.hand_completed event', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    await recordHandCompleted(2, 180000)
+
+    const calls = callsOfType('game.hand_completed')
+    expect(calls).toHaveLength(1)
+  })
+
+  it('hand_completed includes hand_outcome = won', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    await recordHandCompleted(0, 120000)
+
+    const call = callsOfType('game.hand_completed')[0]
+    expect(call.body.payload.hand_outcome).toBe('won')
+  })
+
+  it('hand_completed includes error_count', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    await recordHandCompleted(5, 90000)
+
+    const call = callsOfType('game.hand_completed')[0]
+    expect(call.body.payload.error_count).toBe(5)
+  })
+
+  it('hand_completed includes duration_ms', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    await recordHandCompleted(1, 75000)
+
+    const call = callsOfType('game.hand_completed')[0]
+    expect(call.body.payload.duration_ms).toBe(75000)
+  })
+
+  it('is a no-op if no session is active', async () => {
+    // Ensure no session
+    await endSession('quit')
+    capturedCalls = []
+
+    await recordHandCompleted(0, 0)
+    expect(capturedCalls).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// computeStreak & dateDiffDays (pure functions — no fetch needed)
+// ---------------------------------------------------------------------------
+
+describe('dateDiffDays()', () => {
+  it('returns 0 for same date', () => {
+    expect(dateDiffDays('2026-04-24', '2026-04-24')).toBe(0)
+  })
+
+  it('returns 1 for consecutive dates', () => {
+    expect(dateDiffDays('2026-04-23', '2026-04-24')).toBe(1)
+  })
+
+  it('returns negative for reverse order', () => {
+    expect(dateDiffDays('2026-04-24', '2026-04-23')).toBe(-1)
+  })
+})
+
+describe('computeStreak()', () => {
+  it('returns currentDays=1 on first session ever', () => {
+    localStorage.clear()
+    const result = computeStreak()
+    expect(result.currentDays).toBe(1)
+    expect(result.broken).toBe(false)
+  })
+
+  it('returns same streak if played again same day', () => {
+    localStorage.clear()
+    computeStreak()  // sets today
+    const result = computeStreak()
+    expect(result.currentDays).toBe(1)
+  })
+})

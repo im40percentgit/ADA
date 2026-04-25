@@ -593,6 +593,18 @@ CREATE TABLE IF NOT EXISTS consent_records (
     revoked_at      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_consent_user ON consent_records(user_id);
+
+CREATE TABLE IF NOT EXISTS game_sessions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id      TEXT NOT NULL REFERENCES patients(id),
+    event_type      TEXT NOT NULL,
+    payload         TEXT NOT NULL,
+    occurred_at     TEXT NOT NULL,
+    inserted_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_game_sessions_patient ON game_sessions(patient_id);
+CREATE INDEX IF NOT EXISTS idx_game_sessions_event_type ON game_sessions(event_type);
+CREATE INDEX IF NOT EXISTS idx_game_sessions_occurred ON game_sessions(occurred_at);
 """
 
 
@@ -3033,6 +3045,75 @@ class StateManager:
         async with self._conn.execute(sql, params) as cursor:
             return await cursor.fetchall()
 
+    # ------------------------------------------------------------------
+    # Game sessions (Phase 15+)
+    # ------------------------------------------------------------------
+
+    async def create_game_session_event(self, record: dict[str, Any]) -> int:
+        """Persist a game telemetry event and return its auto-increment id.
+
+        Args:
+            record: Dict with keys: patient_id, event_type, payload (dict or
+                    JSON str), occurred_at (ISO-8601 string).
+
+        Returns:
+            The integer row id assigned by SQLite.
+
+        @decision DEC-GAMES-005
+        @title game_sessions table with JSON payload column
+        @status accepted
+        @rationale A single payload TEXT column (JSON) gives schema flexibility
+            for the four event types (session_start, session_end, hand_completed,
+            engagement_streak) without separate tables or nullable columns.
+            Evolving event shapes in M3 (verdict generator) requires only a
+            version field in the payload, not a DB migration. Pattern matches
+            existing notification_log and board_items columns in this file.
+        """
+        payload = record.get("payload", {})
+        if not isinstance(payload, str):
+            payload = json.dumps(payload)
+        assert self._conn is not None, "StateManager not initialized"
+        async with self._conn.execute(
+            """INSERT INTO game_sessions (patient_id, event_type, payload, occurred_at)
+               VALUES (:patient_id, :event_type, :payload, :occurred_at)""",
+            {
+                "patient_id": record["patient_id"],
+                "event_type": record["event_type"],
+                "payload": payload,
+                "occurred_at": record["occurred_at"],
+            },
+        ) as cur:
+            await self._conn.commit()
+            return cur.lastrowid  # type: ignore[return-value]
+
+    async def get_game_session_events(
+        self,
+        patient_id: str,
+        *,
+        event_type: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return game telemetry events for a patient, newest first.
+
+        Args:
+            patient_id: The patient whose events to fetch.
+            event_type: Optional filter — only return rows matching this type.
+            limit: Maximum rows to return (default 100).
+        """
+        if event_type:
+            rows = await self._fetchall(
+                """SELECT * FROM game_sessions WHERE patient_id = ? AND event_type = ?
+                   ORDER BY occurred_at DESC LIMIT ?""",
+                (patient_id, event_type, limit),
+            )
+        else:
+            rows = await self._fetchall(
+                """SELECT * FROM game_sessions WHERE patient_id = ?
+                   ORDER BY occurred_at DESC LIMIT ?""",
+                (patient_id, limit),
+            )
+        return [_game_session_row(r) for r in rows]
+
 
 # ---------------------------------------------------------------------------
 # Row deserializers
@@ -3137,6 +3218,13 @@ def _audit_log_row(row: aiosqlite.Row) -> dict[str, Any]:
     """Deserialize an audit_log row — JSON-decode details."""
     d = dict(row)
     d["details"] = json.loads(d.get("details") or "{}")
+    return d
+
+
+def _game_session_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize a game_sessions row — JSON-decode the payload column."""
+    d = dict(row)
+    d["payload"] = json.loads(d.get("payload") or "{}")
     return d
 
 

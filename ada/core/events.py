@@ -122,6 +122,12 @@ class EventTypes:
     BOARD_ITEM_SUGGESTED = "board.item_suggested"
     BOARD_ITEM_APPROVED = "board.item_approved"
 
+    # Game sessions (Phase 15+)
+    GAME_SESSION_START = "game.session_start"
+    GAME_SESSION_END = "game.session_end"
+    GAME_HAND_COMPLETED = "game.hand_completed"
+    GAME_ENGAGEMENT_STREAK = "game.engagement_streak"
+
 
 # ---------------------------------------------------------------------------
 # Base event
@@ -681,3 +687,70 @@ class AgentErrorEvent(AdaEvent):
     error_type: str = ""       # "timeout" | "llm_error" | "circuit_open"
     session_id: str = ""
     user_message: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Game session events (Phase 15+)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class GameSessionStartEvent(AdaEvent):
+    """Published when the patient begins a solitaire game session."""
+
+    event_type: str = EventTypes.GAME_SESSION_START
+    patient_id: str = ""
+    game_session_id: str = ""
+    deck: str = "corgi"          # "corgi" | "classic"
+
+
+@dataclass
+class GameSessionEndEvent(AdaEvent):
+    """Published when a solitaire game session ends.
+
+    Fires on: explicit quit, visibilitychange→hidden, or 5-minute idle.
+
+    @decision DEC-GAMES-004
+    @title visibilitychange not beforeunload for session_end
+    @status accepted
+    @rationale beforeunload is unreliable on iOS Safari (fires too late or
+        not at all for PWA home-screen launches). visibilitychange fires
+        reliably when the user switches apps or locks the screen. See design
+        doc Reviewer Concerns section.
+    """
+
+    event_type: str = EventTypes.GAME_SESSION_END
+    patient_id: str = ""
+    game_session_id: str = ""
+    duration_ms: int = 0
+    completed_hands: int = 0
+    error_count: int = 0
+    end_reason: str = ""         # "quit" | "visibility" | "idle"
+    deck: str = "corgi"
+
+
+@dataclass
+class GameHandCompletedEvent(AdaEvent):
+    """Published when the patient completes (wins) a hand of solitaire."""
+
+    event_type: str = EventTypes.GAME_HAND_COMPLETED
+    patient_id: str = ""
+    game_session_id: str = ""
+    hand_outcome: str = ""       # "won" | "abandoned"
+    error_count: int = 0
+    duration_ms: int = 0
+
+
+@dataclass
+class GameEngagementStreakEvent(AdaEvent):
+    """Published on each session_end with the current engagement streak.
+
+    Streak = consecutive calendar days (patient-local timezone) with
+    at least one completed game session. Emitted on every session_end
+    so downstream consumers always have the current streak without
+    querying the DB separately.
+    """
+
+    event_type: str = EventTypes.GAME_ENGAGEMENT_STREAK
+    patient_id: str = ""
+    current_streak_days: int = 0
+    broken_streak: bool = False
