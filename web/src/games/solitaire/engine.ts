@@ -84,9 +84,9 @@ export function classicBackPath(): string {
  * no image asset exists for this rank (numeric ranks 3–10 use CSS rendering).
  *
  * Asset naming matches the normalized copies from SwiftSolitaire/images/:
- *   Ace   → /games/solitaire/classic/{Suit}s-A.png
- *   2     → /games/solitaire/classic/{Suit}s-2.png
- *   J/Q/K → /games/solitaire/classic/{Suit}s-{J|Q|K}.png
+ *   Ace   → /games/solitaire/classic/{Suit}-A.png
+ *   2     → /games/solitaire/classic/{Suit}-2.png
+ *   J/Q/K → /games/solitaire/classic/{Suit}-{J|Q|K}.png
  *   3–10  → null (caller falls back to styled CSS text face)
  *
  * @decision DEC-GAMES-010
@@ -106,7 +106,14 @@ export function classicImagePath(card: Card): string | null {
     card.rank === 13 ? 'K' :
     null
   if (rankName === null) return null  // ranks 3–10: no image asset, use CSS
-  const suitName = card.suit.charAt(0).toUpperCase() + card.suit.slice(1) + 's'
+  // @decision DEC-GAMES-019
+  // @title classicImagePath suit name — drop trailing 's' (Suit type is already plural)
+  // @status accepted
+  // @rationale Suit values are 'spades'|'hearts'|'diamonds'|'clubs' (already plural).
+  //   Original code appended '+ s' producing 'Spadess', 'Heartss', etc., which 404'd
+  //   against files named 'Spades-A.png'. Removing the suffix produces the correct
+  //   capitalised-first-letter form that matches the asset filenames on disk.
+  const suitName = card.suit.charAt(0).toUpperCase() + card.suit.slice(1)
   return `/games/solitaire/classic/${suitName}-${rankName}.png`
 }
 

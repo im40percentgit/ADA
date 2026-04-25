@@ -38,6 +38,29 @@
  *   browsers without container query support. Grid columns given
  *   minmax(60px, 1fr) floor so cards never shrink below ~60px on mobile;
  *   desktop cards reach ~120-160px in a typical viewport.
+ *
+ * @decision DEC-GAMES-017
+ * @title Card grid width capped via minmax(50px, 90px)
+ * @status accepted
+ * @rationale PR #63's minmax(60px, 1fr) let each card grow unbounded — on a
+ *   1400px viewport the 7 columns each reached ~200px, making the game exceed
+ *   the viewport in both dimensions. Capping the max at 90px keeps the total
+ *   grid 350–630px, fits every common viewport, and centres via
+ *   justify-content: center when narrower than container.
+ *
+ * @decision DEC-GAMES-018
+ * @title Rank/suit cqw multipliers raised to 30/26 with floors 1.1/1.0rem
+ * @status accepted
+ * @rationale With container queries working (DEC-GAMES-016), text scales with
+ *   card width. The previous 18cqw/16cqw multipliers produced ~16px text on a
+ *   90px card — readable but small. Raising to 30cqw/26cqw gives ~27px rank
+ *   and ~23px suit on a 90px card, scaling down to ~15px/13px on a 50px card
+ *   (still legible). Floors 1.1rem/1.0rem protect browsers without cq support.
+ *
+ * @decision DEC-GAMES-019
+ * @title classicImagePath suit name — drop trailing 's' (already plural)
+ * @status accepted
+ * @rationale See engine.ts DEC-GAMES-019 annotation.
  */
 
 /* -------------------------------------------------------------------------
