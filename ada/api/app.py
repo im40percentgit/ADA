@@ -40,7 +40,7 @@ from fastapi.responses import JSONResponse
 from ada.api.middleware.logging import StructlogRequestMiddleware
 from ada.api.middleware.rate_limit import RateLimitMiddleware
 from ada.api.middleware.security_headers import SecurityHeadersMiddleware
-from ada.api.routes import alerts, appointments, assessments, audit_log, auth, boards, caregiver, chat, circles, clinician_notes, cognitive, companion, consent, daily_summaries, data_export, games, knowledge, media, medications, notifications, onboarding, organizations, password_reset, patients, prescribing_notes, progress_report, retention, screening_interact, sessions, simulator, treatment_plans
+from ada.api.routes import alerts, appointments, assessments, audit_log, auth, boards, caregiver, chat, circles, clinician_notes, cognitive, companion, consent, daily_summaries, data_export, games, knowledge, media, medications, notifications, onboarding, organizations, password_reset, patients, prescribing_notes, progress_report, retention, screening_interact, sessions, simulator, treatment_plans, verdict
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
@@ -147,6 +147,7 @@ def create_app(
     app.include_router(audit_log.router, prefix="/api")       # /api/audit-log
     app.include_router(retention.router, prefix="/api")       # /api/admin/retention
     app.include_router(games.router, prefix="/api")          # /api/games/solitaire/event
+    app.include_router(verdict.router)                       # /api/verdict/* (Phase 15+ M3)
 
     @app.get("/health")
     async def health() -> dict:

@@ -60,6 +60,7 @@ import { SettingsPage } from './components/SettingsPage'
 import { SessionList } from './components/SessionList'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
 import { SolitairePage } from './games/solitaire/SolitairePage'
+import { LabelDayPage } from './admin/LabelDayPage'
 import { useAuth } from './hooks/useAuth'
 import type { ReconnectingWsStatus } from './hooks/useReconnectingWebSocket'
 import { getOnboardingStatus } from './api/client'
@@ -68,7 +69,7 @@ import './App.css'
 // Fallback patient ID for clinician/admin accounts in development
 const DEMO_PATIENT_ID = 'demo-patient-001'
 
-type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history' | 'settings' | 'treatment-plan' | 'prescribing-notes' | 'solitaire'
+type View = 'home' | 'chat' | 'mood' | 'knowledge-graph' | 'progress' | 'session-summary' | 'daily-summary' | 'cognitive-screening' | 'screening-results' | 'screening-history' | 'settings' | 'treatment-plan' | 'prescribing-notes' | 'solitaire' | 'admin-label-day'
 type AuthView = 'login' | 'forgot-password' | 'reset-password'
 
 /** Parse the initial auth view from the URL hash (e.g. /#/reset-password?token=...) */
@@ -237,6 +238,16 @@ export default function App() {
     )
   }
 
+  // Admin label-day page — internal tooling, renders outside AppShell (DEC-VERDICT-007)
+  if (view === 'admin-label-day') {
+    return (
+      <>
+        {installBanner}
+        <LabelDayPage patientId={patientId} onBack={() => setView('settings')} />
+      </>
+    )
+  }
+
   const greeting = currentUser?.email
     ? `Hi, ${currentUser.email.split('@')[0]}`
     : 'Welcome back'
@@ -296,7 +307,7 @@ export default function App() {
             />
           )
         ) : view === 'settings' ? (
-          <SettingsPage email={currentUser?.email} patientId={patientId} />
+          <SettingsPage email={currentUser?.email} patientId={patientId} onNavigate={(v) => setView(v as View)} />
         ) : (
           <div className="app__mood-view">
             <h2 className="app__mood-title">Your Mood History</h2>
