@@ -38,19 +38,28 @@
  * @title Double-click auto-move audio gated on actual move success
  * @status accepted
  * @rationale Founder reported the 'move' sound playing even when double-clicking
- *   a card with no valid foundation target. Root cause: autoMoveToFoundation()
- *   calls applyMove() which returns { ...state, errorCount+1 } (not null) for an
- *   illegal placement — so the speculative result was non-null and play() fired
- *   unconditionally. Fix: check specAutoNext.errorCount === prevGame.errorCount
+ *   a card with no valid foundation target. Root cause: autoMoveAny() (formerly
+ *   autoMoveToFoundation()) calls applyMove() which returns { ...state, errorCount+1 }
+ *   (not null) for an illegal placement — so the speculative result was non-null and
+ *   play() fired unconditionally. Fix: check specAutoNext.errorCount === prevGame.errorCount
  *   (same validity pattern as move()), and only play sound when the move was
  *   actually applied. No sound plays on failed auto-move; the card simply
  *   doesn't move, which is clear enough feedback without a shake animation.
+ *
+ * @decision DEC-GAMES-028
+ * @title Auto-move telemetry records actual resolved destination
+ * @status accepted
+ * @rationale Previously autoMove hardcoded a foundation target for recordMoveMade,
+ *   mislabeling tableau-to-tableau auto-moves in calibration data. Now we call
+ *   findAutoMoveTarget() for the real target, then pass it to getMoveType() so
+ *   move_type reflects the actual path taken (talon-to-tableau, tableau-to-tableau, etc.).
  */
 
 import { useCallback, useReducer, useRef } from 'react'
 import {
   applyMove,
-  autoMoveToFoundation,
+  autoMoveAny,
+  findAutoMoveTarget,
   drawFromStock,
   getMoveType,
   getMovedCardValue,
@@ -121,7 +130,7 @@ function reducer(state: SolitaireState, action: Action): SolitaireState {
     }
 
     case 'AUTO_MOVE': {
-      const next = autoMoveToFoundation(state.game, action.source)
+      const next = autoMoveAny(state.game, action.source)
       if (next === null) return state
       const won = next.won && !state.game.won
       return {
@@ -263,12 +272,22 @@ export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireRetu
       dispatch({ type: 'AUTO_MOVE', source })
       lastRenderTime.current = Date.now()
 
-      // autoMove always targets foundation — infer target from card suit
-      const target: CardTarget = { type: 'foundation', pileIndex: 0 }
-      // Check speculative result to detect win and verify the move was actually
-      // applied. applyMove returns { ...state, errorCount+1 } for illegal moves
-      // (not null), so we must check errorCount to distinguish success from failure.
-      const specAutoNext = autoMoveToFoundation(prevGame, source)
+      // Resolve the actual target so telemetry records the real destination
+      // (e.g. tableau-to-tableau), not a hardcoded foundation type.
+      //
+      // @decision DEC-GAMES-028
+      // @title Auto-move telemetry records actual resolved destination
+      // @status accepted
+      // @rationale Hardcoding a foundation target in recordMoveMade mislabels
+      //   tableau-to-tableau auto-moves in calibration data. findAutoMoveTarget
+      //   runs the same resolution logic as autoMoveAny, giving us the real
+      //   target for telemetry without changing the reducer's state contract.
+      const resolvedTarget = findAutoMoveTarget(prevGame, source)
+
+      // Speculate the outcome to gate audio on actual success.
+      // autoMoveAny returns { ...state, errorCount+1 } for no-destination (not null),
+      // so we check errorCount to distinguish a valid move from a failed one.
+      const specAutoNext = autoMoveAny(prevGame, source)
       const wasValid = specAutoNext !== null && specAutoNext.errorCount === prevGame.errorCount
       if (wasValid) {
         if (specAutoNext!.won) {
@@ -278,7 +297,7 @@ export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireRetu
         }
       }
       void recordMoveMade({
-        moveType: getMoveType(source, target),
+        moveType: getMoveType(source, resolvedTarget),
         wasValid,
         wasUndo: false,
         decisionTimeMs,
