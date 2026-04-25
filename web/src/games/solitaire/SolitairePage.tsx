@@ -79,7 +79,7 @@ function CardFace({ card }: CardFaceProps) {
       <img
         src={imgSrc}
         alt={`${card.rank} of ${card.suit}`}
-        className="solitaire-card__image"
+        className="solitaire-card__image solitaire-card__image--face"
         draggable={false}
       />
     )
@@ -274,7 +274,7 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
           const img = document.createElement('img')
           img.src = imgSrc
           img.alt = `${card.rank} of ${card.suit}`
-          img.className = 'solitaire-card__image'
+          img.className = 'solitaire-card__image solitaire-card__image--face'
           div.appendChild(img)
         } else {
           // Ranks 3-10: text face via safe DOM construction (no innerHTML)

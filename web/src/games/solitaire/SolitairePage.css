@@ -61,6 +61,17 @@
  * @title classicImagePath suit name — drop trailing 's' (already plural)
  * @status accepted
  * @rationale See engine.ts DEC-GAMES-019 annotation.
+ *
+ * @decision DEC-GAMES-021
+ * @title Cards shrunk to 35-55px max + rank/suit floors raised
+ * @status accepted
+ * @rationale Founder dogfood: cards at 90px max still didn't fit viewport
+ *   on the dev machine; rank corners felt too small relative to the card.
+ *   Shrunk grid cap to minmax(35px, 55px) — total tableau 245-385px,
+ *   trivially fits all viewports. Bumped rank floor 1.1rem → 1.4rem
+ *   (~22px), suit 1.0rem → 1.1rem (~17.6px); cqw multipliers raised so
+ *   text scales with the smaller card. Net effect: cards occupy less
+ *   screen real-estate, rank/suit corners read boldly.
  */
 
 /* -------------------------------------------------------------------------
@@ -191,17 +202,19 @@
 /* Top row: stock, talon, spacer, 4 foundations */
 .solitaire-top-row {
   display: grid;
-  grid-template-columns: repeat(7, minmax(60px, 1fr));
+  grid-template-columns: repeat(7, minmax(35px, 55px));
   gap: 4px;
+  justify-content: center;
 }
 
 /* Tableau row: 7 columns */
 .solitaire-tableau {
   display: grid;
-  grid-template-columns: repeat(7, minmax(60px, 1fr));
+  grid-template-columns: repeat(7, minmax(35px, 55px));
   gap: 4px;
   flex: 1;
   align-items: start;
+  justify-content: center;
 }
 
 /* -------------------------------------------------------------------------
@@ -271,13 +284,30 @@
   border-radius: 5px;
 }
 
+/**
+ * @decision DEC-GAMES-020
+ * @title Face-up image cards use object-fit: contain; CardBack stays cover
+ * @status accepted
+ * @rationale SwiftSolitaire PNGs are ~square (390×379, 142×116) while the card
+ *   container is 70:100 portrait. object-fit: cover crops ~30% horizontally,
+ *   hiding the rank/suit corner indicators that make the card identifiable.
+ *   object-fit: contain shows the entire image with white letterbox above/below —
+ *   looks intentional, like card padding. CardBack keeps cover so corgi photos
+ *   fill the frame. The modifier class is applied only in CardFace and the
+ *   imperative drag-ghost render path; CardBack is untouched.
+ */
+.solitaire-card__image--face {
+  object-fit: contain;
+  background: #fff; /* fills letterbox area so it matches the card's white background */
+}
+
 /* Classic (text) card face */
 .solitaire-card__classic {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 4px 6px;
+  padding: 2px 3px;  /* tightened from 4px 6px — larger text needs room on smaller card */
   width: 100%;
   height: 100%;
   font-weight: 700;
@@ -292,12 +322,12 @@
 }
 
 .solitaire-card__rank {
-  font-size: clamp(0.95rem, 18cqw, 1.4rem);
+  font-size: clamp(1.4rem, 50cqw, 2.2rem);
   line-height: 1;
 }
 
 .solitaire-card__suit {
-  font-size: clamp(0.85rem, 16cqw, 1.2rem);
+  font-size: clamp(1.1rem, 40cqw, 1.7rem);
   line-height: 1;
 }
 
