@@ -19,11 +19,24 @@
  * @rationale Single unified API for mouse and touch. No new npm dependencies.
  *   touch-action: none in CSS prevents browser scroll interference on mobile.
  *   setPointerCapture keeps events flowing to the source element during fast drags.
+ *
+ * @decision DEC-GAMES-009
+ * @title Corgi photos are card backs only, never face-up art
+ * @status accepted
+ * @rationale Face-up cards always show standard playing-card art regardless of
+ *   deckStyle. Corgi/Classic toggle only affects face-DOWN cards. Matches the
+ *   original SwiftSolitaire CardBackManager behavior and preserves playability.
+ *
+ * @decision DEC-GAMES-011
+ * @title Card sizing unified across both deck modes
+ * @status accepted
+ * @rationale Dogfood feedback: Classic mode rendered smaller than Corgi mode.
+ *   Both modes now use the same card dimensions via shared CSS classes.
  */
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useSolitaire } from './useSolitaire'
-import { corgiImagePath, classicImagePath } from './engine'
+import { corgiImagePath, classicBackPath, classicImagePath } from './engine'
 import { startSession, endSession, resetIdle } from './telemetry'
 import type { Card, CardSource, CardTarget, DeckStyle } from './types'
 import './SolitairePage.css'
@@ -41,35 +54,40 @@ function readPersistedDeck(): DeckStyle {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-component: Card face
+// Sub-components: CardFace (face-up) and CardBack (face-down)
 // ---------------------------------------------------------------------------
 
+/**
+ * CardFace — renders face-up card art.
+ *
+ * Always uses standard playing-card art regardless of deckStyle. When an image
+ * asset exists (Ace, 2, J, Q, K) it renders a PNG; for ranks 3–10 (no image
+ * in the Swift asset set) it falls back to a styled CSS text face that clearly
+ * shows rank and suit symbol.
+ *
+ * deckStyle is intentionally NOT a prop here — faces are always standard art.
+ */
 interface CardFaceProps {
   card: Card
-  deckStyle: DeckStyle
 }
 
-function CardFace({ card, deckStyle }: CardFaceProps) {
-  if (deckStyle === 'corgi') {
+function CardFace({ card }: CardFaceProps) {
+  const imgSrc = classicImagePath(card)
+  if (imgSrc !== null) {
     return (
       <img
-        src={corgiImagePath(card.value)}
+        src={imgSrc}
         alt={`${card.rank} of ${card.suit}`}
         className="solitaire-card__image"
         draggable={false}
       />
     )
   }
-  // Classic text face
-  const rankName =
-    card.rank === 1 ? 'A' :
-    card.rank === 11 ? 'J' :
-    card.rank === 12 ? 'Q' :
-    card.rank === 13 ? 'K' :
-    String(card.rank)
+  // Ranks 3–10: no PNG asset — render styled text face
+  const rankName = String(card.rank)
   const suitSymbol =
-    card.suit === 'spades' ? '♠' :
-    card.suit === 'hearts' ? '♥' :
+    card.suit === 'spades'   ? '♠' :
+    card.suit === 'hearts'   ? '♥' :
     card.suit === 'diamonds' ? '♦' : '♣'
   const colorClass = card.color === 'red' ? 'solitaire-card__classic--red' : 'solitaire-card__classic--black'
 
@@ -78,6 +96,32 @@ function CardFace({ card, deckStyle }: CardFaceProps) {
       <span className="solitaire-card__rank">{rankName}</span>
       <span className="solitaire-card__suit">{suitSymbol}</span>
     </div>
+  )
+}
+
+/**
+ * CardBack — renders face-down card art.
+ *
+ * In corgi mode: renders the corgi JPG assigned to this card's value.
+ * In classic mode: renders the shared PlayingCard-back.png.
+ *
+ * @decision DEC-GAMES-009
+ */
+interface CardBackProps {
+  card: Card
+  deckStyle: DeckStyle
+}
+
+function CardBack({ card, deckStyle }: CardBackProps) {
+  const src = deckStyle === 'corgi' ? corgiImagePath(card.value) : classicBackPath()
+  const alt = deckStyle === 'corgi' ? 'Corgi card back' : 'Classic card back'
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="solitaire-card__image"
+      draggable={false}
+    />
   )
 }
 
@@ -210,7 +254,7 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
     dragRef.current = ds
     resetIdle()
 
-    // Populate ghost element
+    // Populate ghost element — always use standard face art (image or CSS text)
     const ghost = ghostRef.current
     if (ghost) {
       while (ghost.firstChild) ghost.removeChild(ghost.firstChild)
@@ -219,17 +263,35 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         const div = document.createElement('div')
         div.className = 'solitaire-card'
         div.style.width = `${cardWidth}px`
-        if (deckStyle === 'corgi') {
+        // Face-up drag ghost: standard art regardless of deckStyle
+        const imgSrc = classicImagePath(card)
+        if (imgSrc !== null) {
           const img = document.createElement('img')
-          img.src = corgiImagePath(card.value)
+          img.src = imgSrc
           img.alt = `${card.rank} of ${card.suit}`
           img.className = 'solitaire-card__image'
           div.appendChild(img)
         } else {
-          const img = document.createElement('img')
-          img.src = classicImagePath(card)
-          img.className = 'solitaire-card__image'
-          div.appendChild(img)
+          // Ranks 3-10: text face via safe DOM construction (no innerHTML)
+          const rankName = String(card.rank)
+          const suitSymbol =
+            card.suit === 'spades'   ? '♠' :
+            card.suit === 'hearts'   ? '♥' :
+            card.suit === 'diamonds' ? '♦' : '♣'
+          const colorClass = card.color === 'red'
+            ? 'solitaire-card__classic--red'
+            : 'solitaire-card__classic--black'
+          const inner = document.createElement('div')
+          inner.className = `solitaire-card__classic ${colorClass}`
+          const rankSpan = document.createElement('span')
+          rankSpan.className = 'solitaire-card__rank'
+          rankSpan.textContent = rankName
+          const suitSpan = document.createElement('span')
+          suitSpan.className = 'solitaire-card__suit'
+          suitSpan.textContent = suitSymbol
+          inner.appendChild(rankSpan)
+          inner.appendChild(suitSpan)
+          div.appendChild(inner)
         }
         ghost.appendChild(div)
       })
@@ -275,9 +337,11 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
       return (
         <div
           key={`${source.type}-${source.pileIndex}-${cardIndex}`}
-          className="solitaire-card solitaire-card--face-down"
+          className="solitaire-card"
           aria-label="Face-down card"
-        />
+        >
+          <CardBack card={card} deckStyle={deckStyle} />
+        </div>
       )
     }
 
@@ -297,7 +361,7 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         onPointerUp={handlePointerUp}
         onDoubleClick={isTopOfPile ? () => handleCardDoubleClick(sourceForDrag) : undefined}
       >
-        <CardFace card={card} deckStyle={deckStyle} />
+        <CardFace card={card} />
       </div>
     )
   }
@@ -360,13 +424,19 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         aria-label={`Foundation ${fIdx + 1} — ${top.rank} of ${top.suit}`}
         onDoubleClick={() => handleCardDoubleClick({ type: 'foundation', pileIndex: fIdx, cardIndex: pile.cards.length - 1 })}
       >
-        <CardFace card={top} deckStyle={deckStyle} />
+        <CardFace card={top} />
       </div>
     )
   }
 
   function renderStock() {
     const isEmpty = game.stock.cards.length === 0
+    // Stock pile face-down card: use a placeholder CardBack using value=1 (back image
+    // is the same for all cards in the same deck mode — value is only used for corgi
+    // per-card mapping, but stock shows just the back so any value is fine here).
+    const stockPlaceholderCard = game.stock.cards.length > 0
+      ? game.stock.cards[game.stock.cards.length - 1]
+      : null
     return (
       <div
         className={`solitaire-card solitaire-stock ${isEmpty ? 'solitaire-stock--empty solitaire-pile-slot' : ''}`}
@@ -378,9 +448,9 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
       >
         {isEmpty ? (
           <span>↺</span>
-        ) : (
-          <div className="solitaire-card--face-down" style={{ width: '100%', height: '100%', borderRadius: 5 }} />
-        )}
+        ) : stockPlaceholderCard ? (
+          <CardBack card={stockPlaceholderCard} deckStyle={deckStyle} />
+        ) : null}
       </div>
     )
   }
@@ -410,7 +480,7 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         onPointerUp={handlePointerUp}
         onDoubleClick={() => handleCardDoubleClick(source)}
       >
-        <CardFace card={top} deckStyle={deckStyle} />
+        <CardFace card={top} />
       </div>
     )
   }
@@ -434,21 +504,21 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         <span className="solitaire-header__title">Solitaire</span>
 
         <div className="solitaire-header__actions">
-          {/* Deck toggle */}
-          <div className="solitaire-header__deck-toggle" role="group" aria-label="Deck style">
+          {/* Deck back toggle — faces are always standard art; this controls backs only */}
+          <div className="solitaire-header__deck-toggle" role="group" aria-label="Card back style">
             <button
               className={`solitaire-header__deck-btn${deckStyle === 'corgi' ? ' solitaire-header__deck-btn--active' : ''}`}
               onClick={() => setDeckStyle('corgi')}
               aria-pressed={deckStyle === 'corgi'}
             >
-              Corgi
+              Corgi backs
             </button>
             <button
               className={`solitaire-header__deck-btn${deckStyle === 'classic' ? ' solitaire-header__deck-btn--active' : ''}`}
               onClick={() => setDeckStyle('classic')}
               aria-pressed={deckStyle === 'classic'}
             >
-              Classic
+              Classic backs
             </button>
           </div>
 

@@ -47,21 +47,66 @@ export function makeCard(value: number, faceUp = false): Card {
   return { value, suit, rank, color, faceUp }
 }
 
-/** Return the corgi image path for a card value (1-52). */
+/**
+ * Return the corgi image path for a card value (1–52).
+ *
+ * Used for face-DOWN cards when deck === 'corgi'. Each of the 52 cards maps
+ * deterministically to its own corgi JPG, matching SwiftSolitaire
+ * CardBackManager.image(forCardValue:).
+ *
+ * @decision DEC-GAMES-009
+ * @title Corgi photos are card backs only, never face-up art
+ * @status accepted
+ * @rationale Matches original SwiftSolitaire CardBackManager: corgi JPGs are
+ *   rendered on face-down cards only. Face-up cards always show standard
+ *   rank+suit art so the patient can always read what card is showing.
+ */
 export function corgiImagePath(value: number): string {
   const idx = ((value - 1) % 52) + 1
   return `/games/solitaire/corgi/corgi-${String(idx).padStart(2, '0')}.jpg`
 }
 
-/** Return the classic playing-card image path for a card. */
-export function classicImagePath(card: Card): string {
-  const rankName =
-    card.rank === 1 ? 'A' :
+/**
+ * Return the classic card back image path (used when deck === 'classic').
+ *
+ * @decision DEC-GAMES-009
+ * @title Classic back is always PlayingCard-back.png
+ * @status accepted
+ * @rationale Single shared back for classic mode, matching SwiftSolitaire's
+ *   CardBackManager.imageForStyle(.classic) which returns one shared image.
+ */
+export function classicBackPath(): string {
+  return '/games/solitaire/classic/PlayingCard-back.png'
+}
+
+/**
+ * Return the standard playing-card face image path for a card, or null when
+ * no image asset exists for this rank (numeric ranks 3–10 use CSS rendering).
+ *
+ * Asset naming matches the normalized copies from SwiftSolitaire/images/:
+ *   Ace   → /games/solitaire/classic/{Suit}s-A.png
+ *   2     → /games/solitaire/classic/{Suit}s-2.png
+ *   J/Q/K → /games/solitaire/classic/{Suit}s-{J|Q|K}.png
+ *   3–10  → null (caller falls back to styled CSS text face)
+ *
+ * @decision DEC-GAMES-010
+ * @title Standard playing-card art shared by both deck modes for face-up cards
+ * @status accepted
+ * @rationale Gameplay must show rank/suit clearly regardless of deck-back
+ *   personalization. Corgi mode only changes the card back (face-down), never
+ *   the face-up art. Matches original SwiftSolitaire behavior where face-up
+ *   cards always use the same standard art regardless of CardBackStyle.
+ */
+export function classicImagePath(card: Card): string | null {
+  const rankName: string | null =
+    card.rank === 1  ? 'A' :
+    card.rank === 2  ? '2' :
     card.rank === 11 ? 'J' :
     card.rank === 12 ? 'Q' :
     card.rank === 13 ? 'K' :
-    String(card.rank)
-  const suitName = card.suit.charAt(0).toUpperCase() + card.suit.slice(1)
+    null
+  if (rankName === null) return null  // ranks 3–10: no image asset, use CSS
+  const suitName = card.suit.charAt(0).toUpperCase() + card.suit.slice(1) + 's'
   return `/games/solitaire/classic/${suitName}-${rankName}.png`
 }
 
