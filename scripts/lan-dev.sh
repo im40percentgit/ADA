@@ -17,9 +17,20 @@
 #   script works over HTTP if not installed. qrencode is optional — the
 #   LAN URL is printed regardless.
 #
+# @decision DEC-PWA-006
+# @title LAN_HTTP_ONLY env-var override forces HTTP regardless of mkcert
+# @status accepted
+# @rationale iOS mkcert root-cert trust is multi-step (transfer pem, install
+#   profile, toggle in Certificate Trust Settings — see reference_lan_dev.md
+#   memory). Tailscale-based testing for browsing/auth/visual doesn't need
+#   HTTPS. Opt-out env var lets the user skip cert hassle on iOS without
+#   uninstalling mkcert globally. HTTPS is only required for PWA install,
+#   push notifications, and microphone access.
+#
 # Usage:
 #   ./scripts/lan-dev.sh
 #   LAN_IP=192.168.1.74 ./scripts/lan-dev.sh   # override auto-detection
+#   LAN_HTTP_ONLY=1 ./scripts/lan-dev.sh       # force HTTP even when mkcert is installed
 #
 # What it does:
 #   1. Detects the local LAN IP address (or accepts LAN_IP override)
@@ -80,7 +91,14 @@ USE_HTTPS=false
 CERT_FILE=""
 KEY_FILE=""
 
-if command -v mkcert &>/dev/null; then
+# LAN_HTTP_ONLY=1 forces plain HTTP even when mkcert is available.
+# Useful for Tailscale-based testing on iOS where mkcert root-cert trust is
+# multi-step and not needed for browsing/auth/visual testing
+# (HTTPS is only required for PWA install / push / mic).
+if [[ "${LAN_HTTP_ONLY:-0}" == "1" ]]; then
+  echo "LAN_HTTP_ONLY=1 — skipping mkcert; serving plain HTTP."
+  echo ""
+elif command -v mkcert &>/dev/null; then
   echo "mkcert detected — generating TLS certificates for ${LAN_IP} ..."
   mkdir -p "${CERTS_DIR}"
   mkcert -cert-file "${CERTS_DIR}/cert.pem" \
