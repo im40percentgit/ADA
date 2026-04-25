@@ -12,6 +12,11 @@
  * No nav entry on PatientDashboard; accessed via the Settings page admin link
  * or direct URL hash navigation.
  *
+ * Caregiver context: the founder's actual user is a caregiver of a dementia
+ * patient. The page is caregiver-primary (DEC-VERDICT-009). When `patientName`
+ * is provided, a "Labeling for: {name}" sub-header is shown so the caregiver
+ * always knows which patient they are labeling.
+ *
  * @decision DEC-VERDICT-007
  * @title /admin/label-day is internal tooling — no design polish
  * @status accepted
@@ -19,6 +24,38 @@
  *     users in Phase 15+. The only UX requirement is "can I label a day quickly
  *     and see my calibration progress." A plain table with three buttons per
  *     row satisfies that without production-UI investment.
+ *
+ * @decision DEC-VERDICT-008
+ * @title /admin/label-day auto-triggers today's verdict on mount
+ * @status accepted
+ * @rationale M3 scaffold shipped manual-trigger-only verdict generation
+ *     (DEC-VERDICT-005 deferred nightly cron). Founder daily ritual was
+ *     a curl-with-auth — high-friction, easy to forget. Page-load
+ *     auto-trigger removes that ritual: open the page, today's verdict
+ *     is generated (or returned from cache), label it. Endpoint is
+ *     idempotent at the (patient_id, verdict_date) UNIQUE constraint,
+ *     so multiple page loads / browser tabs are safe. NO_SIGNAL short-
+ *     circuits without LLM cost when no sessions exist yet today.
+ *     Bridges the gap until DEC-VERDICT-005 (nightly cron) is built.
+ *
+ * @decision DEC-VERDICT-009
+ * @title /admin/label-day is caregiver-primary
+ * @status accepted
+ * @rationale The founder's actual user is a caregiver of a dementia patient
+ *     who cannot manage daily UI tasks. The 21-day calibration loop runs
+ *     through the caregiver, not the patient. Settings is now reachable from
+ *     CaregiverApp; LabelDayPage shows "Labeling for: {patient_name}" so the
+ *     caregiver always knows which patient they are labeling.
+ *
+ * @decision DEC-VERDICT-010
+ * @title Caregiver patient resolution via care-circle membership
+ * @status accepted
+ * @rationale Caregivers are linked to patients via care circles (Phase 9).
+ *     CaregiverApp already owns useCircles() and resolves selectedCircle on
+ *     mount (DEC-FRONTEND-020). LabelDayPage receives patientId + patientName
+ *     from CaregiverApp — no per-page circle fetch needed. N=1 assumption:
+ *     first patient in the first circle is used. Multi-patient caregivers
+ *     (Phase 16+) need a patient picker; out of scope here.
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -86,6 +123,22 @@ async function postLabel(verdictId: number, label: string): Promise<DailyVerdict
   })
   if (!resp.ok) throw new Error(`POST label failed: ${resp.status}`)
   return resp.json()
+}
+
+// DEC-VERDICT-008: idempotent — if a verdict already exists for this
+// (patient_id, verdict_date) pair, the backend returns the existing row.
+// Date is UTC-based (YYYY-MM-DD via toISOString). Acceptable for v1:
+// founder is in one TZ and 21-day calibration tolerates rare midnight
+// boundary edge cases. Errors are non-fatal — page still loads.
+async function generateTodayVerdict(patientId: string): Promise<void> {
+  const verdictDate = new Date().toISOString().slice(0, 10)
+  await fetch('/api/verdict/generate', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ patient_id: patientId, date: verdictDate }),
+  })
+  // Response not consumed — we only care that the row exists before reload().
+  // Non-2xx is silently ignored; reload() will still show whatever rows exist.
 }
 
 // ---------------------------------------------------------------------------
@@ -168,10 +221,14 @@ function CalibrationHeader({ metrics }: { metrics: CalibrationMetrics | null }) 
 
 export interface LabelDayPageProps {
   patientId: string
+  /** Display name of the patient being labeled. When provided (caregiver context),
+   * a "Labeling for: {name}" sub-header is shown so the caregiver always knows
+   * which patient they are labeling. (DEC-VERDICT-009) */
+  patientName?: string
   onBack?: () => void
 }
 
-export function LabelDayPage({ patientId, onBack }: LabelDayPageProps) {
+export function LabelDayPage({ patientId, patientName, onBack }: LabelDayPageProps) {
   const [rows, setRows] = useState<DailyVerdict[]>([])
   const [calibration, setCalibration] = useState<CalibrationMetrics | null>(null)
   const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set())
@@ -195,9 +252,17 @@ export function LabelDayPage({ patientId, onBack }: LabelDayPageProps) {
     }
   }, [patientId])
 
+  // DEC-VERDICT-008: auto-generate today's verdict on mount so the founder
+  // never needs a manual curl. Fires once per patientId change (stable in
+  // practice — single patient per session). generateTodayVerdict is
+  // idempotent, so multiple page loads / tabs are safe.
   useEffect(() => {
-    reload()
-  }, [reload])
+    generateTodayVerdict(patientId).catch(err => {
+      console.warn('[label-day] auto-generate today\'s verdict failed:', err)
+    }).finally(() => {
+      reload()
+    })
+  }, [patientId, reload])
 
   async function handleLabel(verdictId: number, label: string) {
     setLoadingIds(prev => new Set(prev).add(verdictId))
@@ -216,7 +281,7 @@ export function LabelDayPage({ patientId, onBack }: LabelDayPageProps) {
 
   return (
     <div style={{ padding: 20, fontFamily: 'system-ui, sans-serif', maxWidth: 900 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: patientName ? 4 : 16 }}>
         {onBack && (
           <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer' }}>
             ← Back
@@ -224,6 +289,14 @@ export function LabelDayPage({ patientId, onBack }: LabelDayPageProps) {
         )}
         <h2 style={{ margin: 0, fontSize: 18 }}>Label Day — Shadow Mode</h2>
       </div>
+      {patientName && (
+        <p
+          data-testid="label-day-patient-context"
+          style={{ margin: '0 0 16px 0', fontSize: 13, color: '#9ca3af' }}
+        >
+          Labeling for: <strong style={{ color: '#f9fafb' }}>{patientName}</strong>
+        </p>
+      )}
 
       <CalibrationHeader metrics={calibration} />
 
