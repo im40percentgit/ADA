@@ -13,6 +13,16 @@
  * @rationale CSS cursor: grabbing only applies; actual drag is handled by
  *   JS Pointer Events. touch-action: none prevents browser scroll from
  *   interfering with card drag on mobile.
+ *
+ * @decision DEC-GAMES-011
+ * @title Card sizing unified across both deck modes
+ * @status accepted
+ * @rationale Dogfood feedback: Classic mode (text face) rendered smaller than
+ *   Corgi mode (image face). Root cause was the old CardFace branching on
+ *   deckStyle — text faces used smaller CSS layout than image faces. Now both
+ *   modes use CardFace (image or CSS text fallback) with the same .solitaire-card
+ *   dimensions. The .solitaire-card--face-down gradient class is removed; all
+ *   face-down cards now render via CardBack which fills the same container.
  */
 
 /* -------------------------------------------------------------------------
