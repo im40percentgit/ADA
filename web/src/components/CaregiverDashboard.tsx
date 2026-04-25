@@ -534,6 +534,22 @@ export function CaregiverDashboard({ onLogout, onNavigate, onViewSession, onView
         <Card>
           <AppointmentCard patientId={selectedCircle.patient_id} />
         </Card>
+
+        {/* Settings */}
+        {onNavigate && (
+          <Card onClick={() => onNavigate('settings')}>
+            <div
+              role="button"
+              tabIndex={0}
+              data-testid="caregiver-settings-entry"
+              onKeyDown={e => e.key === 'Enter' && onNavigate('settings')}
+              aria-label="Open settings"
+            >
+              <h2 style={sectionHeadingStyle}>Settings</h2>
+              <p style={cardDescStyle}>Companion preferences, account, and admin tooling</p>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   )
