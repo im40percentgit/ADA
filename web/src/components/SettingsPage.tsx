@@ -67,6 +67,8 @@ export interface SettingsPageProps {
   email?: string
   /** Patient ID for CSV export section (optional — hidden when absent). */
   patientId?: string
+  /** Optional navigation callback — used by admin links (e.g. admin-label-day). */
+  onNavigate?: (view: string) => void
 }
 
 type Voice = CompanionPreferences['voice']
@@ -308,7 +310,7 @@ function VoiceButton({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function SettingsPage({ email, patientId }: SettingsPageProps) {
+export function SettingsPage({ email, patientId, onNavigate }: SettingsPageProps) {
   const { preferences, loading, update } = useCompanionPreferences()
 
   // Local form state — seeded from fetched preferences
@@ -658,6 +660,29 @@ export function SettingsPage({ email, patientId }: SettingsPageProps) {
 
       {/* ── Privacy & Consent Section ────────────────────────── */}
       <ConsentManager />
+
+      {/* ── Admin Section (internal tooling — Phase 15+ M3) ─── */}
+      {onNavigate && (
+        <Card>
+          <h2 style={sectionHeadingStyle}>Internal Admin</h2>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>
+            Shadow-mode calibration tooling. Not patient-visible.
+          </div>
+          <button
+            data-testid="admin-label-day-link"
+            onClick={() => onNavigate('admin-label-day')}
+            style={{
+              fontSize: 13,
+              padding: '4px 12px',
+              cursor: 'pointer',
+              borderRadius: 4,
+              border: '1px solid #374151',
+            }}
+          >
+            Label Day → /admin/label-day
+          </button>
+        </Card>
+      )}
 
     </div>
   )

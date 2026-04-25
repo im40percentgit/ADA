@@ -605,6 +605,37 @@ CREATE TABLE IF NOT EXISTS game_sessions (
 CREATE INDEX IF NOT EXISTS idx_game_sessions_patient ON game_sessions(patient_id);
 CREATE INDEX IF NOT EXISTS idx_game_sessions_event_type ON game_sessions(event_type);
 CREATE INDEX IF NOT EXISTS idx_game_sessions_occurred ON game_sessions(occurred_at);
+
+-- Phase 15+ M3: daily verdict table (shadow mode — no push yet)
+-- One verdict per patient per day. Ground-truth labels filled in via /admin/label-day.
+--
+-- @decision DEC-VERDICT-001
+-- @title 4-state verdict (OK/OFF/UNSURE/NO_SIGNAL)
+-- @status accepted
+-- @rationale Calibrated abstention > wrong verdict > no verdict at N=1.
+--     UNSURE absorbs ambiguity; NO_SIGNAL absorbs absence. Per design doc premise P5.
+CREATE TABLE IF NOT EXISTS daily_verdicts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  patient_id TEXT NOT NULL REFERENCES patients(id),
+  verdict_date TEXT NOT NULL,           -- ISO date YYYY-MM-DD in patient-local TZ
+  verdict TEXT NOT NULL,                -- OK | OFF | UNSURE | NO_SIGNAL
+  explanation TEXT NOT NULL,
+  dimension TEXT,                        -- e.g. "anxiety" | "lethargy" | null
+  model_used TEXT NOT NULL,
+  prompt_version TEXT NOT NULL,
+  telemetry_summary TEXT NOT NULL,       -- JSON of CLP features used
+  baseline_summary TEXT NOT NULL,        -- JSON of baseline used (or "insufficient")
+  generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Ground-truth labeling (filled in by /admin/label-day later)
+  labeled_truth TEXT,                    -- TRUTH_OK | TRUTH_OFF | TRUTH_UNSURE | NULL
+  labeled_at TEXT,
+  labeled_by TEXT,
+  UNIQUE(patient_id, verdict_date)       -- one verdict per patient per day
+);
+CREATE INDEX IF NOT EXISTS idx_daily_verdicts_patient_date
+  ON daily_verdicts(patient_id, verdict_date);
+CREATE INDEX IF NOT EXISTS idx_daily_verdicts_unlabeled
+  ON daily_verdicts(patient_id, labeled_truth) WHERE labeled_truth IS NULL;
 """
 
 
@@ -3114,6 +3145,118 @@ class StateManager:
             )
         return [_game_session_row(r) for r in rows]
 
+    # ------------------------------------------------------------------
+    # Daily Verdicts (Phase 15+ M3 — shadow mode)
+    # ------------------------------------------------------------------
+
+    async def upsert_daily_verdict(self, verdict: dict[str, Any]) -> int:
+        """Insert or replace a daily verdict row. Idempotent per patient+date.
+
+        Returns:
+            The integer row id of the inserted/replaced row.
+        """
+        assert self._conn is not None, "StateManager not initialized"
+        telemetry = verdict.get("telemetry_summary", {})
+        if not isinstance(telemetry, str):
+            telemetry = json.dumps(telemetry)
+        baseline = verdict.get("baseline_summary", "insufficient")
+        if not isinstance(baseline, str):
+            baseline = json.dumps(baseline)
+        async with self._conn.execute(
+            """INSERT OR REPLACE INTO daily_verdicts
+               (patient_id, verdict_date, verdict, explanation, dimension,
+                model_used, prompt_version, telemetry_summary, baseline_summary,
+                generated_at, labeled_truth, labeled_at, labeled_by)
+               VALUES
+               (:patient_id, :verdict_date, :verdict, :explanation, :dimension,
+                :model_used, :prompt_version, :telemetry_summary, :baseline_summary,
+                COALESCE(:generated_at, datetime('now')),
+                :labeled_truth, :labeled_at, :labeled_by)""",
+            {
+                "patient_id": verdict["patient_id"],
+                "verdict_date": verdict["verdict_date"],
+                "verdict": verdict["verdict"],
+                "explanation": verdict["explanation"],
+                "dimension": verdict.get("dimension"),
+                "model_used": verdict["model_used"],
+                "prompt_version": verdict["prompt_version"],
+                "telemetry_summary": telemetry,
+                "baseline_summary": baseline,
+                "generated_at": verdict.get("generated_at"),
+                "labeled_truth": verdict.get("labeled_truth"),
+                "labeled_at": verdict.get("labeled_at"),
+                "labeled_by": verdict.get("labeled_by"),
+            },
+        ) as cur:
+            await self._conn.commit()
+            return cur.lastrowid  # type: ignore[return-value]
+
+    async def get_daily_verdict(
+        self, patient_id: str, verdict_date: str
+    ) -> dict[str, Any] | None:
+        """Fetch the verdict for a specific patient and date."""
+        row = await self._fetchone(
+            "SELECT * FROM daily_verdicts WHERE patient_id = ? AND verdict_date = ?",
+            (patient_id, verdict_date),
+        )
+        return _daily_verdict_row(row) if row else None
+
+    async def get_daily_verdict_by_id(self, verdict_id: int) -> dict[str, Any] | None:
+        """Fetch a verdict by its auto-increment id."""
+        row = await self._fetchone(
+            "SELECT * FROM daily_verdicts WHERE id = ?",
+            (verdict_id,),
+        )
+        return _daily_verdict_row(row) if row else None
+
+    async def list_unlabeled_verdicts(
+        self, patient_id: str
+    ) -> list[dict[str, Any]]:
+        """Return all verdicts without a ground-truth label, oldest first."""
+        rows = await self._fetchall(
+            """SELECT * FROM daily_verdicts
+               WHERE patient_id = ? AND labeled_truth IS NULL
+               ORDER BY verdict_date ASC""",
+            (patient_id,),
+        )
+        return [_daily_verdict_row(r) for r in rows]
+
+    async def label_daily_verdict(
+        self,
+        verdict_id: int,
+        labeled_truth: str,
+        labeled_by: str,
+    ) -> None:
+        """Apply a ground-truth label to a verdict row."""
+        await self._exec(
+            """UPDATE daily_verdicts
+               SET labeled_truth = :labeled_truth,
+                   labeled_at = datetime('now'),
+                   labeled_by = :labeled_by
+               WHERE id = :id""",
+            {
+                "labeled_truth": labeled_truth,
+                "labeled_by": labeled_by,
+                "id": verdict_id,
+            },
+        )
+
+    async def list_verdicts_for_calibration(
+        self,
+        patient_id: str,
+        *,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return verdicts ordered by date DESC for calibration metrics."""
+        rows = await self._fetchall(
+            """SELECT * FROM daily_verdicts
+               WHERE patient_id = ?
+               ORDER BY verdict_date DESC
+               LIMIT ?""",
+            (patient_id, limit),
+        )
+        return [_daily_verdict_row(r) for r in rows]
+
 
 # ---------------------------------------------------------------------------
 # Row deserializers
@@ -3225,6 +3368,25 @@ def _game_session_row(row: aiosqlite.Row) -> dict[str, Any]:
     """Deserialize a game_sessions row — JSON-decode the payload column."""
     d = dict(row)
     d["payload"] = json.loads(d.get("payload") or "{}")
+    return d
+
+
+def _daily_verdict_row(row: aiosqlite.Row) -> dict[str, Any]:
+    """Deserialize a daily_verdicts row — JSON-decode telemetry/baseline columns."""
+    d = dict(row)
+    # telemetry_summary and baseline_summary are JSON; baseline may be the
+    # literal string "insufficient" (not JSON), so we try/except.
+    ts = d.get("telemetry_summary") or "{}"
+    try:
+        d["telemetry_summary"] = json.loads(ts)
+    except (json.JSONDecodeError, TypeError):
+        d["telemetry_summary"] = ts
+
+    bs = d.get("baseline_summary") or "insufficient"
+    try:
+        d["baseline_summary"] = json.loads(bs)
+    except (json.JSONDecodeError, TypeError):
+        d["baseline_summary"] = bs
     return d
 
 
