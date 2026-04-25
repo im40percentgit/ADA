@@ -128,6 +128,20 @@ describe('PatientDashboard', () => {
     })
   })
 
+  it('renders Solitaire card heading', async () => {
+    renderDashboard()
+    expect(screen.getByText('Solitaire')).toBeInTheDocument()
+  })
+
+  it('calls onNavigate with solitaire when Solitaire card is clicked', async () => {
+    const onNavigate = vi.fn()
+    const user = userEvent.setup()
+    renderDashboard(onNavigate)
+
+    await user.click(screen.getByRole('button', { name: /Play Solitaire/i }))
+    expect(onNavigate).toHaveBeenCalledWith('solitaire')
+  })
+
   it('shows medications error when API fails', async () => {
     server.use(
       http.get('/api/patients/:patientId/medications', () =>
