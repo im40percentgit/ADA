@@ -74,18 +74,12 @@ interface CardFaceProps {
 
 function CardFace({ card }: CardFaceProps) {
   const imgSrc = classicImagePath(card)
-  if (imgSrc !== null) {
-    return (
-      <img
-        src={imgSrc}
-        alt={`${card.rank} of ${card.suit}`}
-        className="solitaire-card__image solitaire-card__image--face"
-        draggable={false}
-      />
-    )
-  }
-  // Ranks 3–10: no PNG asset — render styled text face
-  const rankName = String(card.rank)
+  const rankName =
+    card.rank === 1  ? 'A' :
+    card.rank === 11 ? 'J' :
+    card.rank === 12 ? 'Q' :
+    card.rank === 13 ? 'K' :
+    String(card.rank)
   const suitSymbol =
     card.suit === 'spades'   ? '♠' :
     card.suit === 'hearts'   ? '♥' :
@@ -93,9 +87,23 @@ function CardFace({ card }: CardFaceProps) {
   const colorClass = card.color === 'red' ? 'solitaire-card__classic--red' : 'solitaire-card__classic--black'
 
   return (
-    <div className={`solitaire-card__classic ${colorClass}`}>
-      <span className="solitaire-card__rank">{rankName}</span>
-      <span className="solitaire-card__suit">{suitSymbol}</span>
+    <div className={`solitaire-card__face ${colorClass}`}>
+      {/* Corner indicator — always present, top-left */}
+      <span className="solitaire-card__corner">
+        <span className="solitaire-card__rank">{rankName}</span>
+        <span className="solitaire-card__suit">{suitSymbol}</span>
+      </span>
+      {/* Center decoration — image for A/2/J/Q/K, large suit symbol for 3-10 */}
+      {imgSrc !== null ? (
+        <img
+          src={imgSrc}
+          alt={`${rankName} of ${card.suit}`}
+          className="solitaire-card__image solitaire-card__image--face"
+          draggable={false}
+        />
+      ) : (
+        <span className="solitaire-card__center-suit">{suitSymbol}</span>
+      )}
     </div>
   )
 }
@@ -268,36 +276,55 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
         const div = document.createElement('div')
         div.className = 'solitaire-card'
         div.style.width = `${cardWidth}px`
-        // Face-up drag ghost: standard art regardless of deckStyle
+
+        // Face-up drag ghost: same structure as CardFace — corner + center decoration
+        const rankName =
+          card.rank === 1  ? 'A' :
+          card.rank === 11 ? 'J' :
+          card.rank === 12 ? 'Q' :
+          card.rank === 13 ? 'K' :
+          String(card.rank)
+        const suitSymbol =
+          card.suit === 'spades'   ? '♠' :
+          card.suit === 'hearts'   ? '♥' :
+          card.suit === 'diamonds' ? '♦' : '♣'
+        const colorClass = card.color === 'red'
+          ? 'solitaire-card__classic--red'
+          : 'solitaire-card__classic--black'
+
+        const face = document.createElement('div')
+        face.className = `solitaire-card__face ${colorClass}`
+
+        // Corner indicator
+        const corner = document.createElement('span')
+        corner.className = 'solitaire-card__corner'
+        const rankSpan = document.createElement('span')
+        rankSpan.className = 'solitaire-card__rank'
+        rankSpan.textContent = rankName
+        const suitSpan = document.createElement('span')
+        suitSpan.className = 'solitaire-card__suit'
+        suitSpan.textContent = suitSymbol
+        corner.appendChild(rankSpan)
+        corner.appendChild(suitSpan)
+        face.appendChild(corner)
+
+        // Center decoration
         const imgSrc = classicImagePath(card)
         if (imgSrc !== null) {
           const img = document.createElement('img')
           img.src = imgSrc
-          img.alt = `${card.rank} of ${card.suit}`
+          img.alt = `${rankName} of ${card.suit}`
           img.className = 'solitaire-card__image solitaire-card__image--face'
-          div.appendChild(img)
+          img.draggable = false
+          face.appendChild(img)
         } else {
-          // Ranks 3-10: text face via safe DOM construction (no innerHTML)
-          const rankName = String(card.rank)
-          const suitSymbol =
-            card.suit === 'spades'   ? '♠' :
-            card.suit === 'hearts'   ? '♥' :
-            card.suit === 'diamonds' ? '♦' : '♣'
-          const colorClass = card.color === 'red'
-            ? 'solitaire-card__classic--red'
-            : 'solitaire-card__classic--black'
-          const inner = document.createElement('div')
-          inner.className = `solitaire-card__classic ${colorClass}`
-          const rankSpan = document.createElement('span')
-          rankSpan.className = 'solitaire-card__rank'
-          rankSpan.textContent = rankName
-          const suitSpan = document.createElement('span')
-          suitSpan.className = 'solitaire-card__suit'
-          suitSpan.textContent = suitSymbol
-          inner.appendChild(rankSpan)
-          inner.appendChild(suitSpan)
-          div.appendChild(inner)
+          const centerSuit = document.createElement('span')
+          centerSuit.className = 'solitaire-card__center-suit'
+          centerSuit.textContent = suitSymbol
+          face.appendChild(centerSuit)
         }
+
+        div.appendChild(face)
         ghost.appendChild(div)
       })
       updateGhostPosition(e.clientX, e.clientY)

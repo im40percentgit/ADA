@@ -72,6 +72,23 @@
  *   (~22px), suit 1.0rem → 1.1rem (~17.6px); cqw multipliers raised so
  *   text scales with the smaller card. Net effect: cards occupy less
  *   screen real-estate, rank/suit corners read boldly.
+ *
+ * @decision DEC-GAMES-022
+ * @title Corner rank/suit indicators always rendered on face-up cards
+ * @status accepted
+ * @rationale SwiftSolitaire PNGs are bare suit/emblem art — no built-in
+ *   rank or suit indicators. The original Swift game overlaid corner text
+ *   in code; we now do the same via .solitaire-card__corner (absolute
+ *   top-left) inside .solitaire-card__face. Always-on corners means every
+ *   card is readable regardless of asset shape (image or procedural suit).
+ *
+ * @decision DEC-GAMES-023
+ * @title Card grid bumped to minmax(45px, 70px)
+ * @status accepted
+ * @rationale Founder dogfood iteration — 35-55px was slightly too small
+ *   for comfortable play. New range 45-70px gives cards more visual weight
+ *   (total tableau 315-490px) while still fitting trivially on every
+ *   viewport.
  */
 
 /* -------------------------------------------------------------------------
@@ -202,7 +219,7 @@
 /* Top row: stock, talon, spacer, 4 foundations */
 .solitaire-top-row {
   display: grid;
-  grid-template-columns: repeat(7, minmax(35px, 55px));
+  grid-template-columns: repeat(7, minmax(45px, 70px));
   gap: 4px;
   justify-content: center;
 }
@@ -210,7 +227,7 @@
 /* Tableau row: 7 columns */
 .solitaire-tableau {
   display: grid;
-  grid-template-columns: repeat(7, minmax(35px, 55px));
+  grid-template-columns: repeat(7, minmax(45px, 70px));
   gap: 4px;
   flex: 1;
   align-items: start;
@@ -301,24 +318,43 @@
   background: #fff; /* fills letterbox area so it matches the card's white background */
 }
 
-/* Classic (text) card face */
-.solitaire-card__classic {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding: 2px 3px;  /* tightened from 4px 6px — larger text needs room on smaller card */
+/* Face-up card face container */
+.solitaire-card__face {
+  position: relative;  /* parent for absolute corner */
   width: 100%;
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   font-weight: 700;
 }
 
+/* Color variants apply to both face and corner text */
 .solitaire-card__classic--red {
   color: #cc1111;
 }
 
 .solitaire-card__classic--black {
   color: #111;
+}
+
+/* Top-left corner: rank stacked above suit */
+.solitaire-card__corner {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  z-index: 2;  /* above image */
+}
+
+/* Center suit symbol for ranks 3-10 (no PNG asset) */
+.solitaire-card__center-suit {
+  font-size: clamp(2rem, 70cqw, 3.5rem);
+  line-height: 1;
 }
 
 .solitaire-card__rank {
