@@ -15,6 +15,7 @@ import {
   canPlaceOnTableau,
   canPlaceOnFoundation,
   applyMove,
+  autoMoveToFoundation,
   drawFromStock,
   makeCard,
   countFaceDownCards,
@@ -529,5 +530,186 @@ describe('getMovedCardValue()', () => {
     }
     const src: CardSource = { type: 'talon', pileIndex: 0, cardIndex: 0 }
     expect(getMovedCardValue(state, src)).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Bug fix DEC-GAMES-024 — Foundation → Tableau moves
+// ---------------------------------------------------------------------------
+
+describe('foundation-to-tableau moves (DEC-GAMES-024)', () => {
+  it('applyMove allows moving top foundation card to a legal tableau column', () => {
+    // Foundation 0 (spades) has A♠, 2♠; top is 2♠ (black, rank 2).
+    // Tableau col 0 has 3♥ (red, rank 3). 2♠ on 3♥ is legal.
+    const aceSpades = makeCard(1, true)   // A♠ rank 1
+    const twoSpades = makeCard(2, true)   // 2♠ rank 2, black
+    const threeHearts = makeCard(3 + 13, true)  // 3♥ rank 3, red
+
+    const state: GameState = {
+      ...emptyState(),
+      foundations: [
+        { cards: [aceSpades, twoSpades] },
+        { cards: [] },
+        { cards: [] },
+        { cards: [] },
+      ],
+      tableau: [pile(threeHearts), ...Array.from({ length: 6 }, () => ({ cards: [] }))],
+    }
+
+    const source: CardSource = { type: 'foundation', pileIndex: 0, cardIndex: 1 }
+    const target: CardTarget = { type: 'tableau', pileIndex: 0 }
+    const next = applyMove(state, source, target)
+
+    expect(next).not.toBeNull()
+    expect(next!.errorCount).toBe(0)                             // no error
+    expect(next!.foundations[0].cards).toHaveLength(1)           // A♠ remains
+    expect(next!.foundations[0].cards[0].rank).toBe(1)
+    expect(next!.tableau[0].cards).toHaveLength(2)               // 3♥, 2♠
+    expect(next!.tableau[0].cards[1].value).toBe(twoSpades.value)
+  })
+
+  it('applyMove rejects foundation-to-tableau when placement is illegal (wrong color)', () => {
+    // Foundation 0 (spades) has A♠; top is A♠ (black, rank 1).
+    // Tableau col 0 has 2♠ (black, rank 2). Same color — illegal.
+    const aceSpades = makeCard(1, true)
+    const twoSpades = makeCard(2, true)
+
+    const state: GameState = {
+      ...emptyState(),
+      foundations: [{ cards: [aceSpades] }, { cards: [] }, { cards: [] }, { cards: [] }],
+      tableau: [pile(twoSpades), ...Array.from({ length: 6 }, () => ({ cards: [] }))],
+    }
+
+    const source: CardSource = { type: 'foundation', pileIndex: 0, cardIndex: 0 }
+    const target: CardTarget = { type: 'tableau', pileIndex: 0 }
+    const next = applyMove(state, source, target)
+
+    // Illegal: errorCount bumped, foundation and tableau unchanged
+    expect(next).not.toBeNull()
+    expect(next!.errorCount).toBe(1)
+    expect(next!.foundations[0].cards).toHaveLength(1)  // unchanged
+    expect(next!.tableau[0].cards).toHaveLength(1)      // unchanged
+  })
+
+  it('applyMove rejects moving from empty foundation', () => {
+    const state = emptyState()
+    const source: CardSource = { type: 'foundation', pileIndex: 0, cardIndex: 0 }
+    const target: CardTarget = { type: 'tableau', pileIndex: 0 }
+    expect(applyMove(state, source, target)).toBeNull()
+  })
+
+  it('applyMove allows King from foundation to empty tableau column', () => {
+    // Foundation 3 (clubs) has full suit A→K; we move K♣ to empty tableau col 1.
+    const fullClubs = Array.from({ length: 13 }, (_, i) => makeCard(40 + i, true))
+    const kingClubs = fullClubs[12]  // rank 13
+
+    const state: GameState = {
+      ...emptyState(),
+      foundations: [
+        { cards: [] }, { cards: [] }, { cards: [] },
+        { cards: fullClubs },
+      ],
+    }
+
+    const source: CardSource = { type: 'foundation', pileIndex: 3, cardIndex: 12 }
+    const target: CardTarget = { type: 'tableau', pileIndex: 1 }
+    const next = applyMove(state, source, target)
+
+    expect(next).not.toBeNull()
+    expect(next!.errorCount).toBe(0)
+    expect(next!.foundations[3].cards).toHaveLength(12)
+    expect(next!.tableau[1].cards).toHaveLength(1)
+    expect(next!.tableau[1].cards[0].value).toBe(kingClubs.value)
+  })
+
+  it('getMoveType returns foundation-to-tableau for foundation source + tableau target', () => {
+    const src: CardSource = { type: 'foundation', pileIndex: 0, cardIndex: 0 }
+    const tgt: CardTarget = { type: 'tableau', pileIndex: 2 }
+    expect(getMoveType(src, tgt)).toBe('foundation-to-tableau')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Bug fix DEC-GAMES-025 — autoMoveToFoundation validity check
+// ---------------------------------------------------------------------------
+
+describe('autoMoveToFoundation validity (DEC-GAMES-025)', () => {
+  it('returns non-null with unchanged errorCount when a valid auto-move exists', () => {
+    // A♠ on talon; foundation 0 (spades) is empty — Ace can go to foundation.
+    const aceSpades = makeCard(1, true)
+    const state: GameState = {
+      ...emptyState(),
+      talon: { cards: [aceSpades] },
+    }
+    const source: CardSource = { type: 'talon', pileIndex: 0, cardIndex: 0 }
+    const result = autoMoveToFoundation(state, source)
+
+    expect(result).not.toBeNull()
+    expect(result!.errorCount).toBe(0)                       // move was applied
+    expect(result!.foundations[0].cards).toHaveLength(1)     // A♠ on foundation
+    expect(result!.talon.cards).toHaveLength(0)
+  })
+
+  it('returns state with bumped errorCount when rank does not match foundation top', () => {
+    // 3♠ on talon; foundation 0 (spades) has only A♠ — 3♠ can't go next (needs 2♠).
+    const aceSpades = makeCard(1, true)
+    const threeSpades = makeCard(3, true)
+    const state: GameState = {
+      ...emptyState(),
+      talon: { cards: [threeSpades] },
+      foundations: [{ cards: [aceSpades] }, { cards: [] }, { cards: [] }, { cards: [] }],
+    }
+    const source: CardSource = { type: 'talon', pileIndex: 0, cardIndex: 0 }
+    const result = autoMoveToFoundation(state, source)
+
+    // applyMove returns errorCount+1 for illegal placement — NOT null.
+    // The audio gate in useSolitaire must check errorCount to detect this.
+    expect(result).not.toBeNull()
+    expect(result!.errorCount).toBe(1)                   // bumped — move rejected
+    expect(result!.foundations[0].cards).toHaveLength(1) // unchanged
+    expect(result!.talon.cards).toHaveLength(1)          // unchanged
+  })
+
+  it('returns null when source pile is empty (talon)', () => {
+    const state = emptyState()
+    const source: CardSource = { type: 'talon', pileIndex: 0, cardIndex: 0 }
+    expect(autoMoveToFoundation(state, source)).toBeNull()
+  })
+
+  it('returns null when source is a foundation pile (no foundation-to-foundation)', () => {
+    // autoMoveToFoundation only handles talon and tableau sources — foundation
+    // source returns null by design (foundation-to-foundation is not a Klondike rule).
+    const aceSpades = makeCard(1, true)
+    const state: GameState = {
+      ...emptyState(),
+      foundations: [{ cards: [aceSpades] }, { cards: [] }, { cards: [] }, { cards: [] }],
+    }
+    const source: CardSource = { type: 'foundation', pileIndex: 0, cardIndex: 0 }
+    expect(autoMoveToFoundation(state, source)).toBeNull()
+  })
+
+  it('auto-move 6♥ succeeds when 5♥ is the foundation top (correct suit + ascending rank)', () => {
+    // Build hearts foundation with A♥ through 5♥, then try to auto-move 6♥ from tableau.
+    const heartsCards = Array.from({ length: 5 }, (_, i) => makeCard(14 + i, true)) // A♥–5♥
+    const sixHearts = makeCard(14 + 5, true)  // 6♥ (value 19)
+
+    const state: GameState = {
+      ...emptyState(),
+      foundations: [
+        { cards: [] },
+        { cards: heartsCards },  // foundation 1 = hearts
+        { cards: [] },
+        { cards: [] },
+      ],
+      tableau: [pile(sixHearts), ...Array.from({ length: 6 }, () => ({ cards: [] }))],
+    }
+
+    const source: CardSource = { type: 'tableau', pileIndex: 0, cardIndex: 0 }
+    const result = autoMoveToFoundation(state, source)
+
+    expect(result).not.toBeNull()
+    expect(result!.errorCount).toBe(0)
+    expect(result!.foundations[1].cards).toHaveLength(6)
+    expect(result!.foundations[1].cards[5].rank).toBe(6)
   })
 })

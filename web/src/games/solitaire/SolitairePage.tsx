@@ -448,13 +448,18 @@ export function SolitairePage({ onBack }: SolitairePageProps) {
       )
     }
 
+    const source: CardSource = { type: 'foundation', pileIndex: fIdx, cardIndex: pile.cards.length - 1 }
+
     return (
       <div
         key={fIdx}
         className="solitaire-card"
         data-drop-target={`foundation:${fIdx}`}
         aria-label={`Foundation ${fIdx + 1} — ${top.rank} of ${top.suit}`}
-        onDoubleClick={() => handleCardDoubleClick({ type: 'foundation', pileIndex: fIdx, cardIndex: pile.cards.length - 1 })}
+        onPointerDown={(e) => handleCardPointerDown(e, source, [top])}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onDoubleClick={() => handleCardDoubleClick(source)}
       >
         <CardFace card={top} />
       </div>
