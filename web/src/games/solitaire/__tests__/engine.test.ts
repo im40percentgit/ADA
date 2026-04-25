@@ -18,6 +18,8 @@ import {
   drawFromStock,
   makeCard,
   countFaceDownCards,
+  getMoveType,
+  getMovedCardValue,
 } from '../engine'
 import type { Card, CardSource, CardTarget, GameState, Pile } from '../types'
 
@@ -431,5 +433,101 @@ describe('undo (value-type history)', () => {
     const initialFaceDown = countFaceDownCards(initial)
     // Should be 21 (1+2+...+6 face-down cards across columns 1-6, no face-down in col 0)
     expect(initialFaceDown).toBe(21)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getMoveType — M1 v0.5 per-move telemetry
+// ---------------------------------------------------------------------------
+
+describe('getMoveType()', () => {
+  it('talon → tableau returns talon-to-tableau', () => {
+    const src: CardSource = { type: 'talon', pileIndex: 0, cardIndex: 0 }
+    const tgt: CardTarget = { type: 'tableau', pileIndex: 2 }
+    expect(getMoveType(src, tgt)).toBe('talon-to-tableau')
+  })
+
+  it('talon → foundation returns talon-to-foundation', () => {
+    const src: CardSource = { type: 'talon', pileIndex: 0, cardIndex: 0 }
+    const tgt: CardTarget = { type: 'foundation', pileIndex: 0 }
+    expect(getMoveType(src, tgt)).toBe('talon-to-foundation')
+  })
+
+  it('tableau → tableau returns tableau-to-tableau', () => {
+    const src: CardSource = { type: 'tableau', pileIndex: 0, cardIndex: 0 }
+    const tgt: CardTarget = { type: 'tableau', pileIndex: 3 }
+    expect(getMoveType(src, tgt)).toBe('tableau-to-tableau')
+  })
+
+  it('tableau → foundation returns tableau-to-foundation', () => {
+    const src: CardSource = { type: 'tableau', pileIndex: 0, cardIndex: 0 }
+    const tgt: CardTarget = { type: 'foundation', pileIndex: 1 }
+    expect(getMoveType(src, tgt)).toBe('tableau-to-foundation')
+  })
+
+  it('stock-flip: tableau source with null target and wasRecycle=false returns stock-flip', () => {
+    // drawFromStock uses this path — we represent it as tableau source + null target
+    expect(getMoveType({ type: 'tableau', pileIndex: 0, cardIndex: 0 }, null, false)).toBe('stock-flip')
+  })
+
+  it('recycle: tableau source with null target and wasRecycle=true returns recycle', () => {
+    expect(getMoveType({ type: 'tableau', pileIndex: 0, cardIndex: 0 }, null, true)).toBe('recycle')
+  })
+
+  it('null source (undo) returns invalid', () => {
+    expect(getMoveType(null, null)).toBe('invalid')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getMovedCardValue — M1 v0.5 per-move telemetry
+// ---------------------------------------------------------------------------
+
+describe('getMovedCardValue()', () => {
+  it('returns top talon card value for talon source', () => {
+    const card = makeCard(14, true)  // Ace of hearts
+    const state: GameState = {
+      tableau: Array.from({ length: 7 }, () => ({ cards: [] })),
+      foundations: Array.from({ length: 4 }, () => ({ cards: [] })),
+      stock: { cards: [] },
+      talon: { cards: [card] },
+      won: false,
+      errorCount: 0,
+    }
+    const src: CardSource = { type: 'talon', pileIndex: 0, cardIndex: 0 }
+    expect(getMovedCardValue(state, src)).toBe(14)
+  })
+
+  it('returns card at cardIndex for tableau source', () => {
+    const bottom = makeCard(9, false)
+    const top = makeCard(8, true)
+    const state: GameState = {
+      tableau: [{ cards: [bottom, top] }, ...Array.from({ length: 6 }, () => ({ cards: [] }))],
+      foundations: Array.from({ length: 4 }, () => ({ cards: [] })),
+      stock: { cards: [] },
+      talon: { cards: [] },
+      won: false,
+      errorCount: 0,
+    }
+    const src: CardSource = { type: 'tableau', pileIndex: 0, cardIndex: 1 }
+    expect(getMovedCardValue(state, src)).toBe(8)
+  })
+
+  it('returns null for null source (stock-flip, recycle, undo)', () => {
+    const state = newGame()
+    expect(getMovedCardValue(state, null)).toBeNull()
+  })
+
+  it('returns null for empty talon source', () => {
+    const state: GameState = {
+      tableau: Array.from({ length: 7 }, () => ({ cards: [] })),
+      foundations: Array.from({ length: 4 }, () => ({ cards: [] })),
+      stock: { cards: [] },
+      talon: { cards: [] },
+      won: false,
+      errorCount: 0,
+    }
+    const src: CardSource = { type: 'talon', pileIndex: 0, cardIndex: 0 }
+    expect(getMovedCardValue(state, src)).toBeNull()
   })
 })

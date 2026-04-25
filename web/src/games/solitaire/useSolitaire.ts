@@ -1,5 +1,6 @@
 /**
- * useSolitaire — React hook wrapping the Klondike engine with undo support.
+ * useSolitaire — React hook wrapping the Klondike engine with undo support
+ * and per-move telemetry (M1 v0.5).
  *
  * State management:
  * - `game` is the current GameState snapshot (immutable)
@@ -11,21 +12,39 @@
  * we store the full prior GameState. At N=1 and 52 cards per snapshot the
  * memory cost is negligible and the undo logic is trivially correct.
  *
+ * Telemetry (M1 v0.5):
+ * - `lastRenderTime` ref tracks when the last state became visible to the
+ *   patient. It is updated synchronously after each dispatch (useReducer
+ *   is synchronous) so the next move's decision_time_ms measures from the
+ *   correct baseline.
+ * - `recordMoveMade()` is called after each action that modifies game state.
+ *   Undo counts as a move (was_undo=true). Invalid moves return a state
+ *   with higher errorCount — we detect validity by comparing errorCount.
+ *
  * @decision DEC-GAMES-001
  * @title useSolitaire wraps the pure engine — no game logic in this file
  * @status accepted
  * @rationale Separation of engine (pure functions) from hook (React state)
  *   keeps the engine fully unit-testable without React. The hook owns only
- *   the history stack and action dispatch.
+ *   the history stack, action dispatch, and telemetry coordination.
+ *
+ * @decision DEC-GAMES-007
+ * @title decision_time_ms measured from last render commit
+ * @status accepted
+ * @rationale lastRenderTime is set to Date.now() after each dispatch so the
+ *   measurement matches when the patient saw the new game state.
  */
 
-import { useCallback, useReducer } from 'react'
+import { useCallback, useReducer, useRef } from 'react'
 import {
   applyMove,
   autoMoveToFoundation,
   drawFromStock,
+  getMoveType,
+  getMovedCardValue,
   newGame,
 } from './engine'
+import { recordMoveMade } from './telemetry'
 import type { CardSource, CardTarget, DeckStyle, GameState } from './types'
 
 // ---------------------------------------------------------------------------
@@ -153,18 +172,97 @@ export interface UseSolitaireReturn {
 export function useSolitaire(initialDeck: DeckStyle = 'corgi'): UseSolitaireReturn {
   const [state, dispatch] = useReducer(reducer, initialDeck, makeInitial)
 
+  /**
+   * Tracks when the last game state became visible to the patient.
+   * Set to Date.now() after every dispatch that produces a new game state.
+   * Initialized to Date.now() at hook mount (session start time baseline).
+   */
+  const lastRenderTime = useRef<number>(Date.now())
+
+  // Stable ref to current game state — used inside callbacks without
+  // causing them to re-create on every render (avoids stale closure issues).
+  const stateRef = useRef(state)
+  stateRef.current = state
+
   const deal = useCallback(() => dispatch({ type: 'DEAL' }), [])
-  const draw = useCallback(() => dispatch({ type: 'DRAW' }), [])
+
+  const draw = useCallback(() => {
+    const prevGame = stateRef.current.game
+    const decisionTimeMs = Date.now() - lastRenderTime.current
+    dispatch({ type: 'DRAW' })
+    lastRenderTime.current = Date.now()
+
+    // Determine if this was a recycle (stock was empty → talon recycled)
+    const wasRecycle = prevGame.stock.cards.length === 0
+    void recordMoveMade({
+      moveType: wasRecycle ? 'recycle' : 'stock-flip',
+      wasValid: true,
+      wasUndo: false,
+      decisionTimeMs,
+      cardValue: null,
+    })
+  }, [])
+
   const move = useCallback(
-    (source: CardSource, target: CardTarget) =>
-      dispatch({ type: 'MOVE', source, target }),
+    (source: CardSource, target: CardTarget) => {
+      const prevGame = stateRef.current.game
+      const decisionTimeMs = Date.now() - lastRenderTime.current
+      const cardValue = getMovedCardValue(prevGame, source)
+      dispatch({ type: 'MOVE', source, target })
+      lastRenderTime.current = Date.now()
+
+      // Detect validity: applyMove returns state with higher errorCount for invalid moves
+      // We can't see the next state here synchronously after dispatch (useReducer is async
+      // in the sense that stateRef.current doesn't update until next render). Instead,
+      // we call applyMove speculatively just to check legality — same args, no side effects.
+      const specNext = applyMove(prevGame, source, target)
+      const wasValid = specNext !== null && specNext.errorCount === prevGame.errorCount
+      void recordMoveMade({
+        moveType: getMoveType(source, target),
+        wasValid,
+        wasUndo: false,
+        decisionTimeMs,
+        cardValue,
+      })
+    },
     [],
   )
+
   const autoMove = useCallback(
-    (source: CardSource) => dispatch({ type: 'AUTO_MOVE', source }),
+    (source: CardSource) => {
+      const prevGame = stateRef.current.game
+      const decisionTimeMs = Date.now() - lastRenderTime.current
+      const cardValue = getMovedCardValue(prevGame, source)
+      dispatch({ type: 'AUTO_MOVE', source })
+      lastRenderTime.current = Date.now()
+
+      // autoMove always targets foundation — infer target from card suit
+      const target: CardTarget = { type: 'foundation', pileIndex: 0 }
+      void recordMoveMade({
+        moveType: getMoveType(source, target),
+        wasValid: true,  // AUTO_MOVE is only dispatched when legal
+        wasUndo: false,
+        decisionTimeMs,
+        cardValue,
+      })
+    },
     [],
   )
-  const undo = useCallback(() => dispatch({ type: 'UNDO' }), [])
+
+  const undo = useCallback(() => {
+    const decisionTimeMs = Date.now() - lastRenderTime.current
+    dispatch({ type: 'UNDO' })
+    lastRenderTime.current = Date.now()
+
+    void recordMoveMade({
+      moveType: 'invalid',  // undo has no source/target — type is informational
+      wasValid: true,
+      wasUndo: true,
+      decisionTimeMs,
+      cardValue: null,
+    })
+  }, [])
+
   const setDeckStyle = useCallback(
     (style: DeckStyle) => dispatch({ type: 'SET_DECK', style }),
     [],

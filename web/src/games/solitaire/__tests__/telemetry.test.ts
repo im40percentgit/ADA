@@ -17,6 +17,9 @@ import {
   startSession,
   endSession,
   recordHandCompleted,
+  recordMoveMade,
+  incrementRestartCount,
+  getRestartCountToday,
   resetIdle,
   computeStreak,
   dateDiffDays,
@@ -363,5 +366,211 @@ describe('computeStreak()', () => {
     computeStreak()  // sets today
     const result = computeStreak()
     expect(result.currentDays).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// recordMoveMade (M1 v0.5)
+// ---------------------------------------------------------------------------
+
+describe('recordMoveMade()', () => {
+  it('POSTs game.move_made with correct shape', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    await recordMoveMade({
+      moveType: 'tableau-to-foundation',
+      wasValid: true,
+      wasUndo: false,
+      decisionTimeMs: 1500,
+      cardValue: 1,
+    })
+
+    const calls = callsOfType('game.move_made')
+    expect(calls).toHaveLength(1)
+    const payload = calls[0].body.payload
+    expect(payload.move_type).toBe('tableau-to-foundation')
+    expect(payload.was_valid).toBe(true)
+    expect(payload.was_undo).toBe(false)
+    expect(payload.decision_time_ms).toBe(1500)
+    expect(payload.card_value).toBe(1)
+    expect(payload.game_session_id).toMatch(/^gs-/)
+  })
+
+  it('move_index increments on successive moves', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 100, cardValue: null })
+    await recordMoveMade({ moveType: 'talon-to-tableau', wasValid: true, wasUndo: false, decisionTimeMs: 200, cardValue: 14 })
+    await recordMoveMade({ moveType: 'invalid', wasValid: false, wasUndo: false, decisionTimeMs: 300, cardValue: null })
+
+    const calls = callsOfType('game.move_made')
+    expect(calls).toHaveLength(3)
+    expect(calls[0].body.payload.move_index).toBe(0)
+    expect(calls[1].body.payload.move_index).toBe(1)
+    expect(calls[2].body.payload.move_index).toBe(2)
+  })
+
+  it('null card_value is preserved for stock-flip', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 50, cardValue: null })
+
+    const call = callsOfType('game.move_made')[0]
+    expect(call.body.payload.card_value).toBeNull()
+  })
+
+  it('is a no-op if no session is active', async () => {
+    await endSession('quit')
+    capturedCalls = []
+
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 0, cardValue: null })
+    expect(callsOfType('game.move_made')).toHaveLength(0)
+  })
+
+  it('session_end aggregates accumulate from recordMoveMade calls', async () => {
+    await startSession('corgi')
+    capturedCalls = []
+
+    // 3 moves: 1 undo, 1 invalid click, 1 normal
+    await recordMoveMade({ moveType: 'invalid', wasValid: false, wasUndo: true, decisionTimeMs: 100, cardValue: null })
+    await recordMoveMade({ moveType: 'invalid', wasValid: false, wasUndo: false, decisionTimeMs: 200, cardValue: null })
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 300, cardValue: null })
+
+    await endSession('quit')
+
+    const endCall = callsOfType('game.session_end')[0]
+    const p = endCall.body.payload
+    expect(p.total_moves).toBe(3)
+    expect(p.total_undo_count).toBe(1)
+    expect(p.total_invalid_click_count).toBe(2)
+    // total_idle_ms should be 0 — no gaps > 30s in immediate calls
+    expect(p.total_idle_ms).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// decision_time_ms measurement via fake timers
+// ---------------------------------------------------------------------------
+
+describe('decision_time_ms measurement', () => {
+  it('measures time between session start and first move', async () => {
+    vi.useFakeTimers()
+    mockFetch()
+
+    await startSession('corgi')
+    // Advance 2 seconds — simulates patient thinking before first move
+    vi.advanceTimersByTime(2000)
+
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 2000, cardValue: null })
+
+    const call = callsOfType('game.move_made')[0]
+    // The decisionTimeMs is passed in directly by the caller (useSolitaire hook)
+    expect(call.body.payload.decision_time_ms).toBe(2000)
+
+    vi.useRealTimers()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// total_idle_ms accumulation
+// ---------------------------------------------------------------------------
+
+describe('total_idle_ms in session_end', () => {
+  it('gaps under 30s do not accumulate in total_idle_ms', async () => {
+    vi.useFakeTimers()
+    mockFetch()
+
+    await startSession('corgi')
+    capturedCalls = []
+
+    // Move immediately (0ms gap)
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 10, cardValue: null })
+    // Advance 20s (under threshold)
+    vi.advanceTimersByTime(20000)
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 20000, cardValue: null })
+
+    await endSession('quit')
+
+    const endCall = callsOfType('game.session_end')[0]
+    expect(endCall.body.payload.total_idle_ms).toBe(0)
+
+    vi.useRealTimers()
+  })
+
+  it('gaps over 30s accumulate in total_idle_ms, capped at 5 min per gap', async () => {
+    vi.useFakeTimers()
+    mockFetch()
+
+    await startSession('corgi')
+    capturedCalls = []
+
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 10, cardValue: null })
+    // Advance 45s (over 30s threshold, under 5min cap)
+    vi.advanceTimersByTime(45000)
+    await recordMoveMade({ moveType: 'stock-flip', wasValid: true, wasUndo: false, decisionTimeMs: 45000, cardValue: null })
+
+    await endSession('quit')
+
+    const endCall = callsOfType('game.session_end')[0]
+    // Should have captured the 45s gap (above 30s threshold)
+    expect(endCall.body.payload.total_idle_ms).toBe(45000)
+
+    vi.useRealTimers()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// restart_count_today
+// ---------------------------------------------------------------------------
+
+describe('incrementRestartCount() / getRestartCountToday()', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('returns 0 before any restart', () => {
+    expect(getRestartCountToday()).toBe(0)
+  })
+
+  it('returns 1 after first incrementRestartCount()', () => {
+    incrementRestartCount()
+    expect(getRestartCountToday()).toBe(1)
+  })
+
+  it('increments on successive calls same day', () => {
+    incrementRestartCount()
+    incrementRestartCount()
+    incrementRestartCount()
+    expect(getRestartCountToday()).toBe(3)
+  })
+
+  it('resets to 1 when date changes', () => {
+    // Simulate prior day entry in localStorage
+    localStorage.setItem('ada.solitaire.restartCountDate', '2026-04-23')
+    localStorage.setItem('ada.solitaire.restartCountToday', '5')
+
+    // Call on a new day (today is 2026-04-24 per memory context)
+    vi.setSystemTime(new Date('2026-04-24T10:00:00'))
+    incrementRestartCount()
+
+    // Should reset to 1, not 6
+    expect(getRestartCountToday()).toBe(1)
+
+    vi.useRealTimers()
+  })
+
+  it('restart_count_today surfaces in session_end payload', async () => {
+    incrementRestartCount()
+    incrementRestartCount()
+
+    await startSession('corgi')
+    capturedCalls = []
+    await endSession('quit')
+
+    const endCall = callsOfType('game.session_end')[0]
+    expect(endCall.body.payload.restart_count_today).toBe(2)
   })
 })

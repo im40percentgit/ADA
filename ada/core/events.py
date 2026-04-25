@@ -127,6 +127,7 @@ class EventTypes:
     GAME_SESSION_END = "game.session_end"
     GAME_HAND_COMPLETED = "game.hand_completed"
     GAME_ENGAGEMENT_STREAK = "game.engagement_streak"
+    GAME_MOVE_MADE = "game.move_made"
 
 
 # ---------------------------------------------------------------------------
@@ -709,6 +710,10 @@ class GameSessionEndEvent(AdaEvent):
 
     Fires on: explicit quit, visibilitychange→hidden, or 5-minute idle.
 
+    M1 v0.5 adds five aggregate fields derived from per-move telemetry.
+    They are Optional so existing consumers that only set M1 v0 fields
+    remain valid — the JSON payload column absorbs all variants.
+
     @decision DEC-GAMES-004
     @title visibilitychange not beforeunload for session_end
     @status accepted
@@ -726,6 +731,12 @@ class GameSessionEndEvent(AdaEvent):
     error_count: int = 0
     end_reason: str = ""         # "quit" | "visibility" | "idle"
     deck: str = "corgi"
+    # M1 v0.5 per-move aggregates (optional — absent in M1 v0 events)
+    total_moves: int | None = None
+    total_undo_count: int | None = None
+    total_invalid_click_count: int | None = None
+    total_idle_ms: int | None = None
+    restart_count_today: int | None = None
 
 
 @dataclass
@@ -754,3 +765,41 @@ class GameEngagementStreakEvent(AdaEvent):
     patient_id: str = ""
     current_streak_days: int = 0
     broken_streak: bool = False
+
+
+@dataclass
+class GameMoveMadeEvent(AdaEvent):
+    """Published on every card interaction during a solitaire session.
+
+    Fires for both valid and invalid move attempts so the M3 verdict
+    generator can compute decision-time histograms and undo-spike density
+    from the raw per-move log rather than session-level aggregates alone.
+
+    @decision DEC-GAMES-006
+    @title move_made event captured per move, not per drag
+    @status accepted
+    @rationale A drag that returns to origin (cancelled) still counts as a
+        move attempt for the invalid-click signal — the patient deliberated
+        and then abandoned. Counting per-pointerdown/pointerup pair (one
+        event regardless of whether the drag completed) matches the cognitive
+        effort model better than only counting completed drops.
+
+    @decision DEC-GAMES-007
+    @title decision_time_ms measured from last render commit, not session start
+    @status accepted
+    @rationale The patient perceives "when did the new state become visible to
+        me" as the decision baseline, not when the session started. Using the
+        last render commit time (Date.now() after each state dispatch in
+        useSolitaire) matches user perception and avoids inflating the first
+        move's decision time with session setup latency.
+    """
+
+    event_type: str = EventTypes.GAME_MOVE_MADE
+    patient_id: str = ""
+    game_session_id: str = ""
+    move_index: int = 0           # 0-based within this session
+    move_type: str = ""           # see MoveType enum in telemetry.ts
+    was_valid: bool = True        # False for clicks that produce no legal move
+    was_undo: bool = False        # True if triggered via the Undo button
+    decision_time_ms: int = 0     # time since last render commit (ms)
+    card_value: int | None = None  # 1–52; None for non-card moves (stock-flip, recycle)
