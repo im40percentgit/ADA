@@ -147,8 +147,9 @@ async def set_llm_mode(
     Side effects:
     1. Writes mode to system_settings table (survives restart).
     2. Rebuilds ModelRouter with the new mode.
-    3. Atomically replaces the router on AgentRegistry so the next
-       get_provider() call uses the new routing rules.
+    3. Calls registry.refresh_providers() which replaces _router AND
+       re-resolves _llm on every already-registered agent so running
+       agents use the new provider on their next call (DEC-LLM-009).
 
     In-flight LLM calls finish on the old provider — this is intentional
     and documented in DEC-LLM-005.
@@ -159,16 +160,14 @@ async def set_llm_mode(
     await state.set_system_setting("llm_mode", new_mode)
     logger.info("admin_settings: llm_mode -> %s (set by user_id=%s)", new_mode, current_user.id)
 
-    # Hot-swap router: build new router with the updated mode, then swap
-    # the reference on the registry. In-flight calls hold a reference to the
-    # old provider and complete normally; new calls go through the new router.
+    # Hot-swap: build new router, then update the registry + all running agents.
+    # refresh_providers() atomically replaces registry._router AND re-resolves
+    # _llm on each registered agent so the mode change affects in-flight chat
+    # sessions, not just future agent registrations. (DEC-LLM-009)
     registry = _registry(request)
     new_router = create_model_router(config, db_mode=new_mode)
-    # AgentRegistry stores the router as _router. Atomic replacement: in-flight
-    # calls hold a reference to the old provider and complete normally; new
-    # get_provider() calls go through the new router. (DEC-LLM-005)
-    registry._router = new_router
-    logger.info("admin_settings: router hot-swapped to mode=%s", new_mode)
+    registry.refresh_providers(new_router)
+    logger.info("admin_settings: router + agents hot-swapped to mode=%s", new_mode)
 
     applied_at = datetime.now(timezone.utc).isoformat()
     return LLMModeUpdateResponse(mode=new_mode, applied_at=applied_at)
