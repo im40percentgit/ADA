@@ -336,3 +336,57 @@ class TestEffectiveAgentMapping:
         assert mapping.get("crisis_monitor") == "opus_tier"
         assert mapping.get("wellness_companion") == "sonnet_tier"
         assert mapping.get("tts") == "haiku_tier"
+
+    @pytest.mark.asyncio
+    async def test_get_reflects_agent_mapping_after_put_hot_swap(self, state):
+        """PUT then GET on the SAME app instance must show the new agent_mapping.
+
+        Regression guard for the hot-swap bug: the tester observed that after
+        PUT mode=offline, subsequent GET returned mode="offline" correctly but
+        agent_mapping still showed the dual/claude tiers. This test exercises
+        the exact PUT→GET path on one TestClient (same app.state.registry),
+        catching any stale-reference or caching bug in the hot-swap path.
+        """
+        # Start in dual mode so mappings are mixed-tier
+        app = _build_app_with_real_router(state, mode="dual")
+        with TestClient(app, raise_server_exceptions=True) as client:
+            # Baseline: dual mode has mixed tiers
+            get1 = client.get("/api/admin/settings/llm-mode")
+            assert get1.status_code == 200
+            dual_mapping = get1.json()["agent_mapping"]
+            # crisis_monitor should be opus_tier in dual mode (from TOML)
+            assert dual_mapping.get("crisis_monitor") == "opus_tier", (
+                f"Baseline failed: crisis_monitor={dual_mapping.get('crisis_monitor')!r}"
+            )
+
+            # Switch to offline — should collapse all agents to offline_tier
+            put_resp = client.put("/api/admin/settings/llm-mode", json={"mode": "offline"})
+            assert put_resp.status_code == 200
+
+            # GET on same client instance must now reflect offline mapping
+            get2 = client.get("/api/admin/settings/llm-mode")
+            assert get2.status_code == 200
+            data2 = get2.json()
+            assert data2["mode"] == "offline", f"mode not updated: {data2['mode']!r}"
+            offline_mapping = data2["agent_mapping"]
+            for agent, profile in offline_mapping.items():
+                assert profile == "offline_tier", (
+                    f"After PUT offline: agent {agent!r} still maps to {profile!r} "
+                    f"(expected offline_tier) — hot-swap did not propagate to GET"
+                )
+
+            # Switch to claude — should collapse all agents to claude tiers
+            put_resp2 = client.put("/api/admin/settings/llm-mode", json={"mode": "claude"})
+            assert put_resp2.status_code == 200
+
+            get3 = client.get("/api/admin/settings/llm-mode")
+            assert get3.status_code == 200
+            data3 = get3.json()
+            assert data3["mode"] == "claude", f"mode not updated: {data3['mode']!r}"
+            claude_mapping = data3["agent_mapping"]
+            claude_tiers = {"opus_tier", "sonnet_tier", "haiku_tier"}
+            for agent, profile in claude_mapping.items():
+                assert profile in claude_tiers, (
+                    f"After PUT claude: agent {agent!r} maps to {profile!r} "
+                    f"(expected claude tier) — hot-swap did not propagate to GET"
+                )
