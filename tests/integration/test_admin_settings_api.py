@@ -40,7 +40,7 @@ from ada.core.config import (
 )
 from ada.core.state import StateManager
 from ada.llm.base import LLMProvider, LLMResponse
-from ada.llm.router import make_null_router
+from ada.llm.router import make_null_router, create_model_router
 from ada.models.user import User
 
 
@@ -123,6 +123,24 @@ def _build_app(state: StateManager, mode: str = "dual"):
     return app
 
 
+def _build_app_with_real_router(state: StateManager, mode: str = "dual"):
+    """Build a FastAPI app using a real mode-aware ModelRouter (DEC-LLM-008).
+
+    Used by tests that assert the GET endpoint returns the *effective*
+    agent_mapping rather than the static TOML mapping, which differs per mode.
+    The router is built via create_model_router() so the builder helpers
+    (_build_claude_only_router etc.) populate _agent_mapping correctly.
+    """
+    config = _make_three_tier_config(mode=mode)
+    bus = EventBus()
+    real_router = create_model_router(config)
+    registry = AgentRegistry(bus, config, state, real_router)
+
+    app = create_app(config, bus, state, registry)
+    app.dependency_overrides[get_current_user] = lambda: _CAREGIVER
+    return app
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -162,7 +180,9 @@ class TestGetLLMMode:
 
     @pytest.mark.asyncio
     async def test_profiles_contains_three_tiers(self, state):
-        with TestClient(_build_app(state), raise_server_exceptions=True) as client:
+        # Must use real router so the live router's provider_names reflect the
+        # three Claude tiers (DEC-LLM-008: GET now reads from live router, not TOML).
+        with TestClient(_build_app_with_real_router(state, mode="dual"), raise_server_exceptions=True) as client:
             resp = client.get("/api/admin/settings/llm-mode")
         profiles = resp.json()["profiles"]
         assert "opus_tier" in profiles
@@ -232,3 +252,87 @@ class TestPutLLMMode:
             client.put("/api/admin/settings/llm-mode", json={"mode": "dual"})
         stored = await state.get_system_setting("llm_mode")
         assert stored == "dual"
+
+
+# ---------------------------------------------------------------------------
+# Tests: effective agent_mapping differs across modes (DEC-LLM-008)
+# ---------------------------------------------------------------------------
+
+class TestEffectiveAgentMapping:
+    """Assert that GET /llm-mode returns the live router mapping, not static TOML.
+
+    In claude mode every agent must map to a claude tier (opus/sonnet/haiku).
+    In offline mode every agent must map to offline_tier.
+    In dual mode the TOML mapping is honoured (mixed tiers).
+
+    These tests use _build_app_with_real_router() so the registry holds a
+    real mode-aware ModelRouter whose _agent_mapping has been rebuilt by
+    the mode-specific builder helper.
+    """
+
+    @pytest.mark.asyncio
+    async def test_claude_mode_all_agents_map_to_claude_tiers(self, state):
+        with TestClient(
+            _build_app_with_real_router(state, mode="claude"),
+            raise_server_exceptions=True,
+        ) as client:
+            resp = client.get("/api/admin/settings/llm-mode")
+        assert resp.status_code == 200
+        mapping = resp.json()["agent_mapping"]
+        claude_tiers = {"opus_tier", "sonnet_tier", "haiku_tier"}
+        for agent, profile in mapping.items():
+            assert profile in claude_tiers, (
+                f"Agent {agent!r} mapped to {profile!r} in claude mode — expected claude tier"
+            )
+
+    @pytest.mark.asyncio
+    async def test_offline_mode_all_agents_map_to_offline_tier(self, state):
+        with TestClient(
+            _build_app_with_real_router(state, mode="offline"),
+            raise_server_exceptions=True,
+        ) as client:
+            resp = client.get("/api/admin/settings/llm-mode")
+        assert resp.status_code == 200
+        mapping = resp.json()["agent_mapping"]
+        assert len(mapping) > 0, "offline mode must produce a non-empty agent_mapping"
+        for agent, profile in mapping.items():
+            assert profile == "offline_tier", (
+                f"Agent {agent!r} mapped to {profile!r} in offline mode — expected offline_tier"
+            )
+
+    @pytest.mark.asyncio
+    async def test_claude_and_offline_mappings_differ(self, state):
+        """The effective mapping for claude mode must differ from offline mode."""
+        with TestClient(
+            _build_app_with_real_router(state, mode="claude"),
+            raise_server_exceptions=True,
+        ) as client:
+            claude_resp = client.get("/api/admin/settings/llm-mode")
+        with TestClient(
+            _build_app_with_real_router(state, mode="offline"),
+            raise_server_exceptions=True,
+        ) as client:
+            offline_resp = client.get("/api/admin/settings/llm-mode")
+
+        claude_mapping = claude_resp.json()["agent_mapping"]
+        offline_mapping = offline_resp.json()["agent_mapping"]
+        # At least one agent must differ between the two modes
+        assert claude_mapping != offline_mapping, (
+            "claude and offline modes returned identical agent_mapping — "
+            "endpoint is returning static TOML instead of effective router mapping"
+        )
+
+    @pytest.mark.asyncio
+    async def test_dual_mode_honors_toml_tiers(self, state):
+        """Dual mode preserves the per-agent TOML mapping (mixed tiers)."""
+        with TestClient(
+            _build_app_with_real_router(state, mode="dual"),
+            raise_server_exceptions=True,
+        ) as client:
+            resp = client.get("/api/admin/settings/llm-mode")
+        assert resp.status_code == 200
+        mapping = resp.json()["agent_mapping"]
+        # The test config assigns these explicitly — check they survive dual mode
+        assert mapping.get("crisis_monitor") == "opus_tier"
+        assert mapping.get("wellness_companion") == "sonnet_tier"
+        assert mapping.get("tts") == "haiku_tier"
