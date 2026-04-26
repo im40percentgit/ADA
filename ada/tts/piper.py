@@ -21,54 +21,89 @@ from ada.tts.base import TTSAudioChunk, TTSProvider
 
 logger = logging.getLogger(__name__)
 
-_piper_voice = None
+DEFAULT_PIPER_MODEL = "data/voices/piper/en_US-lessac-medium.onnx"
+
+_piper_voices: dict[tuple[str, str | None], object] = {}
 _piper_lock = threading.Lock()
+
+
+def _repo_root() -> Path:
+    """Return the repository root for local Piper voice lookup."""
+    return Path(__file__).resolve().parents[2]
+
+
+def _resolve_model_path(model_path: str | None = None) -> Path:
+    """Resolve Piper voice model path independent of cwd."""
+    raw = Path(model_path or DEFAULT_PIPER_MODEL).expanduser()
+    candidates = [raw]
+    if not raw.is_absolute():
+        candidates.insert(0, _repo_root() / raw)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return candidates[0].resolve()
+
+
+def _resolve_config_path(model_path: Path) -> Path | None:
+    """Return the companion Piper JSON config path when it exists."""
+    candidates = [
+        Path(str(model_path) + ".json"),
+        model_path.with_suffix(".onnx.json"),
+        model_path.with_suffix(".json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return None
 
 
 def _get_piper_voice(model_path: str | None = None):
     """Lazy-load Piper voice (thread-safe singleton)."""
-    global _piper_voice
-    if _piper_voice is not None:
-        return _piper_voice
+    resolved_model = _resolve_model_path(model_path)
+    resolved_config = _resolve_config_path(resolved_model)
+    cache_key = (str(resolved_model), str(resolved_config) if resolved_config else None)
+    if cache_key in _piper_voices:
+        return _piper_voices[cache_key]
+
     with _piper_lock:
-        if _piper_voice is not None:
-            return _piper_voice
+        if cache_key in _piper_voices:
+            return _piper_voices[cache_key]
         try:
             from piper import PiperVoice
 
-            if model_path:
-                _piper_voice = PiperVoice.load(model_path)
-            else:
-                # Default: will be downloaded on first use
-                _piper_voice = PiperVoice.load("en_US-lessac-medium")
-            logger.info("Piper voice loaded: %s", model_path or "en_US-lessac-medium")
+            if not resolved_model.exists():
+                raise FileNotFoundError(f"Piper model not found: {resolved_model}")
+            if resolved_config is None:
+                raise FileNotFoundError(
+                    "Piper voice config not found. Expected "
+                    f"{resolved_model}.json next to the model."
+                )
+
+            voice = PiperVoice.load(resolved_model, config_path=resolved_config)
+            _piper_voices[cache_key] = voice
+            logger.info("Piper voice loaded: %s", resolved_model)
         except ImportError:
             logger.error("piper-tts not installed. Install with: pip install piper-tts")
             raise
-    return _piper_voice
+    return _piper_voices[cache_key]
 
 
 def _synthesize_blocking(text: str, model_path: str | None = None) -> TTSAudioChunk:
     """Blocking synthesis — call via asyncio.to_thread()."""
-    import io
-    import wave
-
     voice = _get_piper_voice(model_path)
 
-    # Piper synthesize writes WAV to a file-like object
-    audio_buffer = io.BytesIO()
-    with wave.open(audio_buffer, "wb") as wav_file:
-        voice.synthesize(text, wav_file)
+    chunks = list(voice.synthesize(text))
+    if not chunks:
+        return TTSAudioChunk(audio_bytes=b"")
 
-    wav_bytes = audio_buffer.getvalue()
-    # Extract PCM from WAV (skip 44-byte header)
-    pcm_bytes = wav_bytes[44:] if len(wav_bytes) > 44 else wav_bytes
-
+    pcm_bytes = b"".join(chunk.audio_int16_bytes for chunk in chunks)
+    first = chunks[0]
     return TTSAudioChunk(
         audio_bytes=pcm_bytes,
-        sample_rate=voice.config.sample_rate,
-        channels=1,
-        sample_width=2,
+        sample_rate=first.sample_rate,
+        channels=first.sample_channels,
+        sample_width=first.sample_width,
         format="pcm",
     )
 
@@ -86,10 +121,11 @@ class PiperProvider(TTSProvider):
         return await asyncio.to_thread(_synthesize_blocking, text, self._model_path)
 
     async def is_available(self) -> bool:
-        """Check if piper-tts is importable."""
+        """Check if piper-tts and the configured local voice files are available."""
         try:
             import piper  # noqa: F401
 
-            return True
+            model_path = _resolve_model_path(self._model_path)
+            return model_path.exists() and _resolve_config_path(model_path) is not None
         except ImportError:
             return False

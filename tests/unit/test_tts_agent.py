@@ -17,7 +17,7 @@ voice session management, sentence splitting, and error resilience.
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
@@ -33,7 +33,6 @@ from ada.core.events import (
 from ada.core.state import StateManager
 from ada.llm.base import LLMProvider, LLMResponse
 from ada.tts.base import TTSAudioChunk, TTSProvider
-
 
 # ---------------------------------------------------------------------------
 # MockLLMProvider (required by BaseAgent.initialize)

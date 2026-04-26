@@ -7,8 +7,6 @@ fragment merge, empty input, unicode text, ellipsis handling, and edge cases.
 
 from __future__ import annotations
 
-import pytest
-
 from ada.tts.sentence_splitter import split_sentences
 
 

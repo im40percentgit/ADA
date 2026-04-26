@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import struct
 
-import pytest
-
 from ada.tts.encoding import pcm_to_wav
 
 

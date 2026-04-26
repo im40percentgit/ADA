@@ -31,32 +31,31 @@ from pathlib import Path
 import structlog
 import uvicorn
 
+from ada.agents.board_suggestion import BoardSuggestionAgent
 from ada.agents.cognitive_assessor import CognitiveAssessorAgent
-from ada.agents.emotion_analyzer import EmotionAnalyzerAgent
 from ada.agents.crisis_monitor import CrisisMonitorAgent
+from ada.agents.daily_summary_generator import DailySummaryGenerator
+from ada.agents.emotion_analyzer import EmotionAnalyzerAgent
 from ada.agents.facial_emotion import FacialEmotionAgent
+from ada.agents.fusion import MultimodalFusionAgent
 from ada.agents.knowledge_agent import KnowledgeAgent
 from ada.agents.medication_manager import MedicationManagerAgent
-from ada.agents.fusion import MultimodalFusionAgent
 from ada.agents.physiological import PhysiologicalAgent
 from ada.agents.registry import AgentRegistry
-from ada.agents.daily_summary_generator import DailySummaryGenerator
-from ada.agents.board_suggestion import BoardSuggestionAgent
-from ada.notifications.dispatcher import NotificationDispatcher
 from ada.agents.session_summarizer import SessionSummarizer
-from ada.agents.treatment_progress import TreatmentProgressTracker
-from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.agents.transcription import TranscriptionAgent
-
+from ada.agents.treatment_progress import TreatmentProgressTracker
 from ada.agents.tts_agent import TTSAgent
 from ada.agents.voice_emotion import VoiceEmotionAgent
-from ada.knowledge.clinical_kb import ClinicalKnowledgeBase
-from ada.tts.factory import create_tts_provider
+from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.api.app import create_app
 from ada.core.bus import EventBus
 from ada.core.config import AdaConfig
 from ada.core.state import StateManager
-from ada.llm.router import ModelRouter, create_model_router
+from ada.knowledge.clinical_kb import ClinicalKnowledgeBase
+from ada.llm.router import create_model_router
+from ada.notifications.dispatcher import NotificationDispatcher
+from ada.tts.factory import create_tts_provider
 
 
 def configure_logging(config: AdaConfig) -> None:
@@ -125,7 +124,11 @@ async def run(config: AdaConfig) -> None:
     if db_mode and db_mode != config.llm.mode:
         log.info("Model router: DB override llm_mode=%s (config had %s)", db_mode, config.llm.mode)
     router = create_model_router(config, db_mode=db_mode)
-    log.info("Model router created", profiles=router.provider_names, mode=db_mode or config.llm.mode)
+    log.info(
+        "Model router created",
+        profiles=router.provider_names,
+        mode=db_mode or config.llm.mode,
+    )
 
     # Health check: warn if local LLM server is unreachable
     if config.llm.provider == "openai_compat":
@@ -204,12 +207,16 @@ async def run(config: AdaConfig) -> None:
             provider=config.tts.provider,
             model_path=config.tts.voice_model or None,
             voice_id=_voice_id,
+            fallback_provider=config.tts.fallback_provider or None,
+            fallback_model_path=config.tts.fallback_voice_model or None,
         )
         tts_agent = TTSAgent(tts_provider=tts_provider)
         registry.register(tts_agent)
         log.info(
             "TTSAgent registered",
             provider=config.tts.provider,
+            fallback_provider=config.tts.fallback_provider or None,
+            fallback_voice_model=config.tts.fallback_voice_model or None,
             voice_pref=_default_voice_pref,
             voice_id=_voice_id,
         )
@@ -234,10 +241,10 @@ async def run(config: AdaConfig) -> None:
             log.info("KnowledgeAgent: clinical KB injected")
 
     # Infrastructure subscribers (not registry-managed)
-    summarizer = SessionSummarizer(bus, state, router.get_provider("session_summarizer"))
+    _summarizer = SessionSummarizer(bus, state, router.get_provider("session_summarizer"))
     log.info("SessionSummarizer instantiated")
 
-    treatment_progress_tracker = TreatmentProgressTracker(bus, state)
+    _treatment_progress_tracker = TreatmentProgressTracker(bus, state)
     log.info("TreatmentProgressTracker instantiated")
 
     daily_summary_generator: DailySummaryGenerator | None = None
