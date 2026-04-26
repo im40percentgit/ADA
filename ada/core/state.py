@@ -636,6 +636,12 @@ CREATE INDEX IF NOT EXISTS idx_daily_verdicts_patient_date
   ON daily_verdicts(patient_id, verdict_date);
 CREATE INDEX IF NOT EXISTS idx_daily_verdicts_unlabeled
   ON daily_verdicts(patient_id, labeled_truth) WHERE labeled_truth IS NULL;
+
+CREATE TABLE IF NOT EXISTS system_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -744,6 +750,35 @@ class StateManager:
                    VALUES (?, ?, ?, 'primary_caregiver', ?)""",
                 (member_id, circle_id, caregiver_user_id, _now()),
             )
+
+    # ------------------------------------------------------------------
+    # System settings (k/v store for runtime-mutable config)
+    # ------------------------------------------------------------------
+
+    async def get_system_setting(self, key: str) -> str | None:
+        """Read a value from the system_settings table.
+
+        Returns None if the key does not exist.
+        """
+        row = await self._fetchone(
+            "SELECT value FROM system_settings WHERE key = ?", (key,)
+        )
+        return row["value"] if row else None
+
+    async def set_system_setting(self, key: str, value: str) -> None:
+        """Insert or update a system_settings row (upsert).
+
+        updated_at is refreshed on every write so callers can audit
+        when a setting last changed.
+        """
+        await self._exec(
+            """INSERT INTO system_settings (key, value, updated_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(key) DO UPDATE SET
+                 value = excluded.value,
+                 updated_at = excluded.updated_at""",
+            (key, value, _now()),
+        )
 
     # ------------------------------------------------------------------
     # Patients

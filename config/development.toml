@@ -53,7 +53,7 @@ fusion_enabled = true
 stt_enabled = true
 
 [stt]
-model_size = "large-v3"
+model_size = "large-v3-turbo"
 language = "en"
 compute_type = "float16"
 min_confidence = 0.4

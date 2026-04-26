@@ -1,6 +1,7 @@
 [llm]
 provider = "claude"
-model = "claude-sonnet-4-5-20250514"
+mode = "dual"
+model = "claude-sonnet-4-6"
 max_tokens = 1024
 temperature = 0.7
 
@@ -11,6 +12,21 @@ api_key_env = "ANTHROPIC_API_KEY"
 base_url = "http://localhost:8080/v1"
 api_key_env = "OPENAI_API_KEY"
 model = "local-model"
+
+[stt]
+model_size = "large-v3-turbo"
+language = "en"
+compute_type = "int8"
+min_confidence = 0.4
+vad_filter = false
+vad_threshold = 0.5
+
+[tts]
+enabled = false
+provider = "kokoro"
+voice_model = ""
+sample_rate = 24000
+sentence_streaming = true
 
 [agents.wellness_companion]
 enabled = true
@@ -75,13 +91,6 @@ fusion_enabled = true
 fusion_staleness_half_life = 10.0
 fusion_min_weight = 0.01
 
-[tts]
-enabled = false
-provider = "piper"
-voice_model = ""
-sample_rate = 22050
-sentence_streaming = true
-
 [rate_limit]
 enabled = true
 auth_requests_per_minute = 10
@@ -98,28 +107,60 @@ cors_allow_headers = ["Authorization", "Content-Type", "X-Request-ID", "X-Sessio
 cache_ttl_seconds = 3600
 
 [model_routing]
-default_profile = "conversational"
+default_profile = "sonnet_tier"
 
-[model_routing.profiles.conversational]
+[model_routing.profiles.opus_tier]
 provider = "claude"
-model = "claude-sonnet-4-5-20250514"
+model = "claude-opus-4-7"
+max_tokens = 2048
+temperature = 0.3
+api_key_env = "ANTHROPIC_API_KEY"
+prompt_cache_system = true
+
+[model_routing.profiles.sonnet_tier]
+provider = "claude"
+model = "claude-sonnet-4-6"
 max_tokens = 1024
 temperature = 0.7
 api_key_env = "ANTHROPIC_API_KEY"
 
-[model_routing.profiles.reasoning]
-provider = "openai_compat"
-model = "deepseek-r1-distill-qwen3-8b"
-base_url = "http://localhost:8081/v1"
-max_tokens = 2048
-temperature = 0.3
-
-[model_routing.profiles.lightweight]
-provider = "openai_compat"
-model = "deepseek-r1-distill-qwen3-8b"
-base_url = "http://localhost:8081/v1"
+[model_routing.profiles.haiku_tier]
+provider = "claude"
+model = "claude-haiku-4-5-20251001"
 max_tokens = 512
-temperature = 0.2
+temperature = 0.4
+api_key_env = "ANTHROPIC_API_KEY"
+
+[model_routing.profiles.offline_tier]
+provider = "openai_compat"
+model = "local-model"
+base_url = "http://localhost:8080/v1"
+max_tokens = 2048
+temperature = 0.7
+
+[model_routing.agent_mapping]
+# Opus tier — clinical reasoning (high accuracy, low volume)
+cognitive_assessor   = "opus_tier"
+crisis_monitor       = "opus_tier"
+fusion               = "opus_tier"
+session_summarizer   = "opus_tier"
+# Sonnet tier — warm conversational + summaries
+wellness_companion   = "sonnet_tier"
+knowledge_agent      = "sonnet_tier"
+daily_summary        = "sonnet_tier"
+board_suggestion     = "sonnet_tier"
+progress_report      = "sonnet_tier"
+treatment_progress   = "sonnet_tier"
+medication_manager   = "sonnet_tier"
+# Haiku tier — high-volume, low-stakes
+tts                  = "haiku_tier"
+task_scoring         = "haiku_tier"
+voice_emotion        = "haiku_tier"
+facial_emotion       = "haiku_tier"
+transcription        = "haiku_tier"
+verdict              = "haiku_tier"
+emotion_analyzer     = "haiku_tier"
+physiological        = "haiku_tier"
 
 [companion]
 default_name = "Ada"
@@ -135,15 +176,6 @@ vapid_email = "mailto:admin@ada.local"
 failure_threshold = 5
 failure_window_seconds = 60
 recovery_timeout_seconds = 120
-
-[model_routing.agent_mapping]
-wellness_companion = "conversational"
-crisis_monitor = "reasoning"
-emotion_analyzer = "conversational"
-cognitive_assessor = "reasoning"
-medication_manager = "reasoning"
-knowledge = "lightweight"
-session_summarizer = "conversational"
 
 [retention]
 session_data_days = 365

@@ -120,8 +120,12 @@ async def run(config: AdaConfig) -> None:
     log.info("EventBus started")
 
     # Model router (per-agent LLM provider resolution)
-    router = create_model_router(config)
-    log.info("Model router created", profiles=router.provider_names)
+    # Load system_settings override first so the router starts in the persisted mode.
+    db_mode = await state.get_system_setting("llm_mode")
+    if db_mode and db_mode != config.llm.mode:
+        log.info("Model router: DB override llm_mode=%s (config had %s)", db_mode, config.llm.mode)
+    router = create_model_router(config, db_mode=db_mode)
+    log.info("Model router created", profiles=router.provider_names, mode=db_mode or config.llm.mode)
 
     # Health check: warn if local LLM server is unreachable
     if config.llm.provider == "openai_compat":
@@ -229,7 +233,7 @@ async def run(config: AdaConfig) -> None:
         daily_summary_generator = DailySummaryGenerator(
             bus,
             state,
-            router.get_provider("session_summarizer"),
+            router.get_provider("daily_summary"),
             debounce_seconds=config.agents.daily_summary.debounce_seconds,
         )
         log.info(

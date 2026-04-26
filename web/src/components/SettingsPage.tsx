@@ -57,6 +57,7 @@ import {
   inviteOrgMember,
   removeOrgMember,
 } from '../api/client'
+import { AISettingsCard } from './AISettingsCard'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -518,6 +519,9 @@ export function SettingsPage({ email, patientId, onNavigate }: SettingsPageProps
           </div>
         </fieldset>
       </Card>
+
+      {/* ── AI Mode Section ──────────────────────────────────── */}
+      <AISettingsCard />
 
       {/* ── Account Section ───────────────────────────────────── */}
       <Card>
