@@ -94,6 +94,16 @@ LAN_HTTP_ONLY=1 ./scripts/lan-dev.sh      # skip mkcert (Tailscale path)
 LAN_IP=100.x.x.x ./scripts/lan-dev.sh    # explicit IP
 ```
 
+**Need real-cert HTTPS on iOS/Android without mkcert?** Use Tailscale Serve instead:
+
+```bash
+./scripts/tailscale-serve.sh
+```
+
+This exposes Ada at `https://<machine>.<tailnet>.ts.net` with a real Let's Encrypt cert
+trusted by iOS and Android by default — no profile install or trust toggle required.
+Every test device must have Tailscale connected. First-time setup: `sudo tailscale cert <hostname>`.
+
 ## Tests
 
 ```bash
