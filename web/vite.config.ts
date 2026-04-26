@@ -13,6 +13,22 @@ import fs from 'node:fs'
 //   env vars mean plain HTTP (default dev flow unaffected). @types/node is
 //   intentionally not added as a dev dep — only this file needs Node globals,
 //   and ts-expect-error on two lines is cheaper than a new dependency.
+
+// @decision DEC-PWA-009
+// @title Vite allowedHosts permits Tailscale tailnet hostnames via suffix wildcard
+// @status accepted
+// @rationale Vite 5+ defaults allowedHosts to localhost-only and rejects any
+//   other hostname with "Blocked request. This host (...) is not allowed."
+//   tailscale-serve.sh proxies TLS through Tailscale's MagicDNS (e.g.
+//   r.tailee0c77.ts.net), so requests arrive with a real tailnet hostname that
+//   Vite would otherwise block. Setting allowedHosts to [".ts.net", "localhost"]
+//   uses Vite's leading-dot suffix wildcard — it matches any subdomain of ts.net
+//   without hardcoding an individual developer's tailnet name. This is safe
+//   against DNS-rebinding because ts.net is owned by Tailscale; an attacker
+//   would need to control Tailscale's DNS to abuse this. localhost is re-listed
+//   explicitly because Vite's default-allow-localhost only applies when
+//   allowedHosts is completely unset — once the array is set, it becomes the
+//   entire allowlist.
 // @ts-expect-error — process is a Node global
 const httpsCertPath: string | undefined = process.env.VITE_HTTPS_CERT
 // @ts-expect-error — process is a Node global
@@ -49,6 +65,7 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    allowedHosts: ['.ts.net', 'localhost'],
     ...(httpsConfig ? { https: httpsConfig } : {}),
     proxy: {
       '/api': {
