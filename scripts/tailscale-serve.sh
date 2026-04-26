@@ -21,7 +21,7 @@
 #   3. Sets CORS env vars so the backend accepts requests from that hostname
 #   4. Starts Ada backend bound to 0.0.0.0 on port 8000
 #   5. Starts Vite frontend bound to 0.0.0.0 on port 5173 (plain HTTP — Tailscale handles TLS)
-#   6. Runs `tailscale serve --bg https / http://localhost:5173` for real-cert HTTPS
+#   6. Runs `tailscale serve --bg http://localhost:5173` for real-cert HTTPS
 #   7. Prints the access URL and optional QR code
 #
 # Cleanup:
@@ -146,11 +146,11 @@ echo ""
 echo "Starting Tailscale Serve (https://443 → http://localhost:${FRONTEND_PORT}) ..."
 echo ""
 
-# Syntax: tailscale serve [--bg] https[:<port>] [/path] <backend-url>
-# --bg keeps the serve running in the background without blocking the script.
-# The path "/" proxies everything. Older Tailscale builds (<v1.56) use a
-# different subcommand style — upgrade if this fails.
-if ! tailscale serve --bg https / "http://localhost:${FRONTEND_PORT}" 2>&1; then
+# New Tailscale CLI syntax (v1.56+): `tailscale serve --bg <backend-url>`
+# HTTPS on port 443 is now the implicit default — the old `https / <url>` form
+# is rejected with "the CLI for serve and funnel has changed." Upgrade Tailscale
+# if this still fails (tailscale update).
+if ! tailscale serve --bg "http://localhost:${FRONTEND_PORT}" 2>&1; then
   echo ""
   echo "ERROR: 'tailscale serve' failed. Possible reasons:" >&2
   echo "  • Cert not provisioned: sudo tailscale cert ${TS_DNS_NAME}" >&2
@@ -197,12 +197,12 @@ cleanup() {
   echo "Stopping Ada Tailscale Serve Mode ..."
 
   # Remove the Tailscale Serve rule first (reset clears all serve config for this machine).
-  # Use `tailscale serve reset` as the universal form — it works across all Tailscale
-  # versions that support `serve`. Alternatively: `tailscale serve --bg https=443 off`
+  # `tailscale serve reset` is the canonical form across all CLI versions that support serve.
+  # The old `tailscale serve --bg https=443 off` fallback is omitted — it was rejected by
+  # the same CLI change that broke the start command.
   if [[ "${TAILSCALE_SERVE_STARTED:-false}" == "true" ]]; then
     echo "  Removing Tailscale Serve rule ..."
     tailscale serve reset 2>/dev/null || \
-      tailscale serve --bg https=443 off 2>/dev/null || \
       echo "  Warning: could not reset tailscale serve — you may need to run 'tailscale serve reset' manually."
   fi
 
