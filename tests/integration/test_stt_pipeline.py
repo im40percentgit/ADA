@@ -264,3 +264,53 @@ class TestSTTPipeline:
         kw = small_calls[0]
         assert kw.get("language") == "en"
         assert kw.get("compute_type") == "float32"
+
+    @pytest.mark.asyncio
+    async def test_default_stt_config_uses_large_v3_turbo(self, stack):
+        """DEC-ML-018: default model_size is large-v3-turbo (was base).
+
+        This test verifies that TranscriptionAgent, when given an AdaConfig
+        with default STTConfig, forwards model_size='large-v3-turbo' to the
+        transcribe_audio call. It guards against regressions where the
+        default reverts to 'base'.
+        """
+        state, bus, _ = stack
+
+        config = AdaConfig()  # default STTConfig — model_size="large-v3-turbo"
+        assert config.stt.model_size == "large-v3-turbo", (
+            "DEC-ML-018: STTConfig default model_size must be 'large-v3-turbo'"
+        )
+
+        agent = TranscriptionAgent()
+        agent.initialize(bus, config, state, None)
+        await agent.start()
+
+        captured_kwargs: list[dict] = []
+
+        def _capture(audio_bytes, **kwargs):
+            captured_kwargs.append(kwargs)
+            return TranscriptionResult(text="default model check", language="en", confidence=0.9, duration_s=1.0)
+
+        from tests.fixtures.audio_gen import generate_sine_wav
+        sine_wav = generate_sine_wav(frequency=440.0, duration_s=0.5)
+
+        # @mock-exempt: faster_whisper.WhisperModel third-party ML boundary.
+        with patch("ada.agents.transcription.transcribe_audio", side_effect=_capture):
+            from ada.core.events import AudioChunkReceivedEvent
+            await bus.publish(AudioChunkReceivedEvent(
+                source="test",
+                session_id="s1",
+                patient_id="p1",
+                audio_bytes=sine_wav,
+                sample_rate=16000,
+                chunk_id="integ-default-model-chunk",
+            ))
+            await asyncio.sleep(0.3)
+
+        await agent.stop()
+
+        turbo_calls = [kw for kw in captured_kwargs if kw.get("model_size") == "large-v3-turbo"]
+        assert turbo_calls, (
+            f"DEC-ML-018 regression: no call used model_size='large-v3-turbo'. "
+            f"Captured kwargs: {captured_kwargs}"
+        )

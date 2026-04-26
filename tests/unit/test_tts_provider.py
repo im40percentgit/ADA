@@ -4,6 +4,14 @@ Unit tests for ada.tts — TTSProvider ABC, PiperProvider, and factory.
 TTSProvider is tested for ABC enforcement (cannot instantiate directly).
 PiperProvider is tested with mocked piper import to avoid requiring the
 ONNX model. The factory is tested for provider selection and error handling.
+
+@decision DEC-TTS-003
+@title Kokoro-82M as default TTS, Piper retained for low-resource path
+@status accepted
+@rationale Factory default changed from piper to kokoro. Tests verify
+    create_tts_provider() returns KokoroProvider by default and PiperProvider
+    when explicitly requested. Both must be importable without downloading
+    model files (lazy loading deferred until synthesize() is called).
 """
 
 from __future__ import annotations
@@ -200,6 +208,19 @@ class TestCreateTTSProvider:
         with pytest.raises(ValueError, match="Unknown TTS provider.*nope"):
             create_tts_provider("nope")
 
-    def test_default_is_piper(self):
+    def test_default_is_kokoro(self):
+        """DEC-TTS-003: factory default changed from piper to kokoro."""
+        from ada.tts.kokoro import KokoroProvider
         provider = create_tts_provider()
-        assert isinstance(provider, PiperProvider)
+        assert isinstance(provider, KokoroProvider)
+
+    def test_kokoro_provider_returned_for_kokoro(self):
+        from ada.tts.kokoro import KokoroProvider
+        provider = create_tts_provider("kokoro")
+        assert isinstance(provider, KokoroProvider)
+
+    def test_kokoro_with_voice_id(self):
+        from ada.tts.kokoro import KokoroProvider
+        provider = create_tts_provider("kokoro", voice_id="am_adam")
+        assert isinstance(provider, KokoroProvider)
+        assert provider._voice_id == "am_adam"

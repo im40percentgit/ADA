@@ -17,10 +17,23 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# ---------------------------------------------------------------------------
+# LLM mode type
+# ---------------------------------------------------------------------------
+
+LLMMode = Literal["claude", "offline", "dual"]
+"""
+Three-mode LLM selector.
+
+claude  — all agents route to Claude tiers defined in model_routing.profiles.
+offline — all agents route to the single offline_tier (local llama.cpp).
+dual    — honor profiles + agent_mapping as written in TOML/system_settings.
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -48,10 +61,11 @@ class OpenAICompatConfig(BaseModel):
 
 class LLMConfig(BaseModel):
     provider: str = "claude"
-    model: str = "claude-sonnet-4-5-20250514"
+    model: str = "claude-sonnet-4-6"
     max_tokens: int = 1024
     temperature: float = 0.7
     timeout: float = 60.0  # seconds — asyncio.wait_for() wraps all llm.complete() calls
+    mode: LLMMode = "dual"
     claude: ClaudeConfig = ClaudeConfig()
     openai_compat: OpenAICompatConfig = OpenAICompatConfig()
 
@@ -186,15 +200,25 @@ class STTConfig(BaseModel):
     """Phase 7 speech-to-text configuration (faster-whisper).
 
     model_size: faster-whisper model variant — smaller is faster but less
-        accurate. "base" (~150 MB) is a good default for CPU inference.
+        accurate. Defaults to "large-v3-turbo" (DEC-ML-018).
     language: ISO 639-1 language code, or None for auto-detect.
     compute_type: CTranslate2 quantisation for CPU inference.
     min_confidence: drop transcriptions below this confidence (0.0-1.0).
     vad_filter: enable Silero VAD to strip non-speech before Whisper.
     vad_threshold: Silero VAD speech probability threshold (0.0-1.0).
+
+    @decision DEC-ML-018
+    @title faster-whisper default model_size bumped from base to large-v3-turbo
+    @status accepted
+    @rationale large-v3-turbo delivers significantly higher transcription
+        accuracy than base (~WER improvement) at 2-3x the memory cost, which
+        is acceptable on the target N=1 deployment hardware. The override
+        ADA_STT__MODEL_SIZE=base is available for low-RAM hosts. CI tests
+        that need fast inference should set model_size explicitly (e.g.
+        STTConfig(model_size="small")) rather than relying on the default.
     """
 
-    model_size: str = "base"
+    model_size: str = "large-v3-turbo"
     language: str | None = None
     compute_type: str = "int8"
     min_confidence: float = 0.4
@@ -226,15 +250,15 @@ class TTSConfig(BaseModel):
     """Phase 7 text-to-speech configuration."""
 
     enabled: bool = False  # Off by default
-    provider: str = "piper"
+    provider: str = "kokoro"
     voice_model: str = ""  # Empty = use provider default
-    sample_rate: int = 22050
+    sample_rate: int = 24000  # Kokoro native rate; Piper was 22050
     sentence_streaming: bool = True
 
     @field_validator("provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        allowed = {"piper"}
+        allowed = {"piper", "kokoro"}
         if v not in allowed:
             raise ValueError(f"TTS provider must be one of {allowed}, got {v!r}")
         return v
@@ -349,6 +373,7 @@ class ModelProfile(BaseModel):
     temperature: float = 0.7
     base_url: str | None = None  # for openai_compat
     api_key_env: str | None = None
+    prompt_cache_system: bool = False  # DEC-LLM-007: send system prompt as structured cache_control block
 
     @field_validator("provider")
     @classmethod

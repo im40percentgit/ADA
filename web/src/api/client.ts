@@ -607,6 +607,52 @@ export function downloadExportCsv(patientId: string, exportType: string): void {
   window.open(`/api/patients/${encodeURIComponent(patientId)}/export/${exportType}`)
 }
 
+// -- LLM Mode (Phase 15+ AI Stack Upgrade) ------------------------------------
+
+/**
+ * LLM mode selector type (DEC-LLM-005).
+ *
+ * claude  — all agents use Claude tiers (Opus/Sonnet/Haiku).
+ * offline — all agents use the local llama.cpp endpoint.
+ * dual    — per-agent routing from TOML/system_settings (default).
+ */
+export type LLMMode = 'claude' | 'offline' | 'dual'
+
+export interface LLMModeStatus {
+  mode: LLMMode
+  profiles: string[]
+  agent_mapping: Record<string, string>
+}
+
+export interface LLMModeUpdateResult {
+  mode: LLMMode
+  applied_at: string
+}
+
+/**
+ * GET /api/admin/settings/llm-mode
+ *
+ * Returns the current effective LLM mode and the live agent routing map.
+ * Requires caregiver auth. Mode resolution order: DB row > env var > TOML > "dual".
+ */
+export function getLLMMode(): Promise<LLMModeStatus> {
+  return request<LLMModeStatus>('/admin/settings/llm-mode')
+}
+
+/**
+ * PUT /api/admin/settings/llm-mode
+ *
+ * Persists a new LLM mode to SQLite and hot-swaps the router. In-flight
+ * LLM calls complete on the old provider; new calls use the new mode.
+ * Requires caregiver auth.
+ */
+export function setLLMMode(mode: LLMMode): Promise<LLMModeUpdateResult> {
+  return request<LLMModeUpdateResult>('/admin/settings/llm-mode', {
+    method: 'PUT',
+    body: JSON.stringify({ mode }),
+  })
+}
+
 // ---------------------------------------------------------------------------
 // WebSocket URL builder
 // ---------------------------------------------------------------------------

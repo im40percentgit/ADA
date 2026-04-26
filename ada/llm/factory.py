@@ -100,6 +100,7 @@ def create_llm_provider_from_profile(profile: ModelProfile) -> LLMProvider:
             model=profile.model,
             default_max_tokens=profile.max_tokens,
             default_temperature=profile.temperature,
+            prompt_cache_system=profile.prompt_cache_system,
         )
 
     if profile.provider == "openai_compat":
