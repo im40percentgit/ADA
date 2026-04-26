@@ -29,6 +29,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ada.agents.registry import AgentRegistry
+from ada.agents.wellness_companion import WellnessCompanionAgent
 from ada.api.app import create_app
 from ada.api.auth import get_current_user
 from ada.core.bus import EventBus
@@ -390,3 +391,118 @@ class TestEffectiveAgentMapping:
                     f"After PUT claude: agent {agent!r} maps to {profile!r} "
                     f"(expected claude tier) — hot-swap did not propagate to GET"
                 )
+
+
+# ---------------------------------------------------------------------------
+# Regression: PUT changes actual agent._llm, not just GET payload (DEC-LLM-009)
+# ---------------------------------------------------------------------------
+
+class TestAgentProviderHotSwap:
+    """Verify that PUT /llm-mode reaches running agents via refresh_providers().
+
+    This is the regression guard for the bug that shipped in PR #74: the
+    admin PUT correctly updated the GET response payload but agents were
+    still using the old provider because _llm was cached at register-time.
+
+    The fix (DEC-LLM-009) adds refresh_providers() to AgentRegistry, called
+    from the PUT handler. These tests assert that after PUT, the agent._llm
+    object is actually a different provider than before — not just that the
+    HTTP response says the mode changed.
+    """
+
+    def _build_app_with_registered_agent(
+        self, state: StateManager, mode: str
+    ) -> tuple:
+        """Return (app, registry, agent) with one real WellnessCompanionAgent."""
+        config = _make_three_tier_config(mode=mode)
+        bus = EventBus()
+        real_router = create_model_router(config)
+        registry = AgentRegistry(bus, config, state, real_router)
+
+        # Register one real agent so refresh_providers has something to update
+        agent = WellnessCompanionAgent()
+        registry.register(agent)
+
+        app = create_app(config, bus, state, registry)
+        app.dependency_overrides[get_current_user] = lambda: _CAREGIVER
+        return app, registry, agent
+
+    @pytest.mark.asyncio
+    async def test_put_mode_actually_changes_agent_provider(self, state):
+        """After PUT, agent._llm must be the new provider, not the old one.
+
+        Regression: PR #74 bug — mode flip changed UI but not agent behaviour.
+        """
+        app, registry, agent = self._build_app_with_registered_agent(state, mode="dual")
+
+        with TestClient(app, raise_server_exceptions=True) as client:
+            # Capture the provider the agent has before the mode change
+            provider_before = agent._llm
+            assert provider_before is not None, "agent._llm must be set after register()"
+
+            # Switch mode — this should call refresh_providers()
+            put_resp = client.put("/api/admin/settings/llm-mode", json={"mode": "offline"})
+            assert put_resp.status_code == 200
+
+            # The agent's _llm must now point at the new provider
+            provider_after = agent._llm
+            assert provider_after is not None, "agent._llm must not become None after refresh"
+            assert provider_after is not provider_before, (
+                "agent._llm is still the same object after PUT mode=offline — "
+                "refresh_providers() did not update the running agent. "
+                "This is the DEC-LLM-009 regression."
+            )
+
+    @pytest.mark.asyncio
+    async def test_registry_router_updated_after_put(self, state):
+        """After PUT, registry._router must be the new router, not the old one."""
+        app, registry, agent = self._build_app_with_registered_agent(state, mode="dual")
+
+        with TestClient(app, raise_server_exceptions=True) as client:
+            router_before = registry._router
+            client.put("/api/admin/settings/llm-mode", json={"mode": "offline"})
+            router_after = registry._router
+
+        assert router_after is not router_before, (
+            "registry._router is still the same object after PUT — "
+            "refresh_providers() did not replace the router."
+        )
+
+    @pytest.mark.asyncio
+    async def test_multiple_put_calls_each_update_agent_provider(self, state):
+        """Each successive PUT must change agent._llm to a new provider.
+
+        Guards against a scenario where the router is rebuilt but providers
+        are accidentally cached in the new router and shared with the old one.
+        """
+        app, registry, agent = self._build_app_with_registered_agent(state, mode="dual")
+
+        with TestClient(app, raise_server_exceptions=True) as client:
+            provider_initial = agent._llm
+
+            client.put("/api/admin/settings/llm-mode", json={"mode": "offline"})
+            provider_offline = agent._llm
+            assert provider_offline is not provider_initial, (
+                "First PUT (dual→offline) did not change agent._llm"
+            )
+
+            client.put("/api/admin/settings/llm-mode", json={"mode": "claude"})
+            provider_claude = agent._llm
+            assert provider_claude is not provider_offline, (
+                "Second PUT (offline→claude) did not change agent._llm"
+            )
+
+    @pytest.mark.asyncio
+    async def test_put_failure_does_not_leave_agent_without_provider(self, state):
+        """Even if mode persistence fails, the agent must still have a provider."""
+        app, registry, agent = self._build_app_with_registered_agent(state, mode="dual")
+
+        with TestClient(app, raise_server_exceptions=False) as client:
+            # PUT an invalid mode — should 422 before reaching refresh_providers
+            client.put("/api/admin/settings/llm-mode", json={"mode": "invalid-mode"})
+
+        # Agent should still have its original provider
+        assert agent._llm is not None, (
+            "agent._llm became None after a failed PUT — "
+            "refresh_providers() must be atomic (don't clear before confirming new one)"
+        )

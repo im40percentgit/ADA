@@ -52,3 +52,13 @@ htmlcov/
 # Logs
 firebase-debug.log
 .gstack/
+
+# Reference material — vendored game repos for research / future ports
+OfflineBrowserGames/
+mahjong-solitaire/
+
+# Kokoro TTS model files — large binaries (325 MB + 28 MB).
+# Auto-downloaded to ~/.cache/ada/kokoro/ by ada/tts/kokoro.py (DEC-TTS-007).
+# Never commit these; they will bloat git history permanently.
+*.onnx
+voices-v1.0.bin
