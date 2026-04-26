@@ -17,7 +17,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ada.api.auth import get_current_user, require_patient_access
+from ada.api.auth import (
+    authorize_patient_access,
+    get_current_user,
+    require_patient_access,
+    require_session_access,
+)
 from ada.models.session import Session, SessionCreate, SessionEnd
 from ada.models.user import User
 
@@ -32,9 +37,12 @@ def _state(request: Request):
 async def create_session(
     body: SessionCreate,
     request: Request,
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Start a new session for a patient."""
+    if request.app.state.config.auth.enabled:
+        await authorize_patient_access(body.patient_id, user, _state(request))
+
     # Verify patient exists
     patient = await _state(request).get_patient(body.patient_id)
     if not patient:
@@ -56,7 +64,7 @@ async def create_session(
 async def get_session(
     session_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_session_access),
 ) -> dict[str, Any]:
     """Get a session by ID."""
     session = await _state(request).get_session(session_id)
@@ -80,7 +88,7 @@ async def end_session(
     session_id: str,
     body: SessionEnd,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_session_access),
 ) -> dict[str, Any]:
     """End a session, optionally recording a summary and end mood."""
     session = await _state(request).get_session(session_id)
@@ -97,7 +105,7 @@ async def end_session(
 async def get_messages(
     session_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_session_access),
 ) -> list[dict[str, Any]]:
     """Get all messages in a session."""
     return await _state(request).get_messages(session_id)
@@ -107,7 +115,7 @@ async def get_messages(
 async def get_session_summary(
     session_id: str,
     request: Request,
-    _user: User = Depends(get_current_user),
+    _access: None = Depends(require_session_access),
 ) -> dict[str, Any]:
     """Get the SOAP clinical summary for a session.
 

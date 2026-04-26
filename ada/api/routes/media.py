@@ -29,12 +29,22 @@ import logging
 import time
 import uuid
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from starlette.websockets import WebSocketState
 
+from ada.api.auth import authorize_patient_access, require_session_access, user_from_access_token
 from ada.core.events import (
     AudioChunkReceivedEvent,
-    EventTypes,
     SensorReadingEvent,
     VideoFrameReceivedEvent,
 )
@@ -62,16 +72,22 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
 
     # --- Auth handshake ---
     config = websocket.app.state.config
+    session_patient_id = ""
     if config.auth.enabled:
-        from ada.api.auth import decode_token
         try:
             raw_auth = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
             auth_msg = json.loads(raw_auth)
             if auth_msg.get("type") != "auth" or not auth_msg.get("token"):
                 raise ValueError("Missing auth type or token")
             token = auth_msg["token"]
-            decode_token(token, config.auth.secret_key, config.auth.algorithm)
-        except (asyncio.TimeoutError, Exception) as exc:
+            state = websocket.app.state.state_manager
+            user = await user_from_access_token(token, config, state)
+            session = await state.get_session(session_id)
+            if session is None:
+                raise ValueError("Session not found")
+            await authorize_patient_access(session["patient_id"], user, state)
+            session_patient_id = session["patient_id"]
+        except (TimeoutError, Exception) as exc:
             logger.warning("Media WS: auth failed for session %s -- %s", session_id, exc)
             await websocket.close(code=4001)
             return
@@ -79,7 +95,7 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
         # Consume auth message even when disabled (test compatibility)
         try:
             await asyncio.wait_for(websocket.receive_text(), timeout=2.0)
-        except (asyncio.TimeoutError, Exception):
+        except (TimeoutError, Exception):
             pass
 
     bus = websocket.app.state.bus
@@ -103,7 +119,7 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
                 msg_type = data.get("type", "")
 
                 if msg_type == "sensor_data":
-                    await _handle_sensor(bus, session_id, data)
+                    await _handle_sensor(bus, session_id, data, session_patient_id)
                     await _send_ack(websocket, str(uuid.uuid4()))
 
                 elif msg_type in ("audio_chunk", "video_frame"):
@@ -115,7 +131,14 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
                     if audio_header:
                         flush_id = str(uuid.uuid4())
                         combined = audio_header + b"".join(audio_buffer)
-                        await _handle_audio(bus, session_id, audio_buffer_meta, combined, flush_id)
+                        await _handle_audio(
+                            bus,
+                            session_id,
+                            audio_buffer_meta,
+                            combined,
+                            flush_id,
+                            patient_id=session_patient_id,
+                        )
                         audio_buffer.clear()
                         audio_buffer_start = time.monotonic()
 
@@ -138,20 +161,48 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
                     else:
                         audio_buffer.append(raw)
                     # Periodic interim flush — transcribe what we have so far
-                    if audio_buffer and time.monotonic() - audio_buffer_start >= INTERIM_FLUSH_INTERVAL:
+                    if (
+                        audio_buffer
+                        and time.monotonic() - audio_buffer_start >= INTERIM_FLUSH_INTERVAL
+                    ):
                         combined = audio_header + b"".join(audio_buffer)
                         interim_id = str(uuid.uuid4())
-                        await _handle_audio(bus, session_id, audio_buffer_meta, combined, interim_id, interim=True)
+                        await _handle_audio(
+                            bus,
+                            session_id,
+                            audio_buffer_meta,
+                            combined,
+                            interim_id,
+                            interim=True,
+                            patient_id=session_patient_id,
+                        )
                         # Don't clear buffer — keep accumulating for final flush
                         audio_buffer_start = time.monotonic()
                     # Safety fallback: flush if utterance exceeds max duration
-                    if audio_buffer and time.monotonic() - audio_buffer_start >= MAX_UTTERANCE_DURATION:
+                    if (
+                        audio_buffer
+                        and time.monotonic() - audio_buffer_start >= MAX_UTTERANCE_DURATION
+                    ):
                         combined = audio_header + b"".join(audio_buffer)
-                        await _handle_audio(bus, session_id, audio_buffer_meta, combined, chunk_id)
+                        await _handle_audio(
+                            bus,
+                            session_id,
+                            audio_buffer_meta,
+                            combined,
+                            chunk_id,
+                            patient_id=session_patient_id,
+                        )
                         audio_buffer.clear()
                         audio_buffer_start = time.monotonic()
                 elif msg_type == "video_frame":
-                    await _handle_video(bus, session_id, pending_binary, message["bytes"], chunk_id)
+                    await _handle_video(
+                        bus,
+                        session_id,
+                        pending_binary,
+                        message["bytes"],
+                        chunk_id,
+                        patient_id=session_patient_id,
+                    )
 
                 pending_binary = None
                 await _send_ack(websocket, chunk_id)
@@ -163,20 +214,32 @@ async def media_websocket(websocket: WebSocket, session_id: str) -> None:
         if audio_header:
             combined = audio_header + b"".join(audio_buffer)
             chunk_id = str(uuid.uuid4())
-            await _handle_audio(bus, session_id, audio_buffer_meta, combined, chunk_id)
+            await _handle_audio(
+                bus,
+                session_id,
+                audio_buffer_meta,
+                combined,
+                chunk_id,
+                patient_id=session_patient_id,
+            )
             audio_buffer.clear()
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.close()
         logger.info("Media WS: session %s disconnected", session_id)
 
 
-async def _handle_sensor(bus, session_id: str, data: dict) -> None:
+async def _handle_sensor(
+    bus,
+    session_id: str,
+    data: dict,
+    patient_id: str = "",
+) -> None:
     """Publish a sensor reading to the EventBus."""
     await bus.publish(
         SensorReadingEvent(
             source="media_ws",
             session_id=session_id,
-            patient_id=data.get("patient_id", ""),
+            patient_id=patient_id or data.get("patient_id", ""),
             sensor_type=data.get("sensor_type", ""),
             value=float(data.get("value", 0)),
             unit=data.get("unit", ""),
@@ -184,14 +247,22 @@ async def _handle_sensor(bus, session_id: str, data: dict) -> None:
     )
 
 
-async def _handle_audio(bus, session_id: str, metadata: dict, audio_bytes: bytes, chunk_id: str, interim: bool = False) -> None:
+async def _handle_audio(
+    bus,
+    session_id: str,
+    metadata: dict,
+    audio_bytes: bytes,
+    chunk_id: str,
+    interim: bool = False,
+    patient_id: str = "",
+) -> None:
     """Publish AudioChunkReceivedEvent for ML processing."""
     meta = metadata.get("metadata", {})
     await bus.publish(
         AudioChunkReceivedEvent(
             source="media_ws",
             session_id=session_id,
-            patient_id=metadata.get("patient_id", meta.get("patient_id", "")),
+            patient_id=patient_id or metadata.get("patient_id", meta.get("patient_id", "")),
             audio_bytes=audio_bytes,
             codec=meta.get("codec", "webm/opus"),
             sample_rate=int(meta.get("sample_rate", 48000)),
@@ -205,14 +276,21 @@ async def _handle_audio(bus, session_id: str, metadata: dict, audio_bytes: bytes
     )
 
 
-async def _handle_video(bus, session_id: str, metadata: dict, frame_bytes: bytes, chunk_id: str) -> None:
+async def _handle_video(
+    bus,
+    session_id: str,
+    metadata: dict,
+    frame_bytes: bytes,
+    chunk_id: str,
+    patient_id: str = "",
+) -> None:
     """Publish VideoFrameReceivedEvent for ML processing."""
     meta = metadata.get("metadata", {})
     await bus.publish(
         VideoFrameReceivedEvent(
             source="media_ws",
             session_id=session_id,
-            patient_id=metadata.get("patient_id", meta.get("patient_id", "")),
+            patient_id=patient_id or metadata.get("patient_id", meta.get("patient_id", "")),
             frame_bytes=frame_bytes,
             format=meta.get("format", "jpeg"),
             resolution=meta.get("resolution", ""),
@@ -254,6 +332,7 @@ rest_router = APIRouter(tags=["media"], prefix="/api")
 async def post_sensor_reading(
     session_id: str,
     request: Request,
+    _access: None = Depends(require_session_access),
 ) -> dict:
     """Post a single sensor reading via REST (fallback for non-WS clients)."""
     body = await request.json()
@@ -261,6 +340,9 @@ async def post_sensor_reading(
     value = body.get("value", 0.0)
     unit = body.get("unit", "")
     patient_id = body.get("patient_id", "")
+    if request.app.state.config.auth.enabled:
+        session = await request.app.state.state_manager.get_session(session_id)
+        patient_id = session["patient_id"]
 
     valid_types = {"hr", "gsr", "spo2"}
     if sensor_type not in valid_types:
@@ -289,9 +371,13 @@ async def post_audio_chunk(
     request: Request,
     file: UploadFile = File(...),
     patient_id: str = Form(""),
+    _access: None = Depends(require_session_access),
 ) -> dict:
     """Upload an audio chunk via REST multipart/form-data (fallback for non-WS clients)."""
     audio_bytes = await file.read()
+    if request.app.state.config.auth.enabled:
+        session = await request.app.state.state_manager.get_session(session_id)
+        patient_id = session["patient_id"]
     chunk_id = str(uuid.uuid4())
     bus = request.app.state.bus
     await bus.publish(
@@ -314,9 +400,13 @@ async def post_video_frame(
     request: Request,
     file: UploadFile = File(...),
     patient_id: str = Form(""),
+    _access: None = Depends(require_session_access),
 ) -> dict:
     """Upload a video frame via REST multipart/form-data (fallback for non-WS clients)."""
     frame_bytes = await file.read()
+    if request.app.state.config.auth.enabled:
+        session = await request.app.state.state_manager.get_session(session_id)
+        patient_id = session["patient_id"]
     frame_id = str(uuid.uuid4())
     bus = request.app.state.bus
     await bus.publish(

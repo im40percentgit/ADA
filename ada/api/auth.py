@@ -25,7 +25,7 @@ Provides:
     Raises HTTP 403 — not 404 — to avoid leaking patient-ID existence.
 
 @decision DEC-AUTHZ-002
-@title Treatment-plan sub-resource authz deps resolve sub-resource -> patient, delegate to shared core
+@title Treatment-plan sub-resource authz deps resolve sub-resource -> patient
 @status accepted
 @rationale Six routes in treatment_plans.py expose {plan_id}/{goal_id}/{intervention_id}
     in the path without a {patient_id}. An attacker with any valid JWT and a sub-resource
@@ -36,6 +36,24 @@ Provides:
     patient_id, then calling _enforce_patient_access. Returns 404 for nonexistent
     resources, 403 for exists-but-unauthorized, preserving the no-existence-leak
     invariant from DEC-AUTHZ-001.
+
+@decision DEC-AUTHZ-003
+@title Server derives patient_id from session row in WS/media/simulator routes
+@status accepted
+@rationale WebSocket and media routes previously trusted client-supplied
+    patient_id values from query strings or upload form fields. An attacker
+    with any valid session JWT could attach a media chunk or simulator event
+    to a stranger's patient_id by forging the body field — a defense-in-depth
+    failure even with require_patient_access on the session endpoint.
+
+    The fix: factor user_from_access_token (post-accept WS auth) and
+    authorize_patient_access (public wrapper around _enforce_patient_access)
+    out of this module. Routes in chat.py / media.py / simulator.py now
+    look up the session row, read patient_id from the persisted record, and
+    call authorize_patient_access(user, session.patient_id). Client-supplied
+    patient_id is ignored (or rejected with 400) on every authenticated
+    write path. test_session_authz.py exercises the cross-tenant attack
+    matrix end-to-end.
 
 @decision DEC-AUTH-002
 @title FastAPI Depends(get_current_user) — dependency override in tests
@@ -58,7 +76,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
@@ -107,7 +125,7 @@ def create_access_token(
     expire_minutes: int,
 ) -> str:
     """Encode a short-lived access token."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     payload: dict[str, Any] = {
         "sub": user_id,
         "role": role,
@@ -126,7 +144,7 @@ def create_refresh_token(
     expire_days: int,
 ) -> str:
     """Encode a long-lived refresh token carrying a jti for revocation."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     payload: dict[str, Any] = {
         "sub": user_id,
         "jti": token_id,
@@ -166,6 +184,16 @@ async def get_current_user(
     config = request.app.state.config
     state_manager = request.app.state.state_manager
 
+    if not config.auth.enabled:
+        return User(
+            id="auth-disabled",
+            email="auth-disabled@ada.local",
+            role="admin",
+            patient_id=None,
+            created_at=datetime.now(tz=UTC),
+            is_active=True,
+        )
+
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -174,6 +202,16 @@ async def get_current_user(
         )
 
     token = credentials.credentials
+    return await user_from_access_token(token, config, state_manager)
+
+
+async def user_from_access_token(token: str, config, state_manager) -> User:
+    """Resolve and validate an access-token string outside FastAPI Depends.
+
+    WebSocket routes cannot use ``HTTPBearer`` dependencies after accepting the
+    connection, but they need the same semantics as REST routes: valid access
+    token, existing user, and active account.
+    """
     try:
         payload = decode_token(
             token,
@@ -331,6 +369,11 @@ async def _enforce_patient_access(patient_id: str, user: User, state) -> None:
     )
 
 
+async def authorize_patient_access(patient_id: str, user: User, state) -> None:
+    """Public wrapper for non-dependency code that must enforce patient access."""
+    await _enforce_patient_access(patient_id, user, state)
+
+
 async def require_patient_access(
     patient_id: str,
     request: Request,
@@ -361,7 +404,33 @@ async def require_patient_access(
             _access: None = Depends(require_patient_access),
         ) -> ...:
     """
-    await _enforce_patient_access(patient_id, user, _state(request))
+    if not request.app.state.config.auth.enabled:
+        return
+
+    await authorize_patient_access(patient_id, user, _state(request))
+
+
+async def require_session_access(
+    session_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> None:
+    """Authorize the caller for a route scoped by {session_id}.
+
+    Resolves session_id -> patient_id, then delegates to the same patient
+    access check used by patient routes. Returns 404 for nonexistent sessions.
+    """
+    if not request.app.state.config.auth.enabled:
+        return
+
+    state = _state(request)
+    session = await state.get_session(session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+    await authorize_patient_access(session["patient_id"], user, state)
 
 
 async def require_plan_access(
