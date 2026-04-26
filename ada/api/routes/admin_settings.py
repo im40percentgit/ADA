@@ -12,6 +12,21 @@ Admin LLM-mode settings endpoint (Phase 15+ AI Stack Upgrade).
     table (persistent across restarts) and signals AgentRegistry to rebuild
     the router atomically. In-flight LLM calls finish on the old provider;
     new calls use the new router. Auth: caregiver-only (JWT required).
+
+@decision DEC-LLM-008
+@title GET /llm-mode returns effective agent_mapping from the live router
+@status accepted
+@rationale The original implementation returned config.model_routing.agent_mapping
+    (the static TOML mapping) regardless of the active mode. In claude mode all
+    agents should appear mapped to claude tiers; in offline mode all agents appear
+    as offline_tier. Returning the static TOML mapping made the Settings UI show
+    identical routing for all three modes.
+    Fix: read the effective mapping from the live router via
+    registry._router.list_profiles() + registry._router.provider_names. The
+    live router's _agent_mapping is rebuilt by the mode-specific builder
+    (_build_claude_only_router, _build_offline_router, _build_dual_router) so
+    it always reflects the actual routing decisions in flight. When no registry
+    is available (bootstrap race), fall back to static TOML.
 """
 
 from __future__ import annotations
@@ -91,25 +106,31 @@ async def get_llm_mode(
     """Return the current LLM mode and routing details.
 
     Mode resolution order: system_settings DB > ADA_LLM__MODE env > TOML > default.
-    The response includes the live agent_mapping so the Settings UI can render
-    the per-agent routing panel in dual mode.
+    The response includes the *effective* agent_mapping from the live router
+    (not the static TOML mapping), so the Settings UI shows the actual per-agent
+    routing that is currently in flight (DEC-LLM-008).
     """
     db_mode = await state.get_system_setting("llm_mode")
     effective_mode = db_mode if db_mode in _VALID_MODES else config.llm.mode
 
-    routing_info: dict[str, Any] = {}
-    if config.model_routing:
-        routing_info = {
-            "profiles": list(config.model_routing.profiles.keys()),
-            "agent_mapping": config.model_routing.agent_mapping,
-        }
+    # Prefer the live router's effective mapping (reflects current mode).
+    # Fall back to static TOML config when registry is not yet available.
+    registry = _registry(request)
+    live_router = getattr(registry, "_router", None)
+    if live_router is not None:
+        effective_agent_mapping = live_router.list_profiles()
+        effective_profiles = live_router.provider_names
+    elif config.model_routing:
+        effective_agent_mapping = config.model_routing.agent_mapping
+        effective_profiles = list(config.model_routing.profiles.keys())
     else:
-        routing_info = {"profiles": [], "agent_mapping": {}}
+        effective_agent_mapping = {}
+        effective_profiles = []
 
     return LLMModeResponse(
         mode=effective_mode,
-        profiles=routing_info["profiles"],
-        agent_mapping=routing_info["agent_mapping"],
+        profiles=effective_profiles,
+        agent_mapping=effective_agent_mapping,
     )
 
 

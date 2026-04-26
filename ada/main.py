@@ -191,16 +191,28 @@ async def run(config: AdaConfig) -> None:
             registry.register(TranscriptionAgent())
             log.info("TranscriptionAgent registered")
 
-    # Phase 7: TTS agent
+    # Phase 7: TTS agent (DEC-TTS-006)
+    # Wire config.companion.default_voice through VOICE_PREFERENCE_MODELS so the
+    # configured voice preference is honoured from startup. Per-user voice routing
+    # (reading companion_preferences DB row per message) is a follow-up.
     tts_agent: TTSAgent | None = None
     if config.tts.enabled:
+        from ada.agents.tts_agent import VOICE_PREFERENCE_MODELS as _VOICE_MAP
+        _default_voice_pref = getattr(config.companion, "default_voice", "female")
+        _voice_id = _VOICE_MAP.get(_default_voice_pref, "af_bella")
         tts_provider = create_tts_provider(
             provider=config.tts.provider,
             model_path=config.tts.voice_model or None,
+            voice_id=_voice_id,
         )
         tts_agent = TTSAgent(tts_provider=tts_provider)
         registry.register(tts_agent)
-        log.info("TTSAgent registered", provider=config.tts.provider)
+        log.info(
+            "TTSAgent registered",
+            provider=config.tts.provider,
+            voice_pref=_default_voice_pref,
+            voice_id=_voice_id,
+        )
 
     await registry.start_all()
     log.info("All agents started", count=len(registry.active_agents))

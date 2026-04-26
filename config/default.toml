@@ -22,7 +22,7 @@ vad_filter = false
 vad_threshold = 0.5
 
 [tts]
-enabled = false
+enabled = true
 provider = "kokoro"
 voice_model = ""
 sample_rate = 24000

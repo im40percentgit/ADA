@@ -12,6 +12,25 @@ events for sessions that have voice mode enabled.
     subscribes to MESSAGE_SENT and only synthesizes for voice-enabled sessions.
     Sentence-level streaming provides progressive audio playback without
     waiting for the full response to be synthesized.
+
+@decision DEC-TTS-006
+@title kokoro-onnx promoted to required dep; companion.default_voice wired to VOICE_MAP
+@status accepted
+@rationale Three layered TTS bugs were found post-PR-72:
+    (a) config/default.toml had tts.enabled=false, so TTSAgent was never
+        constructed (fixed: set enabled=true — companion is voice-first).
+    (b) kokoro-onnx/onnxruntime were optional extras, so the default install
+        ImportError'd on first synthesize() call (fixed: promoted to main
+        dependencies in pyproject.toml).
+    (c) CompanionConfig.default_voice was never passed to KokoroProvider;
+        every user got af_bella regardless of config (fixed below: main.py
+        reads config.companion.default_voice, maps via KOKORO_VOICE_MAP,
+        and passes voice_id to create_tts_provider()).
+    Full per-user voice routing (per DB row in companion_preferences) would
+    require TTSAgent to resolve voice preference per-message (user_id lookup
+    in StateManager). That is a non-trivial async change to the hot path.
+    For now, the config-level default_voice is wired correctly; per-user
+    routing is tracked as a follow-up issue.
 """
 
 from __future__ import annotations
@@ -32,24 +51,22 @@ from ada.tts.sentence_splitter import split_sentences
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Voice preference → Piper model mapping (Phase 13a companion personalization)
+# Voice preference → Kokoro voice ID mapping (DEC-TTS-006)
 #
 # Maps the companion voice preference ('male', 'female', 'neutral') to a
-# Piper ONNX voice model name.  Currently the TTSAgent uses a single
-# PiperProvider instance with a globally-loaded model (thread-safe singleton
-# in piper.py).  Per-user voice switching would require the PiperProvider to
-# support multiple loaded models or dynamic model swapping, which is a
-# non-trivial change to the singleton pattern.
+# Kokoro voice ID.  This is the authoritative mapping used by main.py when
+# constructing KokoroProvider so that config.companion.default_voice controls
+# which Kokoro voice is loaded.
 #
-# This mapping is defined here so that a future implementation can look up
-# the preferred model via `VOICE_PREFERENCE_MODELS[prefs["voice"]]` and
-# pass it to a multi-model-aware provider.
+# The identical VOICE_MAP in ada/tts/kokoro.py exists for provider-level
+# default resolution.  This copy here makes TTSAgent self-contained for
+# callers who import it directly (e.g. tests).
 # ---------------------------------------------------------------------------
 
 VOICE_PREFERENCE_MODELS: dict[str, str] = {
-    "female": "en_US-lessac-medium",       # current default — female voice
-    "male": "en_US-ryan-medium",           # male Piper voice
-    "neutral": "en_US-lessac-medium",      # neutral maps to default for now
+    "female": "af_bella",   # warm American female (Kokoro default)
+    "male": "am_adam",      # American male
+    "neutral": "af_nicole", # softer American female
 }
 
 
