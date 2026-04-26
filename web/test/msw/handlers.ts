@@ -526,6 +526,20 @@ export const handlers = [
       revoked_at: body.granted ? null : new Date().toISOString(),
     })
   }),
+
+  // DEC-FRONTEND-081: LLM mode endpoint — Chat fetches this on mount for trust badge.
+  // Default handler returns 'dual' so most tests see no badge. Chat.test.tsx uses
+  // server.use() to override to 'claude' when testing the badge.
+  http.get('/api/admin/settings/llm-mode', () => {
+    return json({
+      mode: 'dual',
+      profiles: ['claude_opus', 'claude_sonnet', 'claude_haiku', 'offline_tier'],
+      agent_mapping: {
+        wellness_companion: 'claude_sonnet',
+        crisis_monitor: 'claude_opus',
+      },
+    })
+  }),
 ]
 
 // ---------------------------------------------------------------------------

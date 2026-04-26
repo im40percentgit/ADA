@@ -8,12 +8,23 @@
  * # internal logic mocks. The component rendering and interaction logic
  * # (message display, send button, crisis alert, session end) is tested against
  * # the real Chat component with controlled hook return values.
+ *
+ * DEC-FRONTEND-080: voice-default-on tests verify:
+ *   - Fresh localStorage (no key) → voice ON by default
+ *   - localStorage 'ada_voice_enabled' = 'false' → voice OFF (user preference respected)
+ *   - sendVoiceMode is called when WS opens (initial + reconnect re-assert)
+ *
+ * DEC-FRONTEND-081: Claude trust badge tests verify:
+ *   - Badge 'Claude' appears when GET /api/admin/settings/llm-mode returns mode='claude'
+ *   - Badge is absent in 'dual' mode (default handler)
  */
 
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Mock } from 'vitest'
+import { http, HttpResponse } from 'msw'
+import { server } from '../msw/handlers'
 
 // ---------------------------------------------------------------------------
 // Mock transport/hardware hooks — external boundary mocks

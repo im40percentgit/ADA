@@ -78,6 +78,26 @@
  *   There is no intermediate state layer for raw media bytes — storing blobs
  *   in React state would be expensive and unnecessary since they are fire-and-
  *   forget uploads. The WebSocket send is the terminal action.
+ *
+ * @decision DEC-FRONTEND-080
+ * @title Voice mode defaults to ON; user preference persisted in localStorage
+ * @status accepted
+ * @rationale Founder dogfood: voice mode was OFF by default, requiring a manual
+ *   toggle every session (and after every mode switch, which re-establishes the
+ *   WS). Default flipped to true so voice-first interaction works out of the box.
+ *   Explicit user OFF choice is persisted to localStorage key 'ada_voice_enabled'
+ *   so it survives page reloads and WS reconnects without overriding the user's
+ *   intent. Voice preference is re-asserted to the server on every WS open (covers
+ *   initial connect and reconnect after LLM mode switches).
+ *
+ * @decision DEC-FRONTEND-081
+ * @title Claude-mode trust badge in chat header wraps below name row on mobile
+ * @status accepted
+ * @rationale When LLM mode is 'claude', a compact "Claude" info badge is shown
+ *   in the chat header so the user knows which provider is active. On narrow
+ *   screens (iPhone width) the header uses flex-wrap so the badge row and the
+ *   media-controls row each get their own line, keeping the Voice toggle
+ *   reachable rather than pushed off-screen.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -88,7 +108,7 @@ import { useMediaCapture } from '../hooks/useMediaCapture'
 import { useMediaWebSocket } from '../hooks/useMediaWebSocket'
 import { useSensorSimulator } from '../hooks/useSensorSimulator'
 import { useCompanionPreferences } from '../hooks/useCompanionPreferences'
-import { endSession } from '../api/client'
+import { endSession, getLLMMode, type LLMMode } from '../api/client'
 import { ChatMessage } from './ChatMessage'
 import { CrisisAlert } from './CrisisAlert'
 import { AssessmentForm } from './AssessmentForm'
@@ -122,11 +142,34 @@ const WS_STATUS_LABELS: Record<string, string> = {
   error: 'Connection error',
 }
 
+// localStorage key for voice preference. Explicit user toggles persist here so
+// a new WS session (mode switch, reconnect, page reload) respects their choice.
+const VOICE_PREF_KEY = 'ada_voice_enabled'
+
+function readVoicePref(): boolean {
+  try {
+    const stored = localStorage.getItem(VOICE_PREF_KEY)
+    // Unset → default ON (DEC-FRONTEND-080). Only 'false' means the user turned it off.
+    return stored !== 'false'
+  } catch {
+    return true
+  }
+}
+
 export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
   const { queueAudio, interrupt, isSpeaking } = useAudioPlayback()
   const { preferences: companionPrefs } = useCompanionPreferences()
   const companionName = companionPrefs?.name ?? 'Ada'
-  const [voiceEnabled, setVoiceEnabled] = useState(false)
+  // DEC-FRONTEND-080: default ON; localStorage 'ada_voice_enabled' = 'false' means user opted out.
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(readVoicePref)
+
+  // DEC-FRONTEND-081: load current LLM mode to show trust badge when in claude mode.
+  const [llmMode, setLlmMode] = useState<LLMMode | null>(null)
+  useEffect(() => {
+    getLLMMode()
+      .then((s) => setLlmMode(s.mode))
+      .catch(() => { /* non-fatal — badge simply won't show */ })
+  }, [])
 
   const handleAudioData = useCallback(
     (data: ArrayBuffer, meta: WsAudioResponse) => {
@@ -158,6 +201,18 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
   useEffect(() => {
     onWsStatusChange?.(reconnectingStatus)
   }, [reconnectingStatus, onWsStatusChange])
+
+  // DEC-FRONTEND-080: re-assert voice preference to the server on every WS open.
+  // This covers initial connect AND reconnects after LLM mode switches (which
+  // tear down and re-establish the WS). voiceEnabled is intentionally excluded
+  // from deps — we only need to re-assert when the connection (re)opens, not on
+  // every UI toggle (handleToggleVoice sends immediately for those).
+  useEffect(() => {
+    if (wsStatus === 'open') {
+      sendVoiceMode(voiceEnabled)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsStatus])
 
   // Media WebSocket — handles binary audio/video uploads
   const { sendAudioChunk, sendVideoFrame, sendEndOfUtterance } = useMediaWebSocket({ sessionId })
@@ -206,6 +261,8 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
     setVoiceEnabled(newState)
     sendVoiceMode(newState)
     if (!newState) interrupt()
+    // DEC-FRONTEND-080: persist explicit user choice so next session respects it.
+    try { localStorage.setItem(VOICE_PREF_KEY, String(newState)) } catch { /* quota/private */ }
   }, [voiceEnabled, sendVoiceMode, interrupt])
 
   const [inputValue, setInputValue] = useState('')
@@ -303,9 +360,14 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
         </div>
       )}
 
-      {/* Chat header — companion name, online status, emotion chip, media controls */}
-      <div className="chat__header" style={{ background: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)', padding: 'var(--space-sm) var(--space-md)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+      {/* Chat header — companion name, online status, emotion chip, media controls.
+          DEC-FRONTEND-081: flex-wrap so the trust badge (claude mode) never pushes
+          the Voice button off-screen on narrow iPhone widths. The header naturally
+          breaks into two rows when content overflows: [name · dot · end-btn · badge]
+          on row 1 and [emotion · voice-indicator · media-controls] on row 2. */}
+      <div className="chat__header" style={{ background: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)', padding: 'var(--space-sm) var(--space-md)', flexWrap: 'wrap', rowGap: 'var(--space-xs)' }}>
+        {/* Left group: name + status dot + end-session + claude trust badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', flex: '1 1 auto', minWidth: 0 }}>
           <span className="chat__header-title" style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--size-h2)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{companionName}</span>
           <span
             aria-label={wsStatus === 'open' ? 'Online' : 'Offline'}
@@ -318,19 +380,26 @@ export function Chat({ sessionId, patientId, onWsStatusChange }: ChatProps) {
               flexShrink: 0,
             }}
           />
+          {/* DEC-FRONTEND-081: Claude trust badge — only shown when cloud provider is active */}
+          {llmMode === 'claude' && (
+            <Badge variant="info" ariaHidden>Claude</Badge>
+          )}
+          {!sessionEnded && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleEndSession}
+              className="chat__end-btn"
+            >
+              End Session
+            </Button>
+          )}
+          {sessionEnded && <Badge variant="neutral">Session Ended</Badge>}
         </div>
-        {!sessionEnded && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleEndSession}
-            className="chat__end-btn"
-          >
-            End Session
-          </Button>
-        )}
-        {sessionEnded && <Badge variant="neutral">Session Ended</Badge>}
-        <div className="chat__header-media">
+        {/* Right group: emotion chip + voice indicator + media controls.
+            flex-shrink:0 ensures controls are never clipped; wrap above provides
+            the second line on narrow screens (DEC-FRONTEND-081). */}
+        <div className="chat__header-media" style={{ flexShrink: 0 }}>
           <EmotionChip emotion={currentEmotion} />
           <VoiceIndicator stream={audioStream} />
           <MediaControls
