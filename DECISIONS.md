@@ -902,6 +902,22 @@ accepted
   - Source: `scripts/lan-dev.sh`
   - Status: accepted
 
+- **DEC-PWA-007**: detect_lan_ip prefers Tailscale interface when up
+  - Source: `scripts/lan-dev.sh`
+  - Status: accepted
+
+- **DEC-PWA-008**: scripts/tailscale-serve.sh — HTTPS testing via Tailscale Serve, no cert sideload
+  - Source: `scripts/tailscale-serve.sh`
+  - Status: accepted
+
+- **DEC-PWA-009**: Vite allowedHosts permits Tailscale tailnet hostnames via suffix wildcard
+  - Source: `web/vite.config.ts`
+  - Status: accepted
+
+- **DEC-PWA-010**: tailscale-serve.sh refuses root invocation; sudoes only the serve call
+  - Source: `scripts/tailscale-serve.sh`
+  - Status: accepted
+
 ### RESILIENCE
 - **DEC-RESILIENCE-001**: Timeout wrapper as standalone coroutine wrapper (not decorator)
   - Source: `ada/agents/error_handler.py`
@@ -1387,6 +1403,10 @@ accepted
 - DEC-PWA-004
 - DEC-PWA-005
 - DEC-PWA-006
+- DEC-PWA-007
+- DEC-PWA-008
+- DEC-PWA-009
+- DEC-PWA-010
 - DEC-RESILIENCE-001
 - DEC-RESILIENCE-002
 - DEC-RESILIENCE-003
