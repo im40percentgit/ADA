@@ -12,8 +12,8 @@
 #   VITE_HTTPS_KEY env vars (read by web/vite.config.ts) because Vite 6
 #   removed the --https CLI flag. Backend is launched via `uv run python`
 #   to match the Makefile and ensure the project venv is used. LAN IP
-#   detection prefers 192.168.x.x physical-LAN addresses over VPN/tunnel
-#   interfaces; override with LAN_IP env var. mkcert is optional — the
+#   detection prefers Tailscale (100.x.x.x) when up, then 192.168.x.x
+#   physical-LAN; override with LAN_IP env var. mkcert is optional — the
 #   script works over HTTP if not installed. qrencode is optional — the
 #   LAN URL is printed regardless.
 #
@@ -27,9 +27,23 @@
 #   uninstalling mkcert globally. HTTPS is only required for PWA install,
 #   push notifications, and microphone access.
 #
+# @decision DEC-PWA-007
+# @title detect_lan_ip prefers Tailscale interface when up
+# @status accepted
+# @rationale Founder N=1 testing flow: phones reach the dev box via Tailscale
+#   (100.x.x.x), not home Wi-Fi (192.168.x.x). The previous auto-detect picked
+#   Wi-Fi first, requiring LAN_IP override on every invocation. Tailscale-first
+#   when Tailscale is connected matches actual usage; Wi-Fi-first when Tailscale
+#   isn't up preserves previous behavior for non-Tailscale users. We use
+#   `tailscale ip -4` (the official command) rather than grepping hostname -I
+#   for 100.x.x.x patterns — more correct, handles multiple Tailscale interfaces.
+#   `tailscale status --json | grep BackendState` gates the query so a merely
+#   installed-but-not-connected tailscale CLI is silently skipped.
+#
 # Usage:
 #   ./scripts/lan-dev.sh
 #   LAN_IP=192.168.1.74 ./scripts/lan-dev.sh   # override auto-detection
+#   LAN_IP=100.92.157.18 ./scripts/lan-dev.sh  # pin to a specific Tailscale IP
 #   LAN_HTTP_ONLY=1 ./scripts/lan-dev.sh       # force HTTP even when mkcert is installed
 #
 # What it does:
@@ -52,23 +66,51 @@ CERTS_DIR="${REPO_ROOT}/tmp/lan-certs"
 # ---------------------------------------------------------------------------
 
 detect_lan_ip() {
-  # Prefer 192.168.x.x (typical home Wi-Fi) to avoid VPN/tunnel interfaces
-  # like Tailscale (100.64-127.x), wireguard (10.x.x.x), etc. Fall back to
-  # the default-route source IP, then hostname -I / ifconfig.
+  # Precedence (DEC-PWA-007):
+  #   1. Tailscale IPv4 — when `tailscale` CLI exists AND BackendState==Running
+  #   2. 192.168.x.x   — typical home Wi-Fi / physical LAN
+  #   3. Default-route source IP (ip route get 1.1.1.1)
+  #   4. hostname -I first entry
+  #   5. 127.0.0.1 last-resort fallback
   local ip
+
+  # 1. Tailscale: probe only when CLI is installed and the daemon is running.
+  if command -v tailscale &>/dev/null; then
+    local ts_state
+    ts_state=$(tailscale status --json 2>/dev/null | grep -o '"BackendState": *"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
+    if [[ "$ts_state" == "Running" ]]; then
+      ip=$(tailscale ip -4 2>/dev/null | head -1)
+      if [[ -n "$ip" ]]; then
+        echo "$ip"
+        return
+      fi
+    fi
+  fi
+
+  # 2. 192.168.x.x physical-LAN preference.
   for ip in $(hostname -I 2>/dev/null || true); do
     if [[ "$ip" =~ ^192\.168\. ]]; then
       echo "$ip"
       return
     fi
   done
+
+  # 3. Default-route source IP.
   ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
-  if [[ -z "$ip" ]]; then
-    ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+  if [[ -n "$ip" ]]; then
+    echo "$ip"
+    return
   fi
-  if [[ -z "$ip" ]]; then
-    ip=$(ifconfig 2>/dev/null | awk '/inet /{print $2}' | grep -v '127.0.0.1' | head -1)
+
+  # 4. hostname -I first entry.
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+  if [[ -n "$ip" ]]; then
+    echo "$ip"
+    return
   fi
+
+  # 5. ifconfig fallback (macOS / older Linux without `ip`).
+  ip=$(ifconfig 2>/dev/null | awk '/inet /{print $2}' | grep -v '127.0.0.1' | head -1)
   echo "${ip:-127.0.0.1}"
 }
 
