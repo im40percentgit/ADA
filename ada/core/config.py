@@ -252,13 +252,15 @@ class TTSConfig(BaseModel):
     enabled: bool = False  # Off by default
     provider: str = "kokoro"
     voice_model: str = ""  # Empty = use provider default
+    fallback_provider: str = "piper"
+    fallback_voice_model: str = "data/voices/piper/en_US-lessac-medium.onnx"
     sample_rate: int = 24000  # Kokoro native rate; Piper was 22050
     sentence_streaming: bool = True
 
-    @field_validator("provider")
+    @field_validator("provider", "fallback_provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        allowed = {"piper", "kokoro"}
+        allowed = {"", "piper", "kokoro"}
         if v not in allowed:
             raise ValueError(f"TTS provider must be one of {allowed}, got {v!r}")
         return v
@@ -373,7 +375,8 @@ class ModelProfile(BaseModel):
     temperature: float = 0.7
     base_url: str | None = None  # for openai_compat
     api_key_env: str | None = None
-    prompt_cache_system: bool = False  # DEC-LLM-007: send system prompt as structured cache_control block
+    # DEC-LLM-007: send system prompt as structured cache_control block.
+    prompt_cache_system: bool = False
 
     @field_validator("provider")
     @classmethod
@@ -469,7 +472,7 @@ class AdaConfig(BaseSettings):
     retention: RetentionConfig = RetentionConfig()
 
     @classmethod
-    def from_toml(cls, *paths: str | Path) -> "AdaConfig":
+    def from_toml(cls, *paths: str | Path) -> AdaConfig:
         """
         Load config by merging one or more TOML files left to right.
 

@@ -25,6 +25,8 @@ vad_threshold = 0.5
 enabled = true
 provider = "kokoro"
 voice_model = ""
+fallback_provider = "piper"
+fallback_voice_model = "data/voices/piper/en_US-lessac-medium.onnx"
 sample_rate = 24000
 sentence_streaming = true
 

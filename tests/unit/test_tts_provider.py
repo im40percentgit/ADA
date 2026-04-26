@@ -16,15 +16,13 @@ ONNX model. The factory is tested for provider selection and error handling.
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from ada.tts.base import TTSAudioChunk, TTSProvider
 from ada.tts.factory import create_tts_provider
 from ada.tts.piper import PiperProvider
-
 
 # ---------------------------------------------------------------------------
 # TTSAudioChunk dataclass
@@ -139,12 +137,24 @@ class TestPiperProvider:
 
     @pytest.mark.asyncio
     async def test_is_available_with_piper(self):
-        """is_available() returns True when piper is importable."""
-        provider = PiperProvider()
+        """is_available() returns True when piper and local voice files exist."""
+        model_path = "/tmp/test-piper.onnx"
         mock_piper = MagicMock()
-        with patch.dict("sys.modules", {"piper": mock_piper}):
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper}),
+            patch("ada.tts.piper.Path.exists", return_value=True),
+        ):
+            provider = PiperProvider(model_path=model_path)
             result = await provider.is_available()
             assert result is True
+
+    @pytest.mark.asyncio
+    async def test_is_available_false_without_voice_files(self):
+        """Importable piper is not enough; local voice files must be present."""
+        mock_piper = MagicMock()
+        with patch.dict("sys.modules", {"piper": mock_piper}):
+            provider = PiperProvider(model_path="/tmp/missing.onnx")
+            assert await provider.is_available() is False
 
     @pytest.mark.asyncio
     async def test_synthesize_calls_piper(self):
@@ -152,26 +162,20 @@ class TestPiperProvider:
         sample_rate = 22050
         pcm_data = b"\x00\x01" * 100  # 200 bytes of PCM
 
-        # Mock the PiperVoice
         mock_voice = MagicMock()
-        mock_config = MagicMock()
-        mock_config.sample_rate = sample_rate
-        mock_voice.config = mock_config
-
-        def fake_synthesize(text, wav_file):
-            """Mimic real Piper: write PCM frames to the Wave_write object."""
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(pcm_data)
-
-        mock_voice.synthesize = fake_synthesize
+        mock_chunk = MagicMock()
+        mock_chunk.audio_int16_bytes = pcm_data
+        mock_chunk.sample_rate = sample_rate
+        mock_chunk.sample_channels = 1
+        mock_chunk.sample_width = 2
+        mock_voice.synthesize.return_value = [mock_chunk]
 
         # Patch _get_piper_voice to return our mock
         with patch("ada.tts.piper._get_piper_voice", return_value=mock_voice):
             provider = PiperProvider()
             result = await provider.synthesize("Hello world")
 
+        mock_voice.synthesize.assert_called_once_with("Hello world")
         assert result.audio_bytes == pcm_data
         assert result.sample_rate == sample_rate
         assert result.channels == 1
@@ -224,3 +228,15 @@ class TestCreateTTSProvider:
         provider = create_tts_provider("kokoro", voice_id="am_adam")
         assert isinstance(provider, KokoroProvider)
         assert provider._voice_id == "am_adam"
+
+    def test_kokoro_with_piper_fallback(self):
+        from ada.tts.factory import FallbackTTSProvider
+
+        provider = create_tts_provider(
+            "kokoro",
+            fallback_provider="piper",
+            fallback_model_path="/tmp/piper.onnx",
+        )
+        assert isinstance(provider, FallbackTTSProvider)
+        assert isinstance(provider.fallback, PiperProvider)
+        assert provider.fallback._model_path == "/tmp/piper.onnx"

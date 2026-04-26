@@ -42,7 +42,7 @@ temperature = 0.7
 
 [tts]
 enabled = true
-provider = "piper"
+provider = "kokoro"
 
 [multimodal]
 enabled = true

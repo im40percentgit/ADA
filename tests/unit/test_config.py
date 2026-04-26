@@ -26,7 +26,6 @@ from ada.core.config import (
     TTSConfig,
 )
 
-
 # ---------------------------------------------------------------------------
 # LLMConfig
 # ---------------------------------------------------------------------------
@@ -106,6 +105,11 @@ class TestTTSConfig:
     def test_piper_still_accepted(self):
         cfg = TTSConfig(provider="piper")
         assert cfg.provider == "piper"
+
+    def test_default_fallback_is_local_piper(self):
+        cfg = TTSConfig()
+        assert cfg.fallback_provider == "piper"
+        assert cfg.fallback_voice_model.endswith("en_US-lessac-medium.onnx")
 
     def test_invalid_provider_rejected(self):
         with pytest.raises(ValidationError):
