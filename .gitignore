@@ -62,3 +62,6 @@ mahjong-solitaire/
 # Never commit these; they will bloat git history permanently.
 *.onnx
 voices-v1.0.bin
+
+# Codex CLI cache / state
+.codex/
