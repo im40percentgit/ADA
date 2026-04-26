@@ -27,9 +27,10 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from ada.api.auth import require_session_access
 from ada.sensors.simulator import SensorSimulator
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ async def start_simulator(
     session_id: str,
     body: SimulatorStartRequest,
     request: Request,
+    _access: None = Depends(require_session_access),
 ) -> dict:
     """
     Start a sensor simulator for a session.
@@ -92,6 +94,10 @@ async def start_simulator(
 
     bus = request.app.state.bus
     sim = SensorSimulator(bus=bus)
+    patient_id = body.patient_id
+    if request.app.state.config.auth.enabled:
+        session = await request.app.state.state_manager.get_session(session_id)
+        patient_id = session["patient_id"]
 
     num_readings = body.duration_s  # one tick per second = num_readings == duration_s
 
@@ -99,7 +105,7 @@ async def start_simulator(
         try:
             await sim.generate_stream(
                 session_id=session_id,
-                patient_id=body.patient_id,
+                patient_id=patient_id,
                 preset=body.preset,
                 num_readings=num_readings,
                 interval_s=1.0,
@@ -132,6 +138,7 @@ async def start_simulator(
 async def stop_simulator(
     session_id: str,
     request: Request,
+    _access: None = Depends(require_session_access),
 ) -> dict:
     """
     Stop the running sensor simulator for a session.

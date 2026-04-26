@@ -72,7 +72,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
@@ -135,7 +135,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
     config = websocket.app.state.config
 
     if config.auth.enabled:
-        from ada.api.auth import decode_token
+        from ada.api.auth import authorize_patient_access, user_from_access_token
 
         try:
             raw_auth = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
@@ -143,23 +143,26 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
             if auth_msg.get("type") != "auth" or not auth_msg.get("token"):
                 raise ValueError("Missing auth type or token")
             token = auth_msg["token"]
-            payload = decode_token(token, config.auth.secret_key, config.auth.algorithm)
-            if payload.get("type") != "access":
-                raise ValueError("Wrong token type")
-        except (asyncio.TimeoutError, Exception) as exc:
+            state = websocket.app.state.state_manager
+            user = await user_from_access_token(token, config, state)
+            session = await state.get_session(session_id)
+            if session is None:
+                raise ValueError("Session not found")
+            await authorize_patient_access(session["patient_id"], user, state)
+        except (TimeoutError, Exception) as exc:
             logger.warning("WebSocket: auth failed for session %s -- %s", session_id, exc)
             await websocket.close(code=4001)
             return
 
         logger.info(
             "WebSocket: session %s authenticated (user=%s)",
-            session_id, payload.get("sub"),
+            session_id, user.id,
         )
     else:
         # Auth disabled (test/dev mode) -- consume the auth frame if present
         try:
             await asyncio.wait_for(websocket.receive_text(), timeout=2.0)
-        except (asyncio.TimeoutError, Exception):
+        except (TimeoutError, Exception):
             pass
         logger.info("WebSocket: session %s connected (auth disabled)", session_id)
 
@@ -397,7 +400,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         while True:
             try:
                 item = await asyncio.wait_for(response_queue.get(), timeout=120.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
             if item is _SHUTDOWN:
@@ -413,7 +416,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
                         "content": event.content,
                         "agent": event.agent_name,
                         "message_id": event.message_id,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "source": source,
                     })
             except Exception:
@@ -440,7 +443,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str) -> None:
         # If the writer hasn't finished within 30 s, cancel it.
         try:
             await asyncio.wait_for(writer, timeout=30.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "WebSocket: writer did not drain within 30 s for session %s — cancelling",
                 session_id,
