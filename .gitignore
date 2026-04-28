@@ -63,5 +63,11 @@ mahjong-solitaire/
 *.onnx
 voices-v1.0.bin
 
+# Tailscale serve TLS material — never commit
+# `tailscale cert` writes <machine>.<tailnet>.ts.net.{crt,key} to cwd.
+# The .key is a real private key; accidental commit = credential leak.
+*.ts.net.crt
+*.ts.net.key
+
 # Codex CLI cache / state
 .codex/
