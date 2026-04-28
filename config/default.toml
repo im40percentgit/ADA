@@ -183,3 +183,9 @@ recovery_timeout_seconds = 120
 session_data_days = 365
 audit_log_days = 730
 export_temp_days = 7
+
+[verdict]
+nightly_cron_enabled = true
+cron_hour = 22
+cron_minute = 30
+cron_timezone = "UTC"

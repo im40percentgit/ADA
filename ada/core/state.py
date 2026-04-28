@@ -54,7 +54,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -3179,6 +3179,31 @@ class StateManager:
                 (patient_id, limit),
             )
         return [_game_session_row(r) for r in rows]
+
+    async def has_recent_game_sessions(
+        self,
+        patient_id: str,
+        since: timedelta,
+    ) -> bool:
+        """Return True if the patient has at least one game_sessions row within
+        the given timedelta from now (UTC).
+
+        Used by VerdictCron._run_once() to skip patients with no recent
+        activity — avoids generating NO_SIGNAL verdicts for inactive patients
+        at cron time.
+
+        Args:
+            patient_id: Patient whose events to check.
+            since:      How far back to look (e.g. timedelta(days=1)).
+        """
+        cutoff = (datetime.now(timezone.utc) - since).isoformat()
+        row = await self._fetchone(
+            """SELECT 1 FROM game_sessions
+               WHERE patient_id = ? AND occurred_at >= ?
+               LIMIT 1""",
+            (patient_id, cutoff),
+        )
+        return row is not None
 
     # ------------------------------------------------------------------
     # Daily Verdicts (Phase 15+ M3 — shadow mode)

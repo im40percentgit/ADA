@@ -56,6 +56,8 @@ from ada.knowledge.clinical_kb import ClinicalKnowledgeBase
 from ada.llm.router import create_model_router
 from ada.notifications.dispatcher import NotificationDispatcher
 from ada.tts.factory import create_tts_provider
+from ada.verdict.cron import VerdictCron
+from ada.verdict.generator import generate_verdict_for_date
 
 
 def configure_logging(config: AdaConfig) -> None:
@@ -278,6 +280,22 @@ async def run(config: AdaConfig) -> None:
         notification_dispatcher = NotificationDispatcher(bus, state, config.notifications)
         log.info("NotificationDispatcher instantiated")
 
+    # Nightly verdict cron (DEC-VERDICT-008)
+    verdict_cron = VerdictCron(
+        config=config,
+        state=state,
+        generator=generate_verdict_for_date,
+        llm=router.get_provider("verdict"),
+    )
+    verdict_cron.start()
+    log.info(
+        "VerdictCron started",
+        enabled=config.verdict.nightly_cron_enabled,
+        hour=config.verdict.cron_hour,
+        minute=config.verdict.cron_minute,
+        timezone=config.verdict.cron_timezone,
+    )
+
     # FastAPI
     app = create_app(config, bus, state, registry, tts_agent=tts_agent)
 
@@ -304,6 +322,7 @@ async def run(config: AdaConfig) -> None:
         await server.serve()
     finally:
         log.info("Shutting down agents and state")
+        await verdict_cron.stop()
         if daily_summary_generator is not None:
             await daily_summary_generator.shutdown()
         if board_suggestion_agent is not None:

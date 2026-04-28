@@ -99,6 +99,28 @@ class BoardSuggestionConfig(BaseModel):
     timeout_seconds: float = 30.0
 
 
+class VerdictConfig(BaseModel):
+    """Configuration for the nightly verdict cron (Phase 15+ M3).
+
+    nightly_cron_enabled: Set False to disable the background cron entirely.
+    cron_hour:            Hour (0-23, local to cron_timezone) when the cron fires.
+    cron_minute:          Minute (0-59) when the cron fires.
+    cron_timezone:        IANA timezone name for the firing schedule.
+
+    @decision DEC-VERDICT-009: verdict-generation schedule lives in TOML
+    (config.verdict.*), not the system_settings DB table. Rationale: cron
+    schedule is deploy-config (when does the LLM run); user-runtime config
+    (when does the caregiver get pinged) is a SEPARATE schedule that arrives
+    in M4 with the push, and that one will use system_settings for runtime
+    hot-swap.
+    """
+
+    nightly_cron_enabled: bool = True
+    cron_hour: int = 22
+    cron_minute: int = 30
+    cron_timezone: str = "UTC"
+
+
 class ProgressReportConfig(BaseModel):
     """Configuration for the progress report endpoint (Phase 12a)."""
 
@@ -470,6 +492,7 @@ class AdaConfig(BaseSettings):
     companion: CompanionConfig = CompanionConfig()
     model_routing: ModelRoutingConfig | None = None
     retention: RetentionConfig = RetentionConfig()
+    verdict: VerdictConfig = VerdictConfig()
 
     @classmethod
     def from_toml(cls, *paths: str | Path) -> AdaConfig:
